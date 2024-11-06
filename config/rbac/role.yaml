@@ -1,0 +1,33 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - watcher.openstack.org
+  resources:
+  - watcherapis
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - watcher.openstack.org
+  resources:
+  - watcherapis/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - watcher.openstack.org
+  resources:
+  - watcherapis/status
+  verbs:
+  - get
+  - patch
+  - update
