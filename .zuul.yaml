@@ -1,0 +1,9 @@
+---
+- project:
+    name: openstack-k8s-operators/watcher-operator
+    default-branch: main
+    github-check:
+      jobs:
+        - openstack-meta-content-provider:
+            vars:
+              cifmw_operator_build_meta_build: false
