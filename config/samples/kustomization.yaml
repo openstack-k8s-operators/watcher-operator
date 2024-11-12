@@ -1,4 +1,5 @@
 ## Append samples of your project ##
 resources:
 - watcher_v1beta1_watcherapi.yaml
+- watcher_v1beta1_watcher.yaml
 #+kubebuilder:scaffold:manifestskustomizesamples

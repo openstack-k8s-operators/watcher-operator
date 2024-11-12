@@ -24,6 +24,11 @@ spec:
       kind: WatcherAPI
       name: watcherapis.watcher.openstack.org
       version: v1beta1
+    - description: Watcher is the Schema for the watchers API
+      displayName: Watcher
+      kind: Watcher
+      name: watchers.watcher.openstack.org
+      version: v1beta1
   description: The Watcher Operator project
   displayName: Watcher Operator
   icon:
