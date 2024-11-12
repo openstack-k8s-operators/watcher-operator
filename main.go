@@ -36,7 +36,6 @@ import (
 
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
 	"github.com/openstack-k8s-operators/watcher-operator/controllers"
-	"github.com/openstack-k8s-operators/watcher-operator/internal/controller"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -123,7 +122,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controller.WatcherAPIReconciler{
+	if err = (&controllers.WatcherAPIReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
