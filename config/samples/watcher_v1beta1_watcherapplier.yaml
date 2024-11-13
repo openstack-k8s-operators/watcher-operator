@@ -1,0 +1,12 @@
+apiVersion: watcher.openstack.org/v1beta1
+kind: WatcherApplier
+metadata:
+  labels:
+    app.kubernetes.io/name: watcherapplier
+    app.kubernetes.io/instance: watcherapplier-sample
+    app.kubernetes.io/part-of: watcher-operator
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: watcher-operator
+  name: watcherapplier-sample
+spec:
+  # TODO(user): Add fields here

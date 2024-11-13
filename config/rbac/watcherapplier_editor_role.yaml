@@ -1,0 +1,31 @@
+# permissions for end users to edit watcherappliers.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: watcherapplier-editor-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: watcher-operator
+    app.kubernetes.io/part-of: watcher-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: watcherapplier-editor-role
+rules:
+- apiGroups:
+  - watcher.openstack.org
+  resources:
+  - watcherappliers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - watcher.openstack.org
+  resources:
+  - watcherappliers/status
+  verbs:
+  - get

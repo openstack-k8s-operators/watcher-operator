@@ -3,4 +3,5 @@ resources:
 - watcher_v1beta1_watcherapi.yaml
 - watcher_v1beta1_watcher.yaml
 - watcher_v1beta1_watcherdecisionengine.yaml
+- watcher_v1beta1_watcherapplier.yaml
 #+kubebuilder:scaffold:manifestskustomizesamples
