@@ -34,6 +34,32 @@ rules:
 - apiGroups:
   - watcher.openstack.org
   resources:
+  - watcherdecisionengines
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - watcher.openstack.org
+  resources:
+  - watcherdecisionengines/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - watcher.openstack.org
+  resources:
+  - watcherdecisionengines/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - watcher.openstack.org
+  resources:
   - watchers
   verbs:
   - create

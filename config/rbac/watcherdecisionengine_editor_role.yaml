@@ -1,0 +1,31 @@
+# permissions for end users to edit watcherdecisionengines.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: watcherdecisionengine-editor-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: watcher-operator
+    app.kubernetes.io/part-of: watcher-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: watcherdecisionengine-editor-role
+rules:
+- apiGroups:
+  - watcher.openstack.org
+  resources:
+  - watcherdecisionengines
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - watcher.openstack.org
+  resources:
+  - watcherdecisionengines/status
+  verbs:
+  - get

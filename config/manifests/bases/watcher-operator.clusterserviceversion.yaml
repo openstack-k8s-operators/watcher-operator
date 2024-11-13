@@ -24,6 +24,12 @@ spec:
       kind: WatcherAPI
       name: watcherapis.watcher.openstack.org
       version: v1beta1
+    - description: WatcherDecisionEngine is the Schema for the watcherdecisionengines
+        API
+      displayName: Watcher Decision Engine
+      kind: WatcherDecisionEngine
+      name: watcherdecisionengines.watcher.openstack.org
+      version: v1beta1
     - description: Watcher is the Schema for the watchers API
       displayName: Watcher
       kind: Watcher
