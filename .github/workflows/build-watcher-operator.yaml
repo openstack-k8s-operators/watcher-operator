@@ -1,0 +1,25 @@
+name: watcher operator image builder
+
+on:
+  push:
+    branches:
+      - '*'
+
+env:
+  imageregistry: 'quay.io'
+  imagenamespace: ${{ secrets.IMAGENAMESPACE || secrets.QUAY_USERNAME }}
+  latesttag: latest
+
+jobs:
+  call-build-workflow:
+    uses: openstack-k8s-operators/openstack-k8s-operators-ci/.github/workflows/reusable-build-operator.yaml@main
+    with:
+      operator_name: watcher
+      go_version: 1.21.x
+      operator_sdk_version: 1.31.0
+    secrets:
+      IMAGENAMESPACE: ${{ secrets.IMAGENAMESPACE }}
+      QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
+      REDHATIO_USERNAME: ${{ secrets.REDHATIO_USERNAME }}
+      REDHATIO_PASSWORD: ${{ secrets.REDHATIO_PASSWORD }}
