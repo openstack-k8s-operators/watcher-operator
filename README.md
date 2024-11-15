@@ -66,6 +66,42 @@ make uninstall
 make undeploy
 ```
 
+### To Deploy via OLM
+
+**Deploy watcher-operator via olm
+
+```sh
+make watcher
+```
+
+**Deply watcher-operator via olm with different catalog image
+
+```sh
+make watcher CATALOG_IMAGE=<catalog image url with tag>
+```
+
+#### To Deploy watcher service
+
+**Deploy watcher service
+
+```sh
+make watcher_deploy
+```
+
+### To Uninstall OLM deployed watcher-operator
+
+**Undeploy watcher service
+
+```sh
+make watcher_deploy_cleanup
+```
+
+**Uninstall watcher-operator
+
+```sh
+make watcher_cleanup
+```
+
 ## Project Distribution
 
 Following are the steps to build the installer and distribute this project to users.

@@ -371,3 +371,26 @@ update-watcher-csv:
 	if [ "$(has_webhooks)" != "null" ]; then \
 	    oc patch -n $(OPERATOR_NAMESPACE) $(csv) --type json -p='[{"op": "remove", "path": "/spec/webhookdefinitions"}]'; \
 	fi
+
+CATALOG_IMAGE ?= quay.io/openstack-k8s-operators/watcher-operator-index:latest
+
+.PHONY: watcher
+watcher: export CATALOG_IMG=${CATALOG_IMAGE}
+watcher: ## Install watcher operator via olm
+	bash ci/olm.sh
+	oc apply -f ci/olm.yaml
+	timeout 300s bash -c "while ! (oc get csv -n openstack-operators -l operators.coreos.com/watcher-operator.openstack-operators -o jsonpath='{.items[*].status.phase}' | grep Succeeded); do sleep 1; done"
+
+.PHONY: watcher_deploy
+watcher_deploy: ## Deploy watcher service
+	oc apply -f config/samples/watcher_v1beta1_watcher.yaml
+
+.PHONY: watcher_deploy_cleanup
+watcher_deploy_cleanup: ## Undeploy watcher service
+	oc delete -f config/samples/watcher_v1beta1_watcher.yaml
+
+.PHONY: watcher_cleanup
+watcher_cleanup: export CATALOG_IMG=${CATALOG_IMAGE}
+watcher_cleanup: ## Cleaning watcher operator via olm
+	bash ci/olm.sh
+	oc delete -f ci/olm.yaml

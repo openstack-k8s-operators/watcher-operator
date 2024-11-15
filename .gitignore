@@ -33,3 +33,6 @@ CI_TOOLS_REPO
 *.swp
 *.swo
 *~
+
+# CI generated files
+ci/olm.yaml
