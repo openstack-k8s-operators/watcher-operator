@@ -1,0 +1,23 @@
+---
+# This hook is used to deploy watcher service.
+
+- name: Deploy Watcher service
+  hosts: "{{ cifmw_target_hook_host | default('localhost') }}"
+  gather_facts: false
+  environment:
+    KUBECONFIG: "{{ cifmw_openshift_kubeconfig }}"
+    PATH: "{{ cifmw_path }}"
+  tasks:
+    - name: Install Watcher Operator
+      cifmw.general.ci_script:
+        output_dir: "{{ cifmw_basedir }}/artifacts"
+        chdir: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator"
+        script: make watcher
+        extra_args:
+          CATALOG_IMAGE: "{{ watcher_catalog_image | default('quay.io/openstack-k8s-operators/watcher-operator-index:latest') }}"
+
+    - name: Deploy Watcher service
+      cifmw.general.ci_script:
+        output_dir: "{{ cifmw_basedir }}/artifacts"
+        chdir: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator"
+        script: make watcher_deploy
