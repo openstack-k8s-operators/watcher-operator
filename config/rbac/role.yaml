@@ -6,6 +6,36 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
+  - mariadb.openstack.org
+  resources:
+  - mariadbaccounts
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - mariadb.openstack.org
+  resources:
+  - mariadbaccounts/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - mariadb.openstack.org
+  resources:
+  - mariadbdatabases
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - watcher.openstack.org
   resources:
   - watcherapis
