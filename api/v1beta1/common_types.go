@@ -33,7 +33,7 @@ type WatcherTemplate struct {
 
 	// +kubebuilder:validation:Required
 	// MariaDB instance name
-	// Required to use the maridb-operator instance to create the DB and user
+	// Required to use the mariadb-operator instance to create the DB and user
 	DatabaseInstance string `json:"databaseInstance"`
 
 	// +kubebuilder:validation:Optional

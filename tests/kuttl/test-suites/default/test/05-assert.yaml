@@ -1,0 +1,9 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+namespaced: true
+commands:
+  - script: |
+      set -ex
+      oc get mariadbaccount -n watcher-kuttl-default --no-headers=true | [ $(grep -c ^watcher) == 0 ]
+      oc get mariadbdatabase -n watcher-kuttl-default --no-headers=true | [ $(grep -c ^watcher) == 0 ]
+      oc get secret -n watcher-kuttl-default --no-headers=true | [ $(grep -c ^watcher) == 0 ]

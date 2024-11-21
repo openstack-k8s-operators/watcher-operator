@@ -1,0 +1,50 @@
+apiVersion: watcher.openstack.org/v1beta1
+kind: Watcher
+metadata:
+  finalizers:
+  - openstack.org/watcher
+  name: watcher-kuttl
+  namespace: watcher-kuttl-default
+status:
+  conditions:
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: Ready
+  - message: DB create completed
+    reason: Ready
+    status: "True"
+    type: DBReady
+  - message: MariaDBAccount creation complete
+    reason: Ready
+    status: "True"
+    type: MariaDBAccountReady
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: watcher-db-secret
+  namespace: watcher-kuttl-default
+  finalizers:
+  - openstack.org/watcher
+---
+apiVersion: mariadb.openstack.org/v1beta1
+kind: MariaDBAccount
+metadata:
+  name: watcher
+  namespace: watcher-kuttl-default
+  finalizers:
+  - openstack.org/watcher
+  - openstack.org/mariadbaccount
+  labels:
+    mariaDBDatabaseName: watcher
+---
+apiVersion: mariadb.openstack.org/v1beta1
+kind: MariaDBDatabase
+metadata:
+  name: watcher
+  namespace: watcher-kuttl-default
+  finalizers:
+  - openstack.org/watcher
+  - openstack.org/mariadbdatabase
+  - openstack.org/mariadbaccount-watcher

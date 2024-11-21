@@ -41,7 +41,7 @@ spec:
                   DB, defaults to watcher
                 type: string
               databaseInstance:
-                description: MariaDB instance name Required to use the maridb-operator
+                description: MariaDB instance name Required to use the mariadb-operator
                   instance to create the DB and user
                 type: string
               passwordSelectors:

@@ -107,7 +107,7 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 
 	_ = serviceLabels
 
-	// Save a copy of the condtions so that we can restore the LastTransitionTime
+	// Save a copy of the conditions so that we can restore the LastTransitionTime
 	// when a condition's state doesn't change.
 	isNewInstance := instance.Status.Conditions == nil
 	savedConditions := instance.Status.Conditions.DeepCopy()
@@ -219,7 +219,7 @@ func (r *WatcherReconciler) ensureDB(
 	Log := r.GetLogger(ctx)
 	Log.Info(fmt.Sprintf("Reconciling the DB instance for '%s'", instance.Name))
 
-	// ensure MariaDBAccount existswithout being yet associated with any database.
+	// ensure MariaDBAccount exists without being yet associated with any database.
 	// This account record may be created by the openstack-operator up front.
 	_, _, err := mariadbv1.EnsureMariaDBAccount(
 		ctx, h, instance.Spec.DatabaseAccount,

@@ -1,5 +1,5 @@
 /*
-Copyright 2023.
+Copyright 2024.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package functional implements the envTest coverage for barbican-operator
+// Package functional implements the envTest coverage for watcher-operator
 package functional
 
 import (
@@ -27,7 +27,7 @@ import (
 
 type APIType string
 
-// BarbicanTestData is the data structure used to provide input data to envTest
+// WatcherTestData is the data structure used to provide input data to envTest
 type WatcherTestData struct {
 	//DatabaseHostname             string
 	DatabaseInstance             string
@@ -38,7 +38,7 @@ type WatcherTestData struct {
 	WatcherDatabaseAccountSecret types.NamespacedName
 }
 
-// GetBarbicanTestData is a function that initialize the BarbicanTestData
+// GetWatcherTestData is a function that initialize the WatcherTestData
 // used in the test
 func GetWatcherTestData(watcherName types.NamespacedName) WatcherTestData {
 	m := watcherName

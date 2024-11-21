@@ -36,3 +36,4 @@ CI_TOOLS_REPO
 
 # CI generated files
 ci/olm.yaml
+tests/kuttl/test-suites/default/output/*

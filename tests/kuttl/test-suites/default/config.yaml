@@ -1,0 +1,14 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestSuite
+reportFormat: JSON
+reportName: kuttl-default-results
+namespace: watcher-kuttl-default
+# we could set this lower, but the initial image pull can take a while
+timeout: 300
+parallel: 1
+skipDelete: true
+testDirs:
+  - tests/kuttl/test-suites/default/
+suppress:
+  - events
+artifactsDir: tests/kuttl/test-suites/default/output
