@@ -6,4 +6,4 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: watcherapi-sample
 spec:
-  # TODO(user): Add fields here
+  databaseInstance: "openstack"
