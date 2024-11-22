@@ -33,6 +33,13 @@ func GetDefaultWatcherSpec() map[string]interface{} {
 	}
 }
 
+func GetDefaultWatcherAPISpec() map[string]interface{} {
+	return map[string]interface{}{
+		"databaseInstance": "openstack",
+		"secret":           SecretName,
+	}
+}
+
 func CreateWatcher(name types.NamespacedName, spec map[string]interface{}) client.Object {
 	raw := map[string]interface{}{
 		"apiVersion": "watcher.openstack.org/v1beta1",
@@ -56,5 +63,31 @@ func GetWatcher(name types.NamespacedName) *watcherv1.Watcher {
 
 func WatcherConditionGetter(name types.NamespacedName) condition.Conditions {
 	instance := GetWatcher(name)
+	return instance.Status.Conditions
+}
+
+func CreateWatcherAPI(name types.NamespacedName, spec map[string]interface{}) client.Object {
+	raw := map[string]interface{}{
+		"apiVersion": "watcher.openstack.org/v1beta1",
+		"kind":       "WatcherAPI",
+		"metadata": map[string]interface{}{
+			"name":      name.Name,
+			"namespace": name.Namespace,
+		},
+		"spec": spec,
+	}
+	return th.CreateUnstructured(raw)
+}
+
+func GetWatcherAPI(name types.NamespacedName) *watcherv1.WatcherAPI {
+	instance := &watcherv1.WatcherAPI{}
+	Eventually(func(g Gomega) {
+		g.Expect(k8sClient.Get(ctx, name, instance)).Should(Succeed())
+	}, timeout, interval).Should(Succeed())
+	return instance
+}
+
+func WatcherAPIConditionGetter(name types.NamespacedName) condition.Conditions {
+	instance := GetWatcherAPI(name)
 	return instance.Status.Conditions
 }

@@ -17,25 +17,28 @@ limitations under the License.
 package v1beta1
 
 import (
+	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // WatcherAPISpec defines the desired state of WatcherAPI
 type WatcherAPISpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of WatcherAPI. Edit watcherapi_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	WatcherCommon `json:",inline"`
 }
 
 // WatcherAPIStatus defines the observed state of WatcherAPI
 type WatcherAPIStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Conditions
+	Conditions condition.Conditions `json:"conditions,omitempty" optional:"true"`
+
+	// ObservedGeneration - the most recent generation observed for this
+	// service. If the observed generation is less than the spec generation,
+	// then the controller has not processed the latest changes injected by
+	// the openstack-operator in the top-level CR (e.g. the ContainerImage)
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 }
 
 //+kubebuilder:object:root=true
