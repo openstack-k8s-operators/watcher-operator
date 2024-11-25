@@ -3,7 +3,6 @@ kind: Service
 metadata:
   labels:
     control-plane: controller-manager
-    app.kubernetes.io/name: watcher-operator
     app.kubernetes.io/managed-by: kustomize
   name: controller-manager-metrics-service
   namespace: system
@@ -14,4 +13,4 @@ spec:
     protocol: TCP
     targetPort: https
   selector:
-    control-plane: controller-manager
+    openstack.org/operator-name: watcher
