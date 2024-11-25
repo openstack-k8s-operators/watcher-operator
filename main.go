@@ -137,36 +137,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.WatcherAPIReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "WatcherAPI")
+	reconcilers := controllers.NewReconcilers(mgr, kclient)
+	err = reconcilers.Setup(mgr, setupLog)
+	if err != nil {
 		os.Exit(1)
 	}
-	if err = (&controllers.WatcherReconciler{
-		Client:  mgr.GetClient(),
-		Kclient: kclient,
-		Scheme:  mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Watcher")
-		os.Exit(1)
-	}
-	if err = (&controllers.WatcherDecisionEngineReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "WatcherDecisionEngine")
-		os.Exit(1)
-	}
-	if err = (&controllers.WatcherApplierReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "WatcherApplier")
-		os.Exit(1)
-	}
-	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")

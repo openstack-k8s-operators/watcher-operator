@@ -138,17 +138,12 @@ var _ = BeforeSuite(func() {
 	kclient, err := kubernetes.NewForConfig(cfg)
 	Expect(err).ToNot(HaveOccurred(), "failed to create kclient")
 
-	err = (&controllers.WatcherReconciler{
-		Client:  k8sManager.GetClient(),
-		Scheme:  k8sManager.GetScheme(),
-		Kclient: kclient,
-	}).SetupWithManager(k8sManager)
-	Expect(err).ToNot(HaveOccurred())
-
-	err = (&controllers.WatcherAPIReconciler{
-		Client: k8sManager.GetClient(),
-		Scheme: k8sManager.GetScheme(),
-	}).SetupWithManager(k8sManager)
+	reconcilers := controllers.NewReconcilers(k8sManager, kclient)
+	// During envtest we simulate success of tasks (e.g Job,
+	// Deployment, DB) so we can speed up the test execution by reducing the
+	// time we wait before we reconcile when a task is running.
+	reconcilers.OverrideRequeueTimeout(time.Duration(10) * time.Millisecond)
+	err = reconcilers.Setup(k8sManager, ctrl.Log.WithName("testSetup"))
 	Expect(err).ToNot(HaveOccurred())
 
 	watcherv1.SetupDefaults()

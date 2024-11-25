@@ -20,10 +20,7 @@ import (
 	"context"
 	"fmt"
 
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -41,9 +38,7 @@ import (
 
 // WatcherReconciler reconciles a Watcher object
 type WatcherReconciler struct {
-	client.Client
-	Kclient kubernetes.Interface
-	Scheme  *runtime.Scheme
+	ReconcilerBase
 }
 
 // GetLogger returns a logger object with a prefix of "controller.name" and additional controller context fields

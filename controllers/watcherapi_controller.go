@@ -19,9 +19,7 @@ package controllers
 import (
 	"context"
 
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
@@ -29,8 +27,7 @@ import (
 
 // WatcherAPIReconciler reconciles a WatcherAPI object
 type WatcherAPIReconciler struct {
-	client.Client
-	Scheme *runtime.Scheme
+	ReconcilerBase
 }
 
 //+kubebuilder:rbac:groups=watcher.openstack.org,resources=watcherapis,verbs=get;list;watch;create;update;patch;delete
