@@ -266,7 +266,7 @@ func (r *WatcherReconciler) ensureDB(
 		return db, ctrlResult, nil
 	}
 	// wait for the DB to be setup
-	ctrlResult, err = db.WaitForDBCreated(ctx, h)
+	ctrlResult, err = db.WaitForDBCreatedWithTimeout(ctx, h, r.RequeueTimeout)
 	if err != nil {
 		instance.Status.Conditions.Set(condition.FalseCondition(
 			condition.DBReadyCondition,
