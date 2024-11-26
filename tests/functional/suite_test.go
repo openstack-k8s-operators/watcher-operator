@@ -28,12 +28,14 @@ import (
 
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	rabbitmqv1 "github.com/openstack-k8s-operators/infra-operator/apis/rabbitmq/v1beta1"
 	test "github.com/openstack-k8s-operators/lib-common/modules/test"
 	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 	watcherv1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
 	"github.com/openstack-k8s-operators/watcher-operator/controllers"
 	corev1 "k8s.io/api/core/v1"
 
+	infra_test "github.com/openstack-k8s-operators/infra-operator/apis/test/helpers"
 	common_test "github.com/openstack-k8s-operators/lib-common/modules/common/test/helpers"
 	mariadb_test "github.com/openstack-k8s-operators/mariadb-operator/api/test/helpers"
 )
@@ -50,6 +52,7 @@ var (
 	logger      logr.Logger
 	th          *common_test.TestHelper
 	mariadb     *mariadb_test.TestHelper
+	infra       *infra_test.TestHelper
 	namespace   string
 	watcherName types.NamespacedName
 	watcherTest WatcherTestData
@@ -81,11 +84,16 @@ var _ = BeforeSuite(func() {
 		"github.com/openstack-k8s-operators/mariadb-operator/api", "../../go.mod", "bases")
 	Expect(err).ShouldNot(HaveOccurred())
 
+	rabbitmqCRDs, err := test.GetCRDDirFromModule(
+		"github.com/openstack-k8s-operators/infra-operator/apis", "../../go.mod", "bases")
+	Expect(err).ShouldNot(HaveOccurred())
+
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("..", "..", "config", "crd", "bases"),
 			mariaDBCRDs,
+			rabbitmqCRDs,
 		},
 
 		ErrorIfCRDPathMissing: true,
@@ -109,6 +117,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	err = corev1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
+	err = rabbitmqv1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
 
 	logger = ctrl.Log.WithName("---Test---")
 	//+kubebuilder:scaffold:scheme
@@ -120,6 +130,8 @@ var _ = BeforeSuite(func() {
 	Expect(th).NotTo(BeNil())
 	mariadb = mariadb_test.NewTestHelper(ctx, k8sClient, timeout, interval, logger)
 	Expect(mariadb).NotTo(BeNil())
+	infra = infra_test.NewTestHelper(ctx, k8sClient, timeout, interval, logger)
+	Expect(infra).NotTo(BeNil())
 
 	// Start the controller-manager if goroutine
 	webhookInstallOptions := &testEnv.WebhookInstallOptions

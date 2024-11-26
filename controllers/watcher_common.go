@@ -29,6 +29,11 @@ var (
 	}
 )
 
+const (
+	// TransportURLSelector is the name of key in the secret created by TransportURL
+	TransportURLSelector = "transport_url"
+)
+
 // GetLogger returns a logger object with a prefix of "controller.name" and additional controller context fields
 func (r *ReconcilerBase) GetLogger(ctx context.Context) logr.Logger {
 	return log.FromContext(ctx).WithName("Controllers").WithName("ReconcilerBase")

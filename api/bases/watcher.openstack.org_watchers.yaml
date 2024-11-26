@@ -61,12 +61,19 @@ spec:
                       password from the Secret
                     type: string
                 type: object
+              rabbitMqClusterName:
+                default: rabbitmq
+                description: |-
+                  RabbitMQ instance name
+                  Needed to request a transportURL that is created and used in Barbican
+                type: string
               secret:
                 default: osp-secret
                 description: Secret containing all passwords / keys needed
                 type: string
             required:
             - databaseInstance
+            - rabbitMqClusterName
             type: object
           status:
             description: WatcherStatus defines the observed state of Watcher
