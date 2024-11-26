@@ -105,6 +105,9 @@ var _ = BeforeSuite(func() {
 	err = (&WatcherAPI{}).SetupWebhookWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
+	err = (&WatcherDecisionEngine{}).SetupWebhookWithManager(mgr)
+	Expect(err).NotTo(HaveOccurred())
+
 	//+kubebuilder:scaffold:webhook
 
 	go func() {
