@@ -31,12 +31,14 @@ type APIType string
 type WatcherTestData struct {
 	//DatabaseHostname             string
 	DatabaseInstance             string
+	RabbitMqClusterName          string
 	Instance                     types.NamespacedName
 	Watcher                      types.NamespacedName
 	WatcherDatabaseName          types.NamespacedName
 	WatcherDatabaseAccount       types.NamespacedName
 	WatcherDatabaseAccountSecret types.NamespacedName
 	InternalTopLevelSecretName   types.NamespacedName
+	WatcherTransportURL          types.NamespacedName
 }
 
 // GetWatcherTestData is a function that initialize the WatcherTestData
@@ -67,6 +69,11 @@ func GetWatcherTestData(watcherName types.NamespacedName) WatcherTestData {
 		InternalTopLevelSecretName: types.NamespacedName{
 			Namespace: watcherName.Namespace,
 			Name:      "test-osp-secret",
+		},
+		RabbitMqClusterName: "rabbitmq",
+		WatcherTransportURL: types.NamespacedName{
+			Namespace: watcherName.Namespace,
+			Name:      fmt.Sprintf("%s-watcher-transport", watcherName.Name),
 		},
 	}
 }

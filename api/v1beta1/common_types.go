@@ -40,6 +40,12 @@ type WatcherTemplate struct {
 	// +kubebuilder:default=watcher
 	// DatabaseAccount - MariaDBAccount CR name used for watcher DB, defaults to watcher
 	DatabaseAccount string `json:"databaseAccount"`
+
+	// +kubebuilder:validation:Required
+	// +kubebuilder:default=rabbitmq
+	// RabbitMQ instance name
+	// Needed to request a transportURL that is created and used in Barbican
+	RabbitMqClusterName string `json:"rabbitMqClusterName"`
 }
 
 // PasswordSelector to identify the DB and AdminUser password from the Secret
