@@ -8,6 +8,7 @@
             vars:
               cifmw_operator_build_meta_build: false
         - watcher-operator-validation
+        - watcher-operator-kuttl
 
 - job:
     name: watcher-operator-base
@@ -19,7 +20,7 @@
     vars:
       watcher_repo: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator"
       watcher_hook: "{{ watcher_repo }}/ci/playbooks/deploy_watcher_service.yaml"
-      cifmw_install_yamls_whitelisted_vars:
+      cifmw_install_yamls_whitelisted_vars: &install_yamls_whitelist
         - 'WATCHER_REPO'
         - 'WATCHER_BRANCH'
         - 'OUTPUT_DIR'
@@ -37,3 +38,24 @@
       A zuul job to validate the watcher operator and its service deployment.
     vars:
       run_tempest: false
+
+- job:
+    name: watcher-operator-kuttl
+    parent: cifmw-multinode-kuttl-operator-target
+    description: |
+      A zuul job to run watcher operator kuttl tests.
+    vars:
+      operator_name: watcher-operator
+      cifmw_install_yamls_whitelisted_vars: *install_yamls_whitelist
+      watcher_repo: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator"
+      watcher_hook: "{{ watcher_repo }}/ci/playbooks/deploy_watcher_service.yaml"
+      deploy_watcher_service: false
+      # run the hook to install watcher at the end of the cifmw infra playbook. If we try to run it
+      # as a standalone plabyook, it tries to load the cifmw ci_script action
+      # plugin from the zuul executor and doesn't find it
+      post_infra:
+        - name: Deploy watcher service
+          type: playbook
+          source: "{{ watcher_hook }}"
+          extra_vars:
+            watcher_catalog_image: "{{ content_provider_registry_ip }}:5001/openstack-k8s-operators/watcher-operator-index:{{ zuul.patchset }}"

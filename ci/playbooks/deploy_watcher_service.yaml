@@ -17,6 +17,7 @@
           CATALOG_IMAGE: "{{ watcher_catalog_image | default('quay.io/openstack-k8s-operators/watcher-operator-index:latest') }}"
 
     - name: Deploy Watcher service
+      when: deploy_watcher_service | default('true') | bool
       cifmw.general.ci_script:
         output_dir: "{{ cifmw_basedir }}/artifacts"
         chdir: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator"
