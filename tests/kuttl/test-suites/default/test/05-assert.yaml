@@ -7,3 +7,5 @@ commands:
       oc get mariadbaccount -n watcher-kuttl-default --no-headers=true | [ $(grep -c ^watcher) == 0 ]
       oc get mariadbdatabase -n watcher-kuttl-default --no-headers=true | [ $(grep -c ^watcher) == 0 ]
       oc get secret -n watcher-kuttl-default --no-headers=true | [ $(grep -c ^watcher) == 0 ]
+      oc get secret -n watcher-kuttl-default --no-headers=true | [ $(grep -c ^rabbitmq-transport-url-.*-watcher-transport) == 0 ]
+      oc get transporturl -n watcher-kuttl-default --no-headers=true | [ $(grep -c ^watcher-kuttl-watcher-transport) == 0 ]
