@@ -65,7 +65,7 @@ webhooks:
     - CREATE
     - UPDATE
     resources:
-    - watcher
+    - watchers
     scope: '*'
   sideEffects: None
   timeoutSeconds: 10
@@ -93,7 +93,7 @@ webhooks:
     - CREATE
     - UPDATE
     resources:
-    - watcher
+    - watchers
     scope: '*'
   sideEffects: None
   timeoutSeconds: 10

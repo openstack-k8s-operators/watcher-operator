@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"os"
+	"strings"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -62,8 +63,8 @@ func main() {
 	var probeAddr string
 	var secureMetrics bool
 	var enableHTTP2 bool
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
-	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	flag.StringVar(&metricsAddr, "metrics-bind-address", ":33080", "The address the metric endpoint binds to.")
+	flag.StringVar(&probeAddr, "health-probe-bind-address", ":33081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
@@ -143,12 +144,34 @@ func main() {
 	if err != nil {
 		os.Exit(1)
 	}
+	checker := healthz.Ping
+	// Setup webhooks if requested
 
-	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+	if strings.ToLower(os.Getenv("ENABLE_WEBHOOKS")) != "false" {
+
+		if err = (&watcherv1beta1.Watcher{}).SetupWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "Watcher")
+			os.Exit(1)
+		}
+		if err = (&watcherv1beta1.WatcherAPI{}).SetupWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "WatcherAPI")
+			os.Exit(1)
+		}
+		if err = (&watcherv1beta1.WatcherApplier{}).SetupWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "WatcherApplier")
+			os.Exit(1)
+		}
+		if err = (&watcherv1beta1.WatcherDecisionEngine{}).SetupWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "WatcherDecisionEngine")
+			os.Exit(1)
+		}
+		checker = mgr.GetWebhookServer().StartedChecker()
+	}
+	if err := mgr.AddHealthzCheck("healthz", checker); err != nil {
 		setupLog.Error(err, "unable to set up health check")
 		os.Exit(1)
 	}
-	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+	if err := mgr.AddReadyzCheck("readyz", checker); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}

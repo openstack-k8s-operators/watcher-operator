@@ -1,0 +1,174 @@
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  creationTimestamp: null
+  name: mutating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-watcher-openstack-org-v1beta1-watcher
+  failurePolicy: Fail
+  name: mwatcher.kb.io
+  rules:
+  - apiGroups:
+    - watcher.openstack.org
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - watchers
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-watcher-openstack-org-v1beta1-watcherapi
+  failurePolicy: Fail
+  name: mwatcherapi.kb.io
+  rules:
+  - apiGroups:
+    - watcher.openstack.org
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - watcherapis
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-watcher-openstack-org-v1beta1-watcherapplier
+  failurePolicy: Fail
+  name: mwatcherapplier.kb.io
+  rules:
+  - apiGroups:
+    - watcher.openstack.org
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - watcherappliers
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-watcher-openstack-org-v1beta1-watcherdecisionengine
+  failurePolicy: Fail
+  name: mwatcherdecisionengine.kb.io
+  rules:
+  - apiGroups:
+    - watcher.openstack.org
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - watcherdecisionengines
+  sideEffects: None
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  creationTimestamp: null
+  name: validating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-watcher-openstack-org-v1beta1-watcher
+  failurePolicy: Fail
+  name: vwatcher.kb.io
+  rules:
+  - apiGroups:
+    - watcher.openstack.org
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - watchers
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-watcher-openstack-org-v1beta1-watcherapi
+  failurePolicy: Fail
+  name: vwatcherapi.kb.io
+  rules:
+  - apiGroups:
+    - watcher.openstack.org
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - watcherapis
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-watcher-openstack-org-v1beta1-watcherapplier
+  failurePolicy: Fail
+  name: vwatcherapplier.kb.io
+  rules:
+  - apiGroups:
+    - watcher.openstack.org
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - watcherappliers
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-watcher-openstack-org-v1beta1-watcherdecisionengine
+  failurePolicy: Fail
+  name: vwatcherdecisionengine.kb.io
+  rules:
+  - apiGroups:
+    - watcher.openstack.org
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - watcherdecisionengines
+  sideEffects: None

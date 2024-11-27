@@ -2,6 +2,9 @@ package functional
 
 import (
 	"context"
+	"crypto/tls"
+	"fmt"
+	"net"
 	"path/filepath"
 	"testing"
 	"time"
@@ -148,8 +151,14 @@ var _ = BeforeSuite(func() {
 
 	watcherv1.SetupDefaults()
 
-	//err = (&watcherv1.Watcher{}).SetupWebhookWithManager(k8sManager)
-	//Expect(err).NotTo(HaveOccurred())
+	err = (&watcherv1.Watcher{}).SetupWebhookWithManager(k8sManager)
+	Expect(err).NotTo(HaveOccurred())
+	err = (&watcherv1.WatcherAPI{}).SetupWebhookWithManager(k8sManager)
+	Expect(err).NotTo(HaveOccurred())
+	err = (&watcherv1.WatcherDecisionEngine{}).SetupWebhookWithManager(k8sManager)
+	Expect(err).NotTo(HaveOccurred())
+	err = (&watcherv1.WatcherApplier{}).SetupWebhookWithManager(k8sManager)
+	Expect(err).NotTo(HaveOccurred())
 
 	go func() {
 		defer GinkgoRecover()
@@ -158,16 +167,16 @@ var _ = BeforeSuite(func() {
 	}()
 
 	// wait for the webhook server to get ready
-	//dialer := &net.Dialer{Timeout: 10 * time.Second}
-	//addrPort := fmt.Sprintf("%s:%d", webhookInstallOptions.LocalServingHost, webhookInstallOptions.LocalServingPort)
-	//Eventually(func() error {
-	//	conn, err := tls.DialWithDialer(dialer, "tcp", addrPort, &tls.Config{InsecureSkipVerify: true})
-	//	if err != nil {
-	//		return err
-	//	}
-	//	conn.Close()
-	//	return nil
-	//}).Should(Succeed())
+	dialer := &net.Dialer{Timeout: 10 * time.Second}
+	addrPort := fmt.Sprintf("%s:%d", webhookInstallOptions.LocalServingHost, webhookInstallOptions.LocalServingPort)
+	Eventually(func() error {
+		conn, err := tls.DialWithDialer(dialer, "tcp", addrPort, &tls.Config{InsecureSkipVerify: true})
+		if err != nil {
+			return err
+		}
+		conn.Close()
+		return nil
+	}).Should(Succeed())
 })
 
 var _ = AfterSuite(func() {
