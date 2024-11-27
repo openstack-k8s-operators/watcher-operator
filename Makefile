@@ -437,3 +437,18 @@ PHONY: crd-schema-check
 crd-schema-check: manifests
 	INSTALL_DIR=$(LOCALBIN) CRD_SCHEMA_CHECKER_VERSION=$(CRD_SCHEMA_CHECKER_VERSION) hack/build-crd-schema-checker.sh
 	INSTALL_DIR=$(LOCALBIN) BASE_REF="$${PULL_BASE_SHA:-$(BRANCH)}" hack/crd-schema-checker.sh
+
+# Used for webhook testing
+# The configure_local_webhook.sh script below will remove any OLM webhooks
+# for the operator and also scale its deployment replicas down to 0 so that
+# the operator can run locally.
+# We will attempt to catch SIGINT/SIGTERM and clean up the local webhooks,
+# but it may be necessary to manually run ./hack/clean_local_webhook.sh
+# before deploying with OLM again for other untrappable signals.
+SKIP_CERT ?=false
+.PHONY: run-with-webhook
+run-with-webhook: export METRICS_PORT?=8080
+run-with-webhook: export HEALTH_PORT?=8081
+run-with-webhook: manifests generate fmt vet ## Run a controller from your host.
+	/bin/bash hack/clean_local_webhook.sh
+	/bin/bash hack/run_with_local_webhook.sh
