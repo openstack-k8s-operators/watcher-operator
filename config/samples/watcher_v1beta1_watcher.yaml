@@ -3,10 +3,10 @@ kind: Watcher
 metadata:
   labels:
     app.kubernetes.io/name: watcher
-    app.kubernetes.io/instance: watcher-sample
+    app.kubernetes.io/instance: watcher
     app.kubernetes.io/part-of: watcher-operator
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/created-by: watcher-operator
-  name: watcher-sample
+  name: watcher
 spec:
-  # TODO(user): Add fields here
+  databaseInstance: "openstack"
