@@ -1,0 +1,6 @@
+apiVersion: watcher.openstack.org/v1beta1
+kind: WatcherAPI
+metadata:
+  name: watcherapi-kuttl
+spec:
+  databaseInstance: "openstack"

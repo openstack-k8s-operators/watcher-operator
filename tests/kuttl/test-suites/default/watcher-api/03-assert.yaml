@@ -1,0 +1,26 @@
+apiVersion: watcher.openstack.org/v1beta1
+kind: WatcherAPI
+metadata:
+  finalizers:
+  - openstack.org/watcherapi
+  name: watcherapi-kuttl
+spec:
+  databaseAccount: watcher
+  databaseInstance: openstack
+  passwordSelectors:
+    service: WatcherPassword
+  secret: osp-secret
+status:
+  conditions:
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: Ready
+  - message: Input data complete
+    reason: Ready
+    status: "True"
+    type: InputReady
+  - message: Service config create completed
+    reason: Ready
+    status: "True"
+    type: ServiceConfigReady
