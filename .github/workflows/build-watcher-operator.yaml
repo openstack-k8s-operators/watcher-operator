@@ -12,6 +12,8 @@ env:
 
 jobs:
   call-build-workflow:
+    # Disable workflow on forked repos
+    if: github.repository == 'openstack-k8s-operators/watcher-operator'
     uses: openstack-k8s-operators/openstack-k8s-operators-ci/.github/workflows/reusable-build-operator.yaml@main
     with:
       operator_name: watcher
