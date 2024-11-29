@@ -4,6 +4,7 @@
     default-branch: main
     github-check:
       jobs:
+        - noop
         - openstack-meta-content-provider:
             vars:
               cifmw_operator_build_meta_build: false
