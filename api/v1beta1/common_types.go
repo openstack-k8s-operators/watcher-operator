@@ -16,11 +16,8 @@ limitations under the License.
 
 package v1beta1
 
-// WatcherTemplate defines a spec based reusable for all the CRDs
-type WatcherTemplate struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
+// WatcherCommon defines a spec based reusable for all the CRDs
+type WatcherCommon struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=osp-secret
 	// Secret containing all passwords / keys needed
@@ -40,6 +37,13 @@ type WatcherTemplate struct {
 	// +kubebuilder:default=watcher
 	// DatabaseAccount - MariaDBAccount CR name used for watcher DB, defaults to watcher
 	DatabaseAccount string `json:"databaseAccount"`
+}
+
+// WatcherTemplate defines the fields used in the top level CR
+type WatcherTemplate struct {
+	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
+	// Important: Run "make" to regenerate code after modifying this file
+	WatcherCommon `json:",inline"`
 }
 
 // PasswordSelector to identify the DB and AdminUser password from the Secret
