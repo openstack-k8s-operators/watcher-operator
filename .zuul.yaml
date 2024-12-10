@@ -5,6 +5,7 @@
     github-check:
       jobs:
         - noop
+        - watcher-operator-doc-preview
         - openstack-meta-content-provider:
             vars:
               cifmw_operator_build_meta_build: false
@@ -60,3 +61,13 @@
           source: "{{ watcher_hook }}"
           extra_vars:
             watcher_catalog_image: "{{ content_provider_registry_ip }}:5001/openstack-k8s-operators/watcher-operator-index:{{ zuul.patchset }}"
+
+- job:
+    name: watcher-operator-doc-preview
+    parent: cifmw-doc
+    files:
+      - docs
+      - Gemfile
+    vars:
+      asciidoc_available: true
+      doc_available: false

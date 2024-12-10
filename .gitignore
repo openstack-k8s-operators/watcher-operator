@@ -7,6 +7,13 @@
 bin/*
 Dockerfile.cross
 
+# Ruby bundle related files
+/.bundle
+/Gemfile.lock
+/local
+docs/main.adoc
+/docs_build
+
 # Test binary, built with `go test -c`
 *.test
 
