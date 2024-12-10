@@ -20,7 +20,17 @@ status:
     reason: Ready
     status: "True"
     type: InputReady
+  - message: " Memcached instance has been provisioned"
+    reason: Ready
+    status: "True"
+    type: MemcachedReady
   - message: Service config create completed
     reason: Ready
     status: "True"
     type: ServiceConfigReady
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: watcherapi-kuttl-config-data
+type: Opaque

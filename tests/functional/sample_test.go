@@ -72,7 +72,7 @@ var _ = Describe("Samples", func() {
 
 	When("watcher_v1beta1_watcherapi.yaml sample is applied", func() {
 		It("WatcherAPI is created", func() {
-			name := CreateWatcherAPIFromSample("watcher_v1beta1_watcherapi.yaml", watcherTest.Instance)
+			name := CreateWatcherAPIFromSample("watcher_v1beta1_watcherapi.yaml", watcherTest.WatcherAPI)
 			GetWatcherAPI(name)
 		})
 	})

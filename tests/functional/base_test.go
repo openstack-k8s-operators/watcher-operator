@@ -38,8 +38,9 @@ func GetDefaultWatcherSpec() map[string]interface{} {
 
 func GetDefaultWatcherAPISpec() map[string]interface{} {
 	return map[string]interface{}{
-		"databaseInstance": "openstack",
-		"secret":           SecretName,
+		"databaseInstance":  "openstack",
+		"secret":            SecretName,
+		"memcachedInstance": "memcached",
 	}
 }
 

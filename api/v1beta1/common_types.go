@@ -38,6 +38,11 @@ type WatcherCommon struct {
 	// +kubebuilder:default=watcher
 	// DatabaseAccount - MariaDBAccount CR name used for watcher DB, defaults to watcher
 	DatabaseAccount string `json:"databaseAccount"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=memcached
+	// MemcachedInstance is the name of the Memcached CR that all watcher service will use.
+	MemcachedInstance string `json:"memcachedInstance"`
 }
 
 // WatcherTemplate defines the fields used in the top level CR

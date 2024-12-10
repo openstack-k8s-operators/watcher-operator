@@ -31,6 +31,14 @@ rules:
 - apiGroups:
   - keystone.openstack.org
   resources:
+  - keystoneapis
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - keystone.openstack.org
+  resources:
   - keystoneendpoints
   verbs:
   - create
@@ -82,6 +90,23 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - memcached.openstack.org
+  resources:
+  - memcacheds
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - memcached.openstack.org
+  resources:
+  - memcacheds/finalizers
+  verbs:
+  - patch
+  - update
 - apiGroups:
   - rabbitmq.openstack.org
   resources:

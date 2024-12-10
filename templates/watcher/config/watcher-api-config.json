@@ -1,0 +1,46 @@
+{
+  "command": "/usr/sbin/httpd -DFOREGROUND",
+  "config_files": [
+    {
+      "source": "/var/lib/config-data/default/00-default.conf",
+      "dest": "/etc/watcher/watcher.conf.d/00-default.conf",
+      "owner": "watcher",
+      "perm": "0600"
+    },
+    {
+      "source": "/var/lib/config-data/default/10-watcher_wsgi_main.conf",
+      "dest": "/etc/httpd/conf.d/10-watcher_wsgi_main.conf",
+      "owner": "root",
+      "perm": "0640",
+      "optional": true
+    },
+    {
+      "source": "/var/lib/config-data/default/httpd.conf",
+      "dest": "/etc/httpd/conf/httpd.conf",
+      "owner": "root",
+      "perm": "0640",
+      "optional": true
+    },
+    {
+      "source": "/var/lib/config-data/default/main",
+      "dest": "/var/www/cgi-bin/watcher/main",
+      "owner": "watcher",
+      "perm": "0640",
+      "optional": true
+    },
+    {
+      "source": "/var/lib/config-data/default/mime.conf",
+      "dest": "/etc/httpd/conf.modules.d/mime.conf",
+      "owner": "root",
+      "perm": "0640",
+      "optional": true
+    }
+  ],
+  "permissions": [
+    {
+      "path": "/var/log/watcher",
+      "owner": "watcher:watcher",
+      "recurse": true
+    }
+  ]
+}

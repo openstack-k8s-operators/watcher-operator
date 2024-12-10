@@ -49,6 +49,11 @@ spec:
                   MariaDB instance name
                   Required to use the mariadb-operator instance to create the DB and user
                 type: string
+              memcachedInstance:
+                default: memcached
+                description: MemcachedInstance is the name of the Memcached CR that
+                  all watcher service will use.
+                type: string
               passwordSelectors:
                 default:
                   service: WatcherPassword

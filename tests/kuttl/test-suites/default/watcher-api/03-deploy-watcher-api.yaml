@@ -5,6 +5,7 @@ metadata:
 type: Opaque
 stringData:
   WatcherPassword: password
+  transport_url: rabbitmq-transport-url-watcher-kuttl-watcher-transport
 ---
 apiVersion: watcher.openstack.org/v1beta1
 kind: WatcherAPI
@@ -13,3 +14,4 @@ metadata:
 spec:
   databaseInstance: openstack
   secret: watcherapi-secret
+  memcachedInstance: "memcached"

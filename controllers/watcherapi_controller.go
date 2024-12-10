@@ -30,9 +30,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/go-logr/logr"
+	memcachedv1 "github.com/openstack-k8s-operators/infra-operator/apis/memcached/v1beta1"
+	keystonev1 "github.com/openstack-k8s-operators/keystone-operator/api/v1beta1"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/endpoint"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/env"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/helper"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/labels"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/service"
 	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
@@ -59,6 +64,11 @@ func (r *WatcherAPIReconciler) GetLogger(ctx context.Context) logr.Logger {
 //+kubebuilder:rbac:groups=watcher.openstack.org,resources=watcherapis/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=watcher.openstack.org,resources=watcherapis/finalizers,verbs=update
 //+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete;
+//+kubebuilder:rbac:groups=keystone.openstack.org,resources=keystoneapis,verbs=get;list;watch;
+//+kubebuilder:rbac:groups=keystone.openstack.org,resources=keystoneservices,verbs=get;list;watch;create;update;patch;delete;
+//+kubebuilder:rbac:groups=keystone.openstack.org,resources=keystoneendpoints,verbs=get;list;watch;create;update;patch;delete;
+//+kubebuilder:rbac:groups=memcached.openstack.org,resources=memcacheds,verbs=get;list;watch;update;patch
+//+kubebuilder:rbac:groups=memcached.openstack.org,resources=memcacheds/finalizers,verbs=update;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -138,6 +148,7 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		types.NamespacedName{Namespace: instance.Namespace, Name: instance.Spec.Secret},
 		[]string{
 			instance.Spec.PasswordSelectors.Service,
+			TransportURLSelector,
 		},
 		helper.GetClient(),
 		&instance.Status.Conditions,
@@ -163,7 +174,26 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// all our input checks out so report InputReady
 	instance.Status.Conditions.MarkTrue(condition.InputReadyCondition, condition.InputReadyMessage)
 
-	err = r.generateServiceConfigs(ctx, instance, secret, db, helper, &configVars)
+	memcached, err := ensureMemcached(ctx, helper, instance.Namespace, instance.Spec.MemcachedInstance, &instance.Status.Conditions)
+
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	// Add finalizer to Memcached to prevent it from being deleted now that we're using it
+	if controllerutil.AddFinalizer(memcached, helper.GetFinalizer()) {
+		err := helper.GetClient().Update(ctx, memcached)
+		if err != nil {
+			instance.Status.Conditions.Set(condition.FalseCondition(
+				condition.MemcachedReadyCondition,
+				condition.ErrorReason,
+				condition.SeverityWarning,
+				condition.MemcachedReadyErrorMessage,
+				err.Error()))
+			return ctrl.Result{}, err
+		}
+	}
+
+	err = r.generateServiceConfigs(ctx, instance, secret, db, memcached, helper, &configVars)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -181,25 +211,65 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 }
 
 // generateServiceConfigs - create Secret which holds the service configuration
-// NOTE - jgilaber this function is WIP, currently implements a fraction of its
-// functionality and will be expanded of further iteration to actually generate
-// the service configs
 func (r *WatcherAPIReconciler) generateServiceConfigs(
 	ctx context.Context, instance *watcherv1beta1.WatcherAPI,
 	secret corev1.Secret, db *mariadbv1.Database,
+	memcachedInstance *memcachedv1.Memcached,
 	helper *helper.Helper, envVars *map[string]env.Setter,
 ) error {
 	Log := r.GetLogger(ctx)
 	Log.Info("generateServiceConfigs - reconciling")
 
-	// replace by actual usage in future iterations
-	_ = db
-	_ = helper
-	_ = instance
-	_ = secret
-	_ = envVars
+	labels := labels.GetLabels(instance, labels.GetGroupLabel(watcher.ServiceName), map[string]string{})
+	// jgilaber this might be wrong? we should probably get keystonapi in the
+	// watcher controller and set the url in the spec eventually?
+	keystoneAPI, err := keystonev1.GetKeystoneAPI(ctx, helper, instance.Namespace, map[string]string{})
+	// KeystoneAPI not available we should not aggregate the error and continue
+	if err != nil {
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			condition.ServiceConfigReadyCondition,
+			condition.ErrorReason,
+			condition.SeverityWarning,
+			condition.ServiceConfigReadyErrorMessage,
+			"keystoneAPI not found"))
+		return err
+	}
+	keystoneInternalURL, err := keystoneAPI.GetEndpoint(endpoint.EndpointInternal)
+	if err != nil {
+		return err
+	}
+	// customData hold any customization for the service.
+	// NOTE jgilaber making an empty map for now, we'll probably want to
+	// implement CustomServiceConfig later
+	customData := map[string]string{}
 
-	return nil
+	databaseAccount := db.GetAccount()
+	databaseSecret := db.GetSecret()
+	templateParameters := map[string]interface{}{
+		"DatabaseConnection": fmt.Sprintf("mysql+pymysql://%s:%s@%s/%s?charset=utf8",
+			databaseAccount.Spec.UserName,
+			string(databaseSecret.Data[mariadbv1.DatabasePasswordSelector]),
+			db.GetDatabaseHostname(),
+			watcher.DatabaseName,
+		),
+		"KeystoneAuthURL":  keystoneInternalURL,
+		"ServicePassword":  string(secret.Data[instance.Spec.PasswordSelectors.Service]),
+		"ServiceUser":      instance.Spec.ServiceUser,
+		"TransportURL":     string(secret.Data[TransportURLSelector]),
+		"MemcachedServers": memcachedInstance.GetMemcachedServerListString(),
+	}
+
+	// create httpd  vhost template parameters
+	httpdVhostConfig := map[string]interface{}{}
+	for _, endpt := range []service.Endpoint{service.EndpointInternal, service.EndpointPublic} {
+		endptConfig := map[string]interface{}{}
+		endptConfig["ServerName"] = fmt.Sprintf("%s-%s.%s.svc", watcher.ServiceName, endpt.String(), instance.Namespace)
+		endptConfig["TLS"] = false // default TLS to false, and set it below when implemented
+		httpdVhostConfig[endpt.String()] = endptConfig
+	}
+	templateParameters["VHosts"] = httpdVhostConfig
+
+	return GenerateConfigsGeneric(ctx, helper, instance, envVars, templateParameters, customData, labels, false)
 }
 
 func (r *WatcherAPIReconciler) reconcileDelete(ctx context.Context, instance *watcherv1beta1.WatcherAPI, helper *helper.Helper) (ctrl.Result, error) {
@@ -221,6 +291,7 @@ func (r *WatcherAPIReconciler) initStatus(instance *watcherv1beta1.WatcherAPI) e
 		condition.UnknownCondition(condition.ReadyCondition, condition.InitReason, condition.ReadyInitMessage),
 		condition.UnknownCondition(condition.InputReadyCondition, condition.InitReason, condition.InputReadyInitMessage),
 		condition.UnknownCondition(condition.ServiceConfigReadyCondition, condition.InitReason, condition.ServiceConfigReadyMessage),
+		condition.UnknownCondition(condition.MemcachedReadyCondition, condition.InitReason, condition.MemcachedReadyInitMessage),
 	)
 
 	instance.Status.Conditions.Init(&cl)

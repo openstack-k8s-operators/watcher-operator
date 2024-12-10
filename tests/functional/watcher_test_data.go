@@ -40,6 +40,8 @@ type WatcherTestData struct {
 	InternalTopLevelSecretName   types.NamespacedName
 	WatcherTransportURL          types.NamespacedName
 	KeystoneServiceName          types.NamespacedName
+	WatcherAPI                   types.NamespacedName
+	MemcachedNamespace           types.NamespacedName
 }
 
 // GetWatcherTestData is a function that initialize the WatcherTestData
@@ -79,6 +81,14 @@ func GetWatcherTestData(watcherName types.NamespacedName) WatcherTestData {
 		KeystoneServiceName: types.NamespacedName{
 			Namespace: watcherName.Namespace,
 			Name:      "watcher",
+		},
+		WatcherAPI: types.NamespacedName{
+			Namespace: watcherName.Namespace,
+			Name:      "watcher-api",
+		},
+		MemcachedNamespace: types.NamespacedName{
+			Namespace: watcherName.Namespace,
+			Name:      "memcached",
 		},
 	}
 }

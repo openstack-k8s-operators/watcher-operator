@@ -27,6 +27,7 @@ type WatcherAPISpec struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	WatcherCommon `json:",inline"`
+
 	// +kubebuilder:validation:Required
 	// Secret containing all passwords / keys needed
 	Secret string `json:"secret"`

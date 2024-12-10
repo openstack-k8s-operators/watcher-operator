@@ -15,7 +15,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	memcachedv1 "github.com/openstack-k8s-operators/infra-operator/apis/memcached/v1beta1"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/env"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/helper"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/secret"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/util"
 )
 
@@ -187,4 +191,79 @@ func ensureSecret(
 	}
 
 	return hash, ctrl.Result{}, *secret, nil
+}
+
+func GenerateConfigsGeneric(
+	ctx context.Context, helper *helper.Helper,
+	instance client.Object,
+	envVars *map[string]env.Setter,
+	templateParameters map[string]interface{},
+	customData map[string]string,
+	cmLabels map[string]string,
+	scripts bool,
+) error {
+
+	cms := []util.Template{
+		// Templates where the watcher config is stored
+		{
+			Name:          fmt.Sprintf("%s-config-data", instance.GetName()),
+			Namespace:     instance.GetNamespace(),
+			Type:          util.TemplateTypeConfig,
+			InstanceType:  instance.GetObjectKind().GroupVersionKind().Kind,
+			ConfigOptions: templateParameters,
+			CustomData:    customData,
+			Labels:        cmLabels,
+		},
+	}
+	if scripts {
+		cms = append(cms, util.Template{
+			Name:          fmt.Sprintf("%s-scripts", instance.GetName()),
+			Namespace:     instance.GetNamespace(),
+			Type:          util.TemplateTypeScripts,
+			InstanceType:  instance.GetObjectKind().GroupVersionKind().Kind,
+			ConfigOptions: templateParameters,
+			Labels:        cmLabels,
+		})
+	}
+	return secret.EnsureSecrets(ctx, helper, instance, cms, envVars)
+}
+
+// ensureMemcached - gets the Memcached instance used for watcher services cache backend
+func ensureMemcached(
+	ctx context.Context,
+	helper *helper.Helper,
+	namespaceName string,
+	memcachedName string,
+	conditionUpdater conditionUpdater,
+) (*memcachedv1.Memcached, error) {
+	memcached, err := memcachedv1.GetMemcachedByName(ctx, helper, memcachedName, namespaceName)
+	if err != nil {
+		if k8s_errors.IsNotFound(err) {
+			conditionUpdater.Set(condition.FalseCondition(
+				condition.MemcachedReadyCondition,
+				condition.RequestedReason,
+				condition.SeverityInfo,
+				condition.MemcachedReadyWaitingMessage))
+			return nil, fmt.Errorf("memcached %s not found", memcachedName)
+		}
+		conditionUpdater.Set(condition.FalseCondition(
+			condition.MemcachedReadyCondition,
+			condition.ErrorReason,
+			condition.SeverityWarning,
+			condition.MemcachedReadyErrorMessage,
+			err.Error()))
+		return nil, err
+	}
+
+	if !memcached.IsReady() {
+		conditionUpdater.Set(condition.FalseCondition(
+			condition.MemcachedReadyCondition,
+			condition.RequestedReason,
+			condition.SeverityInfo,
+			condition.MemcachedReadyWaitingMessage))
+		return nil, fmt.Errorf("memcached %s is not ready", memcachedName)
+	}
+	conditionUpdater.MarkTrue(condition.MemcachedReadyCondition, condition.MemcachedReadyMessage)
+
+	return memcached, err
 }
