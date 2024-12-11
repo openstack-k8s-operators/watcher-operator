@@ -4,3 +4,6 @@ delete:
 - apiVersion: watcher.openstack.org/v1beta1
   kind: WatcherAPI
   name: watcherapi-kuttl
+- apiVersion: v1
+  kind: Secret
+  name: watcherapi-secret

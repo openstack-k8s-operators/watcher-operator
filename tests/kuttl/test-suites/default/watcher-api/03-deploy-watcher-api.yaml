@@ -1,6 +1,15 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: watcherapi-secret
+type: Opaque
+stringData:
+  WatcherPassword: password
+---
 apiVersion: watcher.openstack.org/v1beta1
 kind: WatcherAPI
 metadata:
   name: watcherapi-kuttl
 spec:
-  databaseInstance: "openstack"
+  databaseInstance: openstack
+  secret: watcherapi-secret
