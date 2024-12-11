@@ -452,3 +452,34 @@ run-with-webhook: export HEALTH_PORT?=33081
 run-with-webhook: manifests generate fmt vet ## Run a controller from your host.
 	/bin/bash hack/clean_local_webhook.sh
 	/bin/bash hack/run_with_local_webhook.sh
+
+##@ Docs
+
+.PHONY: docs-dependencies
+docs-dependencies: .bundle ## Convert markdown docs to ascii docs
+	bundle exec kramdoc README.md -o docs/main.adoc
+
+.PHONY: .bundle
+.bundle:
+	if ! type bundle; then \
+		echo "Bundler not found. On Linux run 'sudo dnf install /usr/bin/bundle' to install it."; \
+		exit 1; \
+	fi
+
+	bundle config set --local path 'local/bundle'; bundle install
+
+.PHONY: docs
+docs: docs-dependencies ## Build docs
+	cd docs; $(MAKE) html
+
+.PHONY: docs-preview
+docs-preview: docs
+	cd docs; $(MAKE) open-html
+
+.PHONY: docs-watch
+docs-watch: docs-preview
+	cd docs; $(MAKE) watch-html
+
+.PHONY: docs-clean
+docs-clean:
+	rm -r docs_build
