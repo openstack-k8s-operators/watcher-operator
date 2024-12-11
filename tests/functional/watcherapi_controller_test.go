@@ -11,13 +11,21 @@ import (
 	. "github.com/openstack-k8s-operators/lib-common/modules/common/test/helpers"
 	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
+	"github.com/openstack-k8s-operators/watcher-operator/pkg/watcher"
 	corev1 "k8s.io/api/core/v1"
+)
+
+var (
+	MinimalWatcherAPISpec = map[string]interface{}{
+		"secret":           "osp-secret",
+		"databaseInstance": "openstack",
+	}
 )
 
 var _ = Describe("WatcherAPI controller with minimal spec values", func() {
 	When("A Watcher instance is created from minimal spec", func() {
 		BeforeEach(func() {
-			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.Instance, MinimalWatcherSpec))
+			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.Instance, MinimalWatcherAPISpec))
 		})
 
 		It("should have the Spec fields defaulted", func() {
@@ -165,6 +173,61 @@ var _ = Describe("WatcherAPI controller", func() {
 			)
 		})
 		It("should have config service input unknown", func() {
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherAPIConditionGetter),
+				condition.ServiceConfigReadyCondition,
+				corev1.ConditionUnknown,
+			)
+		})
+	})
+	When("A WatcherAPI instance without secret is created", func() {
+		BeforeEach(func() {
+			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.Instance, GetDefaultWatcherAPISpec()))
+		})
+		It("is missing the secret", func() {
+			th.ExpectConditionWithDetails(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherAPIConditionGetter),
+				condition.InputReadyCondition,
+				corev1.ConditionFalse,
+				condition.RequestedReason,
+				condition.InputReadyWaitingMessage,
+			)
+		})
+	})
+	When("A WatcherAPI instance without a database but with a secret is created", func() {
+		BeforeEach(func() {
+			secret := th.CreateSecret(
+				watcherTest.InternalTopLevelSecretName,
+				map[string][]byte{
+					"WatcherPassword": []byte("service-password"),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, secret)
+			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.Instance, GetDefaultWatcherAPISpec()))
+		})
+		It("should have input not ready", func() {
+			WatcherAPI := GetWatcherAPI(watcherTest.Instance)
+			customErrorString := fmt.Sprintf(
+				"couldn't get database %s and account %s",
+				watcher.DatabaseCRName,
+				WatcherAPI.Spec.DatabaseAccount,
+			)
+			errorString := fmt.Sprintf(
+				condition.InputReadyErrorMessage,
+				customErrorString,
+			)
+			th.ExpectConditionWithDetails(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherAPIConditionGetter),
+				condition.InputReadyCondition,
+				corev1.ConditionFalse,
+				condition.ErrorReason,
+				errorString,
+			)
+		})
+		It("should have config service unknown", func() {
 			th.ExpectCondition(
 				watcherTest.Instance,
 				ConditionGetterFunc(WatcherAPIConditionGetter),

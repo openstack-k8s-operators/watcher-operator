@@ -152,11 +152,11 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	db, err := mariadbv1.GetDatabaseByNameAndAccount(ctx, helper, watcher.DatabaseCRName, instance.Spec.DatabaseAccount, instance.Namespace)
 	if err != nil {
 		instance.Status.Conditions.Set(condition.FalseCondition(
-			condition.ServiceConfigReadyCondition,
+			condition.InputReadyCondition,
 			condition.ErrorReason,
 			condition.SeverityWarning,
-			condition.ServiceConfigReadyErrorMessage,
-			err.Error()))
+			condition.InputReadyErrorMessage,
+			fmt.Sprintf("couldn't get database %s and account %s", watcher.DatabaseCRName, instance.Spec.DatabaseAccount)))
 		return ctrl.Result{}, err
 	}
 

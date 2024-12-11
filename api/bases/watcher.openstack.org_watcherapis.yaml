@@ -62,7 +62,6 @@ spec:
                     type: string
                 type: object
               secret:
-                default: osp-secret
                 description: Secret containing all passwords / keys needed
                 type: string
               serviceUser:
@@ -72,6 +71,7 @@ spec:
                 type: string
             required:
             - databaseInstance
+            - secret
             type: object
           status:
             description: WatcherAPIStatus defines the observed state of WatcherAPI

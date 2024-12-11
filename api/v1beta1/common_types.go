@@ -18,10 +18,6 @@ package v1beta1
 
 // WatcherCommon defines a spec based reusable for all the CRDs
 type WatcherCommon struct {
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:default=osp-secret
-	// Secret containing all passwords / keys needed
-	Secret string `json:"secret"`
 
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=watcher
@@ -55,6 +51,11 @@ type WatcherTemplate struct {
 	// RabbitMQ instance name
 	// Needed to request a transportURL that is created and used in Barbican
 	RabbitMqClusterName string `json:"rabbitMqClusterName"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=osp-secret
+	// Secret containing all passwords / keys needed
+	Secret string `json:"secret"`
 }
 
 // PasswordSelector to identify the DB and AdminUser password from the Secret
