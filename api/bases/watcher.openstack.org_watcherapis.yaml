@@ -65,6 +65,11 @@ spec:
                 default: osp-secret
                 description: Secret containing all passwords / keys needed
                 type: string
+              serviceUser:
+                default: watcher
+                description: ServiceUser - optional username used for this service
+                  to register in keystone
+                type: string
             required:
             - databaseInstance
             type: object

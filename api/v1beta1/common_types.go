@@ -24,6 +24,11 @@ type WatcherCommon struct {
 	Secret string `json:"secret"`
 
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=watcher
+	// ServiceUser - optional username used for this service to register in keystone
+	ServiceUser string `json:"serviceUser"`
+
+	// +kubebuilder:validation:Optional
 	// +kubebuilder:default={service: WatcherPassword,}
 	// PasswordSelectors - Selectors to identify the ServiceUser password from the Secret
 	PasswordSelectors PasswordSelector `json:"passwordSelectors"`

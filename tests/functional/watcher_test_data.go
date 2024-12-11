@@ -39,6 +39,7 @@ type WatcherTestData struct {
 	WatcherDatabaseAccountSecret types.NamespacedName
 	InternalTopLevelSecretName   types.NamespacedName
 	WatcherTransportURL          types.NamespacedName
+	KeystoneServiceName          types.NamespacedName
 }
 
 // GetWatcherTestData is a function that initialize the WatcherTestData
@@ -74,6 +75,10 @@ func GetWatcherTestData(watcherName types.NamespacedName) WatcherTestData {
 		WatcherTransportURL: types.NamespacedName{
 			Namespace: watcherName.Namespace,
 			Name:      fmt.Sprintf("%s-watcher-transport", watcherName.Name),
+		},
+		KeystoneServiceName: types.NamespacedName{
+			Namespace: watcherName.Namespace,
+			Name:      "watcher",
 		},
 	}
 }

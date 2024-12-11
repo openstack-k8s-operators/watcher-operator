@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	rabbitmqv1 "github.com/openstack-k8s-operators/infra-operator/apis/rabbitmq/v1beta1"
+	keystonev1 "github.com/openstack-k8s-operators/keystone-operator/api/v1beta1"
 	"github.com/openstack-k8s-operators/lib-common/modules/common"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/helper"
@@ -70,6 +72,8 @@ func (r *WatcherReconciler) GetLogger(ctx context.Context) logr.Logger {
 //+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete;
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete;
 //+kubebuilder:rbac:groups=rabbitmq.openstack.org,resources=transporturls,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=keystone.openstack.org,resources=keystoneservices,verbs=get;list;watch;create;update;patch;delete;
+//+kubebuilder:rbac:groups=keystone.openstack.org,resources=keystoneendpoints,verbs=get;list;watch;create;update;patch;delete;
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -189,6 +193,35 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	_ = op
 	// end of TransportURL creation
 
+	// Check we have the required inputs
+	hash, _, _, err := ensureSecret(
+		ctx,
+		types.NamespacedName{Namespace: instance.Namespace, Name: instance.Spec.Secret},
+		[]string{
+			instance.Spec.PasswordSelectors.Service,
+		},
+		helper.GetClient(),
+		&instance.Status.Conditions,
+		r.RequeueTimeout,
+	)
+	if err != nil || hash == "" {
+		// Empty hash means that there is some problem retrieving the key from the secret
+		return ctrl.Result{}, errors.New("error retrieving required data from secret")
+	}
+
+	instance.Status.Conditions.MarkTrue(condition.InputReadyCondition, condition.InputReadyMessage)
+	// End of Input Ready check
+
+	// Create Keystone Service creation. The endpoint will be created by WatcherAPI
+	_, err = r.ensureKeystoneSvc(ctx, helper, instance, serviceLabels)
+
+	if err != nil {
+
+		return ctrl.Result{}, err
+	}
+
+	// End of Keystone service creation
+
 	// remove finalizers from unused MariaDBAccount records
 	// this assumes all database-depedendent deployments are up and
 	// running with current database account info
@@ -240,6 +273,14 @@ func (r *WatcherReconciler) initConditions(instance *watcherv1beta1.Watcher) err
 			watcherv1beta1.WatcherRabbitMQTransportURLReadyCondition,
 			condition.InitReason,
 			condition.RabbitMqTransportURLReadyInitMessage),
+		condition.UnknownCondition(
+			condition.InputReadyCondition,
+			condition.InitReason,
+			condition.InputReadyInitMessage),
+		condition.UnknownCondition(
+			condition.KeystoneServiceReadyCondition,
+			condition.InitReason,
+			"Service registration not started"),
 	)
 
 	instance.Status.Conditions.Init(&cl)
@@ -392,6 +433,60 @@ func (r *WatcherReconciler) ensureMQ(
 	return transportURL, op, nil
 }
 
+func (r *WatcherReconciler) ensureKeystoneSvc(
+	ctx context.Context,
+	h *helper.Helper,
+	instance *watcherv1beta1.Watcher,
+	serviceLabels map[string]string,
+) (ctrl.Result, error) {
+	Log := r.GetLogger(ctx)
+	Log.Info(fmt.Sprintf("Reconciling the Keystone Service for '%s'", instance.Name))
+
+	//
+	// create Keystone service and user
+	//
+
+	ksSvcSpec := keystonev1.KeystoneServiceSpec{
+		ServiceType:        watcher.ServiceType,
+		ServiceName:        watcher.ServiceName,
+		ServiceDescription: "Watcher Service",
+		Enabled:            true,
+		ServiceUser:        instance.Spec.ServiceUser,
+		Secret:             instance.Spec.Secret,
+		PasswordSelector:   instance.Spec.PasswordSelectors.Service,
+	}
+
+	ksSvc := keystonev1.NewKeystoneService(ksSvcSpec, instance.Namespace, serviceLabels, time.Duration(10)*time.Second)
+	ctrlResult, err := ksSvc.CreateOrPatch(ctx, h)
+	if err != nil {
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			condition.KeystoneServiceReadyCondition,
+			condition.CreationFailedReason,
+			condition.SeverityError,
+			"Error while creating Keystone Service for Watcher"))
+		return ctrlResult, err
+	}
+
+	// mirror the Status, Reason, Severity and Message of the latest keystoneservice condition
+	// into a local condition with the type condition.KeystoneServiceReadyCondition
+	c := ksSvc.GetConditions().Mirror(condition.KeystoneServiceReadyCondition)
+	if c != nil {
+		instance.Status.Conditions.Set(c)
+	}
+
+	if (ctrlResult != ctrl.Result{}) {
+		return ctrlResult, nil
+	}
+
+	instance.Status.ServiceID = ksSvc.GetServiceID()
+
+	//if instance.Status.Hash == nil {
+	//	instance.Status.Hash = map[string]string{}
+	//}
+
+	return ctrlResult, nil
+}
+
 func (r *WatcherReconciler) reconcileDelete(ctx context.Context, instance *watcherv1beta1.Watcher, helper *helper.Helper) (ctrl.Result, error) {
 	Log := r.GetLogger(ctx)
 	Log.Info(fmt.Sprintf("Reconcile Service '%s' delete started", instance.Name))
@@ -405,6 +500,22 @@ func (r *WatcherReconciler) reconcileDelete(ctx context.Context, instance *watch
 	if !k8s_errors.IsNotFound(err) {
 		if err := db.DeleteFinalizer(ctx, helper); err != nil {
 			return ctrl.Result{}, err
+		}
+	}
+
+	// Remove the finalizer from our KeystoneService CR
+	keystoneService, err := keystonev1.GetKeystoneServiceWithName(ctx, helper, watcher.ServiceName, instance.Namespace)
+	if err != nil && !k8s_errors.IsNotFound(err) {
+		return ctrl.Result{}, err
+	}
+
+	if err == nil {
+		if controllerutil.RemoveFinalizer(keystoneService, helper.GetFinalizer()) {
+			err = helper.GetClient().Update(ctx, keystoneService)
+			if err != nil && !k8s_errors.IsNotFound(err) {
+				return ctrl.Result{}, err
+			}
+			util.LogForObject(helper, "Removed finalizer from our KeystoneService", instance)
 		}
 	}
 
@@ -423,5 +534,6 @@ func (r *WatcherReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&mariadbv1.MariaDBDatabase{}).
 		Owns(&mariadbv1.MariaDBAccount{}).
 		Owns(&rabbitmqv1.TransportURL{}).
+		Owns(&keystonev1.KeystoneService{}).
 		Complete(r)
 }
