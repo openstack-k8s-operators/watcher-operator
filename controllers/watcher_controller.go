@@ -19,16 +19,22 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/go-logr/logr"
+	rabbitmqv1 "github.com/openstack-k8s-operators/infra-operator/apis/rabbitmq/v1beta1"
 	"github.com/openstack-k8s-operators/lib-common/modules/common"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/helper"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/util"
 	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
 
@@ -63,6 +69,7 @@ func (r *WatcherReconciler) GetLogger(ctx context.Context) logr.Logger {
 //+kubebuilder:rbac:groups=mariadb.openstack.org,resources=mariadbdatabases,verbs=get;list;watch;create;update;patch;delete;
 //+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete;
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete;
+//+kubebuilder:rbac:groups=rabbitmq.openstack.org,resources=transporturls,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -153,6 +160,35 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	_ = db
 	// create service DB - end
 
+	//
+	// create RabbitMQ transportURL CR and get the actual URL from the associated secret that is created
+	// not-ready condition is managed here instead of in ensureMQ to distinguish between Error (when receiving)
+	// an error, or Running when transportURL is empty.
+	//
+	transportURL, op, err := r.ensureMQ(ctx, instance, helper, serviceLabels)
+	if err != nil {
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			watcherv1beta1.WatcherRabbitMQTransportURLReadyCondition,
+			condition.ErrorReason,
+			condition.SeverityWarning,
+			watcherv1beta1.WatcherRabbitMQTransportURLReadyErrorMessage,
+			err.Error()))
+		return ctrl.Result{}, err
+	}
+
+	if transportURL == nil {
+		Log.Info(fmt.Sprintf("Waiting for TransportURL for %s to be created", instance.Name))
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			watcherv1beta1.WatcherRabbitMQTransportURLReadyCondition,
+			condition.RequestedReason,
+			condition.SeverityWarning,
+			watcherv1beta1.WatcherRabbitMQTransportURLReadyRunningMessage))
+		return ctrl.Result{RequeueAfter: time.Duration(10) * time.Second}, nil
+	}
+
+	_ = op
+	// end of TransportURL creation
+
 	// remove finalizers from unused MariaDBAccount records
 	// this assumes all database-depedendent deployments are up and
 	// running with current database account info
@@ -200,6 +236,10 @@ func (r *WatcherReconciler) initConditions(instance *watcherv1beta1.Watcher) err
 		// failure/in-progress operation
 		condition.UnknownCondition(condition.ReadyCondition, condition.InitReason, condition.ReadyInitMessage),
 		condition.UnknownCondition(condition.DBReadyCondition, condition.InitReason, condition.DBReadyInitMessage),
+		condition.UnknownCondition(
+			watcherv1beta1.WatcherRabbitMQTransportURLReadyCondition,
+			condition.InitReason,
+			condition.RabbitMqTransportURLReadyInitMessage),
 	)
 
 	instance.Status.Conditions.Init(&cl)
@@ -292,6 +332,66 @@ func (r *WatcherReconciler) ensureDB(
 	return db, ctrl.Result{}, err
 }
 
+// Create the required RabbitMQ
+func (r *WatcherReconciler) ensureMQ(
+	ctx context.Context,
+	instance *watcherv1beta1.Watcher,
+	h *helper.Helper,
+	serviceLabels map[string]string,
+) (*rabbitmqv1.TransportURL, controllerutil.OperationResult, error) {
+	Log := r.GetLogger(ctx)
+	Log.Info(fmt.Sprintf("Reconciling the RabbitMQ TransportURL for '%s'", instance.Name))
+
+	transportURL := &rabbitmqv1.TransportURL{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-watcher-transport", instance.Name),
+			Namespace: instance.Namespace,
+			Labels:    serviceLabels,
+		},
+	}
+
+	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, transportURL, func() error {
+		transportURL.Spec.RabbitmqClusterName = instance.Spec.RabbitMqClusterName
+
+		err := controllerutil.SetControllerReference(instance, transportURL, r.Scheme)
+		return err
+	})
+
+	if err != nil && !k8s_errors.IsNotFound(err) {
+		return nil, op, util.WrapErrorForObject(
+			fmt.Sprintf("Error create or update TransportURL object %s-watcher-transport", instance.Name),
+			transportURL,
+			err,
+		)
+	}
+
+	if op != controllerutil.OperationResultNone {
+		Log.Info(fmt.Sprintf("TransportURL %s successfully reconciled - operation: %s", transportURL.Name, string(op)))
+	}
+
+	// If transportURL is not ready, it returns nil
+	if !transportURL.IsReady() || transportURL.Status.SecretName == "" {
+		Log.Info(fmt.Sprintf("Waiting for TransportURL %s secret to be created", transportURL.Name))
+		return nil, op, nil
+	}
+
+	secretName := types.NamespacedName{Namespace: instance.Namespace, Name: transportURL.Status.SecretName}
+	secret := &corev1.Secret{}
+	err = h.GetClient().Get(ctx, secretName, secret)
+	if err != nil {
+		return nil, op, err
+	}
+
+	_, ok := secret.Data[TransportURLSelector]
+	if !ok {
+		return nil, op, fmt.Errorf(
+			"the TransportURL secret %s does not have 'transport_url' field", transportURL.Status.SecretName)
+	}
+
+	instance.Status.Conditions.MarkTrue(watcherv1beta1.WatcherRabbitMQTransportURLReadyCondition, watcherv1beta1.WatcherRabbitMQTransportURLReadyMessage)
+	return transportURL, op, nil
+}
+
 func (r *WatcherReconciler) reconcileDelete(ctx context.Context, instance *watcherv1beta1.Watcher, helper *helper.Helper) (ctrl.Result, error) {
 	Log := r.GetLogger(ctx)
 	Log.Info(fmt.Sprintf("Reconcile Service '%s' delete started", instance.Name))
@@ -322,5 +422,6 @@ func (r *WatcherReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&watcherv1beta1.WatcherApplier{}).
 		Owns(&mariadbv1.MariaDBDatabase{}).
 		Owns(&mariadbv1.MariaDBAccount{}).
+		Owns(&rabbitmqv1.TransportURL{}).
 		Complete(r)
 }

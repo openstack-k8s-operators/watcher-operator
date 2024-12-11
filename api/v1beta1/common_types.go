@@ -44,6 +44,12 @@ type WatcherTemplate struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 	WatcherCommon `json:",inline"`
+
+	// +kubebuilder:validation:Required
+	// +kubebuilder:default=rabbitmq
+	// RabbitMQ instance name
+	// Needed to request a transportURL that is created and used in Barbican
+	RabbitMqClusterName string `json:"rabbitMqClusterName"`
 }
 
 // PasswordSelector to identify the DB and AdminUser password from the Secret
