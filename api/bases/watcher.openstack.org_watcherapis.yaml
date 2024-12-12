@@ -39,6 +39,10 @@ spec:
           spec:
             description: WatcherAPISpec defines the desired state of WatcherAPI
             properties:
+              containerImage:
+                description: The service specific Container Image URL (will be set
+                  to environmental default if empty)
+                type: string
               databaseAccount:
                 default: watcher
                 description: DatabaseAccount - MariaDBAccount CR name used for watcher

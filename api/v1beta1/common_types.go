@@ -16,6 +16,15 @@ limitations under the License.
 
 package v1beta1
 
+import "os"
+
+// Container image fall-back defaults
+const (
+	WatcherAPIContainerImage            = "quay.io/podified-antelope-centos9/openstack-water-api:current-podified"
+	WatcherDecisionEngineContainerImage = "quay.io/podified-antelope-centos9/openstack-watcher-decision-engine:current-podified"
+	WatcherApplierContainerImage        = "quay.io/podified-antelope-centos9/openstack-watcher-applier:current-podified"
+)
+
 // WatcherCommon defines a spec based reusable for all the CRDs
 type WatcherCommon struct {
 	// +kubebuilder:validation:Optional
@@ -37,6 +46,10 @@ type WatcherCommon struct {
 	// +kubebuilder:default=watcher
 	// DatabaseAccount - MariaDBAccount CR name used for watcher DB, defaults to watcher
 	DatabaseAccount string `json:"databaseAccount"`
+
+	// +kubebuilder:validation:Optional
+	// The service specific Container Image URL (will be set to environmental default if empty)
+	ContainerImage string `json:"containerImage"`
 }
 
 // WatcherTemplate defines the fields used in the top level CR
@@ -52,4 +65,50 @@ type PasswordSelector struct {
 	// +kubebuilder:default="WatcherPassword"
 	// Service - Selector to get the watcher service user password from the Secret
 	Service string `json:"service"`
+}
+
+type WatcherImages struct {
+	// +kubebuilder:validation:Required
+	// APIContainerImageURL
+	APIContainerImageURL string `json:"apiContainerImageURL"`
+
+	// +kubebuilder:validation:Required
+	// DecisionEngineContainerImageURL
+	DecisionEngineContainerImageURL string `json:"decisionengineContainerImageURL"`
+
+	// +kubebuilder:validation:Required
+	// DecisionEngineContainerImageURL
+	ApplierContainerImageURL string `json:"applierContainerImageURL"`
+}
+
+func (r *WatcherImages) Default(defaults WatcherDefaults) {
+	if r.APIContainerImageURL == "" {
+		r.APIContainerImageURL = defaults.APIContainerImageURL
+	}
+	if r.DecisionEngineContainerImageURL == "" {
+		r.DecisionEngineContainerImageURL = defaults.DecisionEngineContainerImageURL
+	}
+	if r.ApplierContainerImageURL == "" {
+		r.ApplierContainerImageURL = defaults.ApplierContainerImageURL
+	}
+}
+
+// GetEnvDefault - Get the value associated with key from environment variables, but use baseDefault as a value in the case of an empty string
+func GetEnvDefault(key string, baseDefault string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return baseDefault
+}
+
+// SetupDefaults - initializes any CRD field defaults based on environment variables (the defaulting mechanism itself is implemented via webhooks)
+
+func SetupDefaults() {
+	// Acquire environmental defaults and initialize Nova defaults with them
+	watcherDefaults := WatcherDefaults{
+		APIContainerImageURL:            GetEnvDefault("WATCHER_API_IMAGE_URL_DEFAULT", WatcherAPIContainerImage),
+		ApplierContainerImageURL:        GetEnvDefault("WATCHER_APPLIER_IMAGE_URL_DEFAULT", WatcherApplierContainerImage),
+		DecisionEngineContainerImageURL: GetEnvDefault("WATCHER_DECISION_ENGINE_IMAGE_URI_DEFAULT", WatcherDecisionEngineContainerImage),
+	}
+	SetupWatcherDefaults(watcherDefaults)
 }

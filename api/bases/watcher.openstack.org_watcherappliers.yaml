@@ -39,10 +39,38 @@ spec:
           spec:
             description: WatcherApplierSpec defines the desired state of WatcherApplier
             properties:
-              foo:
-                description: Foo is an example field of WatcherApplier. Edit watcherapplier_types.go
-                  to remove/update
+              containerImage:
+                description: The service specific Container Image URL (will be set
+                  to environmental default if empty)
                 type: string
+              databaseAccount:
+                default: watcher
+                description: DatabaseAccount - MariaDBAccount CR name used for watcher
+                  DB, defaults to watcher
+                type: string
+              databaseInstance:
+                description: |-
+                  MariaDB instance name
+                  Required to use the mariadb-operator instance to create the DB and user
+                type: string
+              passwordSelectors:
+                default:
+                  service: WatcherPassword
+                description: PasswordSelectors - Selectors to identify the ServiceUser
+                  password from the Secret
+                properties:
+                  service:
+                    default: WatcherPassword
+                    description: Service - Selector to get the watcher service user
+                      password from the Secret
+                    type: string
+                type: object
+              secret:
+                default: osp-secret
+                description: Secret containing all passwords / keys needed
+                type: string
+            required:
+            - databaseInstance
             type: object
           status:
             description: WatcherApplierStatus defines the observed state of WatcherApplier

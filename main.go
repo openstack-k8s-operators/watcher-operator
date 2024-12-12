@@ -145,8 +145,8 @@ func main() {
 		os.Exit(1)
 	}
 	checker := healthz.Ping
-	// Setup webhooks if requested
 
+	// Setup webhooks if requested
 	if strings.ToLower(os.Getenv("ENABLE_WEBHOOKS")) != "false" {
 
 		if err = (&watcherv1beta1.Watcher{}).SetupWebhookWithManager(mgr); err != nil {
