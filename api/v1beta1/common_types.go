@@ -19,11 +19,6 @@ package v1beta1
 // WatcherCommon defines a spec based reusable for all the CRDs
 type WatcherCommon struct {
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:default=osp-secret
-	// Secret containing all passwords / keys needed
-	Secret string `json:"secret"`
-
-	// +kubebuilder:validation:Optional
 	// +kubebuilder:default={service: WatcherPassword,}
 	// PasswordSelectors - Selectors to identify the ServiceUser password from the Secret
 	PasswordSelectors PasswordSelector `json:"passwordSelectors"`
@@ -44,6 +39,11 @@ type WatcherTemplate struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 	WatcherCommon `json:",inline"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=osp-secret
+	// Secret containing all passwords / keys needed
+	Secret string `json:"secret"`
 }
 
 // PasswordSelector to identify the DB and AdminUser password from the Secret

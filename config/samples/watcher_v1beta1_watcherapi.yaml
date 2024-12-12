@@ -7,3 +7,4 @@ metadata:
   name: watcherapi-sample
 spec:
   databaseInstance: "openstack"
+  secret: "osp-secret"

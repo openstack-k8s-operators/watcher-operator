@@ -9,7 +9,7 @@ spec:
   databaseInstance: openstack
   passwordSelectors:
     service: WatcherPassword
-  secret: osp-secret
+  secret: watcherapi-secret
 status:
   conditions:
   - message: Setup complete
