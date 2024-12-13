@@ -21,6 +21,14 @@ status:
     reason: Ready
     status: "True"
     type: DBReady
+  - message: Input data complete
+    reason: Ready
+    status: "True"
+    type: InputReady
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: KeystoneServiceReady
   - message: MariaDBAccount creation complete
     reason: Ready
     status: "True"
@@ -86,3 +94,25 @@ kind: Secret
 metadata:
   name: rabbitmq-transport-url-watcher-kuttl-watcher-transport
   namespace: watcher-kuttl-default
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: rabbitmq-transport-url-watcher-kuttl-watcher-transport
+  namespace: watcher-kuttl-default
+---
+apiVersion: keystone.openstack.org/v1beta1
+kind: KeystoneService
+metadata:
+  name: watcher
+  finalizers:
+  - openstack.org/watcher
+  - openstack.org/keystoneservice
+spec:
+  enabled: true
+  passwordSelector: WatcherPassword
+  secret: osp-secret
+  serviceDescription: Watcher Service
+  serviceName: watcher
+  serviceType: infra-optim
+  serviceUser: watcher

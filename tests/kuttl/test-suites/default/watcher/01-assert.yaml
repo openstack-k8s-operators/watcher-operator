@@ -15,6 +15,14 @@ status:
     reason: Ready
     status: "True"
     type: DBReady
+  - message: Input data complete
+    reason: Ready
+    status: "True"
+    type: InputReady
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: KeystoneServiceReady
   - message: MariaDBAccount creation complete
     reason: Ready
     status: "True"
@@ -80,3 +88,29 @@ kind: Secret
 metadata:
   name: rabbitmq-transport-url-watcher-kuttl-watcher-transport
   namespace: watcher-kuttl-default
+---
+apiVersion: keystone.openstack.org/v1beta1
+kind: KeystoneService
+metadata:
+  name: watcher
+  finalizers:
+  - openstack.org/watcher
+  - openstack.org/keystoneservice
+spec:
+  enabled: true
+  passwordSelector: WatcherPassword
+  secret: osp-secret
+  serviceDescription: Watcher Service
+  serviceName: watcher
+  serviceType: infra-optim
+  serviceUser: watcher
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+namespaced: true
+commands:
+  - script: |
+      set -euxo pipefail
+      oc exec -n watcher-kuttl-default openstackclient -- openstack service list -f value -c Name -c Type |[ $(grep -c ^watcher) == 1 ]
+      SERVICEID=$(oc exec -n watcher-kuttl-default openstackclient -- openstack service list -f value -c Name -c Type -c ID | grep watcher| awk '{print $1}')
+      [ $(oc get -n watcher-kuttl-default keystoneservice watcher -o jsonpath={.status.serviceID}) == $SERVICEID ]

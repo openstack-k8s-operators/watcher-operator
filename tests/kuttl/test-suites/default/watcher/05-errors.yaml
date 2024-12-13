@@ -1,0 +1,29 @@
+apiVersion: keystone.openstack.org/v1beta1
+kind: KeystoneService
+metadata:
+  name: watcher
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: rabbitmq-transport-url-watcher-kuttl-watcher-transport
+---
+apiVersion: rabbitmq.openstack.org/v1beta1
+kind: TransportURL
+metadata:
+  name: watcher-kuttl-watcher-transport
+---
+apiVersion: mariadb.openstack.org/v1beta1
+kind: MariaDBDatabase
+metadata:
+  name: watcher
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: watcher-db-secret
+---
+apiVersion: watcher.openstack.org/v1beta1
+kind: Watcher
+metadata:
+  name: watcher-kuttl
