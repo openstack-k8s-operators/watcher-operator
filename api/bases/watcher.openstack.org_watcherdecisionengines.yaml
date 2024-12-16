@@ -40,9 +40,9 @@ spec:
           spec:
             description: WatcherDecisionEngineSpec defines the desired state of WatcherDecisionEngine
             properties:
-              foo:
-                description: Foo is an example field of WatcherDecisionEngine. Edit
-                  watcherdecisionengine_types.go to remove/update
+              containerImage:
+                description: The service specific Container Image URL (will be set
+                  to environmental default if empty)
                 type: string
             type: object
           status:

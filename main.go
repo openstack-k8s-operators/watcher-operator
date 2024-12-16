@@ -150,6 +150,10 @@ func main() {
 	if err != nil {
 		os.Exit(1)
 	}
+
+	// Acquire environmental defaults and initialize operator defaults with them
+	watcherv1beta1.SetupDefaults()
+
 	checker := healthz.Ping
 	// Setup webhooks if requested
 

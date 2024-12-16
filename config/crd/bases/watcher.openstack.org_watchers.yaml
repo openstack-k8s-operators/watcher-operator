@@ -39,6 +39,12 @@ spec:
           spec:
             description: WatcherSpec defines the desired state of Watcher
             properties:
+              apiContainerImageURL:
+                description: APIContainerImageURL
+                type: string
+              applierContainerImageURL:
+                description: ApplierContainerImageURL
+                type: string
               databaseAccount:
                 default: watcher
                 description: DatabaseAccount - MariaDBAccount CR name used for watcher
@@ -48,6 +54,9 @@ spec:
                 description: |-
                   MariaDB instance name
                   Required to use the mariadb-operator instance to create the DB and user
+                type: string
+              decisionengineContainerImageURL:
+                description: DecisionEngineContainerImageURL
                 type: string
               memcachedInstance:
                 default: memcached
@@ -82,7 +91,10 @@ spec:
                   to register in keystone
                 type: string
             required:
+            - apiContainerImageURL
+            - applierContainerImageURL
             - databaseInstance
+            - decisionengineContainerImageURL
             - rabbitMqClusterName
             type: object
           status:

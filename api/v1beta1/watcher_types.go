@@ -27,6 +27,9 @@ type WatcherSpec struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	WatcherTemplate `json:",inline"`
+
+	// +kubebuilder:validation:Required
+	WatcherImages `json:",inline"`
 }
 
 // WatcherStatus defines the observed state of Watcher
@@ -67,8 +70,4 @@ type WatcherList struct {
 
 func init() {
 	SchemeBuilder.Register(&Watcher{}, &WatcherList{})
-}
-
-// SetupDefaults - initializes any CRD field defaults based on environment variables (the defaulting mechanism itself is implemented via webhooks)
-func SetupDefaults() {
 }

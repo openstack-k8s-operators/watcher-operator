@@ -5,6 +5,10 @@ metadata:
   - openstack.org/watcher
   name: watcher-kuttl
   namespace: watcher-kuttl-default
+spec:
+  apiContainerImageURL: "quay.io/podified-antelope-centos9/openstack-watcher-api:current-podified"
+  decisionengineContainerImageURL: "quay.io/podified-antelope-centos9/openstack-watcher-decision-engine:current-podified"
+  applierContainerImageURL: "quay.io/podified-antelope-centos9/openstack-watcher-applier:current-podified"
 status:
   conditions:
   - message: Setup complete
@@ -114,3 +118,24 @@ commands:
       oc exec -n watcher-kuttl-default openstackclient -- openstack service list -f value -c Name -c Type |[ $(grep -c ^watcher) == 1 ]
       SERVICEID=$(oc exec -n watcher-kuttl-default openstackclient -- openstack service list -f value -c Name -c Type -c ID | grep watcher| awk '{print $1}')
       [ $(oc get -n watcher-kuttl-default keystoneservice watcher -o jsonpath={.status.serviceID}) == $SERVICEID ]
+---
+# Check for Container Image environment variables
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+commands:
+  - script: |
+      set -euxo pipefail
+      env_variables=$(oc set env $(oc get pods -n openstack-operators -o name -l openstack.org/operator-name=watcher) -n openstack-operators --list)
+      counter=0
+      for i in ${env_variables}; do
+          if echo ${i} | grep '_URL_DEFAULT' &> /dev/null; then
+              echo ${i}
+              counter=$((counter + 1))
+          fi
+      done
+      if [ ${counter} -lt 3 ]; then
+        echo "Error: Less than 3 _URL_DEFAULT variables found."
+        exit 1
+      else
+        echo "Success: ${counter} _URL_DEFAULT variables found."
+      fi

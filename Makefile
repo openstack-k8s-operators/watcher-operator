@@ -449,6 +449,9 @@ SKIP_CERT ?=false
 .PHONY: run-with-webhook
 run-with-webhook: export METRICS_PORT?=33080
 run-with-webhook: export HEALTH_PORT?=33081
+run-with-webhook: export WATCHER_API_IMAGE_URL_DEFAULT=quay.io/podified-main-centos9/openstack-watcher-api:current-podified
+run-with-webhook: export WATCHER_DECISION_ENGINE_IMAGE_URL_DEFAULT=quay.io/podified-main-centos9/openstack-watcher-decision-engine:current-podified
+run-with-webhook: export WATCHER_APPLIER_IMAGE_URL_DEFAULT=quay.io/podified-main-centos9/openstack-watcher-applier:current-podified
 run-with-webhook: manifests generate fmt vet ## Run a controller from your host.
 	/bin/bash hack/clean_local_webhook.sh
 	/bin/bash hack/run_with_local_webhook.sh

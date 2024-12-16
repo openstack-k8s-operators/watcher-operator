@@ -23,8 +23,22 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
+// WatcherDefaults -
+type WatcherDefaults struct {
+	APIContainerImageURL            string
+	DecisionEngineContainerImageURL string
+	ApplierContainerImageURL        string
+}
+
+var watcherDefaults WatcherDefaults
+
 // log is for logging in this package.
 var watcherlog = logf.Log.WithName("watcher-resource")
+
+func SetupWatcherDefaults(defaults WatcherDefaults) {
+	watcherDefaults = defaults
+	watcherlog.Info("Watcher defaults initialized", "defaults", defaults)
+}
 
 //+kubebuilder:webhook:path=/mutate-watcher-openstack-org-v1beta1-watcher,mutating=true,failurePolicy=fail,sideEffects=None,groups=watcher.openstack.org,resources=watchers,verbs=create;update,versions=v1beta1,name=mwatcher.kb.io,admissionReviewVersions=v1
 
@@ -34,6 +48,12 @@ var _ webhook.Defaulter = &Watcher{}
 func (r *Watcher) Default() {
 	watcherlog.Info("default", "name", r.Name)
 
+	r.Spec.Default()
+}
+
+// Default - set defaults for this WatcherCore spec.
+func (spec *WatcherSpec) Default() {
+	spec.WatcherImages.Default(watcherDefaults)
 }
 
 //+kubebuilder:webhook:path=/validate-watcher-openstack-org-v1beta1-watcher,mutating=false,failurePolicy=fail,sideEffects=None,groups=watcher.openstack.org,resources=watchers,verbs=create;update,versions=v1beta1,name=vwatcher.kb.io,admissionReviewVersions=v1

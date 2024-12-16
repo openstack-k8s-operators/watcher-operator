@@ -16,6 +16,15 @@ limitations under the License.
 
 package v1beta1
 
+import "github.com/openstack-k8s-operators/lib-common/modules/common/util"
+
+// Container image fall-back defaults
+const (
+	WatcherAPIContainerImage            = "quay.io/podified-antelope-centos9/openstack-watcher-api:current-podified"
+	WatcherDecisionEngineContainerImage = "quay.io/podified-antelope-centos9/openstack-watcher-decision-engine:current-podified"
+	WatcherApplierContainerImage        = "quay.io/podified-antelope-centos9/openstack-watcher-applier:current-podified"
+)
+
 // WatcherCommon defines a spec based reusable for all the CRDs
 type WatcherCommon struct {
 
@@ -69,4 +78,49 @@ type PasswordSelector struct {
 	// +kubebuilder:default="WatcherPassword"
 	// Service - Selector to get the watcher service user password from the Secret
 	Service string `json:"service"`
+}
+
+// WatcherSubCrsCommon
+type WatcherSubCrsCommon struct {
+	// +kubebuilder:validation:Optional
+	// The service specific Container Image URL (will be set to environmental default if empty)
+	ContainerImage string `json:"containerImage"`
+}
+
+type WatcherImages struct {
+	// +kubebuilder:validation:Required
+	// APIContainerImageURL
+	APIContainerImageURL string `json:"apiContainerImageURL"`
+
+	// +kubebuilder:validation:Required
+	// DecisionEngineContainerImageURL
+	DecisionEngineContainerImageURL string `json:"decisionengineContainerImageURL"`
+
+	// +kubebuilder:validation:Required
+	// ApplierContainerImageURL
+	ApplierContainerImageURL string `json:"applierContainerImageURL"`
+}
+
+func (r *WatcherImages) Default(defaults WatcherDefaults) {
+	if r.APIContainerImageURL == "" {
+		r.APIContainerImageURL = defaults.APIContainerImageURL
+	}
+	if r.DecisionEngineContainerImageURL == "" {
+		r.DecisionEngineContainerImageURL = defaults.DecisionEngineContainerImageURL
+	}
+	if r.ApplierContainerImageURL == "" {
+		r.ApplierContainerImageURL = defaults.ApplierContainerImageURL
+	}
+}
+
+// SetupDefaults - initializes any CRD field defaults based on environment variables (the defaulting mechanism itself is implemented via webhooks)
+
+func SetupDefaults() {
+	// Acquire environmental defaults and initialize Nova defaults with them
+	watcherDefaults := WatcherDefaults{
+		APIContainerImageURL:            util.GetEnvVar("WATCHER_API_IMAGE_URL_DEFAULT", WatcherAPIContainerImage),
+		ApplierContainerImageURL:        util.GetEnvVar("WATCHER_APPLIER_IMAGE_URL_DEFAULT", WatcherApplierContainerImage),
+		DecisionEngineContainerImageURL: util.GetEnvVar("WATCHER_DECISION_ENGINE_IMAGE_URL_DEFAULT", WatcherDecisionEngineContainerImage),
+	}
+	SetupWatcherDefaults(watcherDefaults)
 }

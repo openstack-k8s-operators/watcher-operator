@@ -31,6 +31,8 @@ type WatcherAPISpec struct {
 	// +kubebuilder:validation:Required
 	// Secret containing all passwords / keys needed
 	Secret string `json:"secret"`
+
+	WatcherSubCrsCommon `json:",inline"`
 }
 
 // WatcherAPIStatus defines the observed state of WatcherAPI

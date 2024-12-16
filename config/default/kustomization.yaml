@@ -41,6 +41,9 @@ patches:
 # 'CERTMANAGER' needs to be enabled to use ca injection
 #- path: webhookcainjection_patch.yaml
 
+# Injects our custom images (ENV variable settings)
+- path: manager_default_images.yaml
+
 # [CERTMANAGER] To enable cert-manager, uncomment all sections with 'CERTMANAGER' prefix.
 # Uncomment the following replacements to add the cert-manager CA injection annotations
 #replacements:

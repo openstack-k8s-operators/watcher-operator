@@ -28,8 +28,7 @@ type WatcherDecisionEngineSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of WatcherDecisionEngine. Edit watcherdecisionengine_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	WatcherSubCrsCommon `json:",inline"`
 }
 
 // WatcherDecisionEngineStatus defines the observed state of WatcherDecisionEngine
