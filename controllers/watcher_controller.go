@@ -40,6 +40,7 @@ import (
 	"github.com/openstack-k8s-operators/lib-common/modules/common/job"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/labels"
 	common_rbac "github.com/openstack-k8s-operators/lib-common/modules/common/rbac"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/secret"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/util"
 	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -214,7 +215,7 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	// end of TransportURL creation
 
 	// Check we have the required inputs
-	hash, _, _, err := ensureSecret(
+	hash, _, inputSecret, err := ensureSecret(
 		ctx,
 		types.NamespacedName{Namespace: instance.Namespace, Name: instance.Spec.Secret},
 		[]string{
@@ -243,6 +244,14 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		// Empty hash means that there is some problem retrieving the key from the secret
 		return ctrl.Result{}, errors.New("error retrieving required data from transporturl secret")
 	}
+
+	subLevelSecretName, err := r.createSubLevelSecret(ctx, helper, instance, transporturlSecret, inputSecret)
+	if err != nil {
+		return ctrl.Result{}, nil
+	}
+	// the subLevelSecretName will be the value for the Secret field in the
+	// subCrs spec, once they are created by Watcher
+	_ = subLevelSecretName
 
 	instance.Status.Conditions.MarkTrue(condition.InputReadyCondition, condition.InputReadyMessage)
 	// End of Input Ready check
@@ -683,6 +692,35 @@ func (r *WatcherReconciler) ensureDBSync(
 	return ctrlResult, nil
 }
 
+func (r *WatcherReconciler) createSubLevelSecret(
+	ctx context.Context,
+	helper *helper.Helper,
+	instance *watcherv1beta1.Watcher,
+	transportURLSecret corev1.Secret,
+	inputSecret corev1.Secret,
+) (string, error) {
+	data := map[string]string{
+		instance.Spec.PasswordSelectors.Service: string(inputSecret.Data[instance.Spec.PasswordSelectors.Service]),
+		TransportURLSelector:                    string(transportURLSecret.Data[TransportURLSelector]),
+	}
+	secretName := instance.Name
+
+	labels := labels.GetLabels(instance, labels.GetGroupLabel(watcher.ServiceName), map[string]string{})
+
+	template := util.Template{
+		Name:         secretName,
+		Namespace:    instance.Namespace,
+		Type:         util.TemplateTypeNone,
+		InstanceType: instance.GetObjectKind().GroupVersionKind().Kind,
+		Labels:       labels,
+		CustomData:   data,
+	}
+
+	err := secret.EnsureSecrets(ctx, helper, instance, []util.Template{template}, nil)
+
+	return secretName, err
+}
+
 func (r *WatcherReconciler) reconcileDelete(ctx context.Context, instance *watcherv1beta1.Watcher, helper *helper.Helper) (ctrl.Result, error) {
 	Log := r.GetLogger(ctx)
 	Log.Info(fmt.Sprintf("Reconcile Service '%s' delete started", instance.Name))
@@ -735,5 +773,6 @@ func (r *WatcherReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&rbacv1.Role{}).
 		Owns(&rbacv1.RoleBinding{}).
 		Owns(&batchv1.Job{}).
+		Owns(&corev1.Secret{}).
 		Complete(r)
 }

@@ -313,6 +313,12 @@ var _ = Describe("Watcher controller", func() {
 			Watcher := GetWatcher(watcherTest.Instance)
 			Expect(Watcher.Status.Hash[watcherv1beta1.DbSyncHash]).ShouldNot(BeNil())
 
+			// assert that the top level secret is created
+			createdSecret := th.GetSecret(watcherTest.Watcher)
+			Expect(createdSecret).ShouldNot(BeNil())
+			Expect(createdSecret.Data["WatcherPassword"]).To(Equal([]byte("password")))
+			Expect(createdSecret.Data["transport_url"]).To(Equal([]byte("rabbit://rabbitmq-secret/fake")))
+
 		})
 
 		It("Should fail to register watcher service to keystone when has not the expected secret", func() {

@@ -121,6 +121,11 @@ metadata:
   name: rabbitmq-transport-url-watcher-kuttl-watcher-transport
   namespace: watcher-kuttl-default
 ---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: watcher-kuttl
+---
 apiVersion: keystone.openstack.org/v1beta1
 kind: KeystoneService
 metadata:

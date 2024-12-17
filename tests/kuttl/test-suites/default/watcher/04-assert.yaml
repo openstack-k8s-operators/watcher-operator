@@ -66,6 +66,11 @@ metadata:
   finalizers:
   - openstack.org/watcher
 ---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: watcher-kuttl
+---
 apiVersion: mariadb.openstack.org/v1beta1
 kind: MariaDBAccount
 metadata:

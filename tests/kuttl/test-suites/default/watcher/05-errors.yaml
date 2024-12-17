@@ -13,6 +13,11 @@ kind: Secret
 metadata:
   name: rabbitmq-transport-url-watcher-kuttl-watcher-transport
 ---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: watcher-kuttl
+---
 apiVersion: rabbitmq.openstack.org/v1beta1
 kind: TransportURL
 metadata:

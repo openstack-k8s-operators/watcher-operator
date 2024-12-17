@@ -9,7 +9,7 @@ spec:
   databaseInstance: openstack
   passwordSelectors:
     service: WatcherPassword
-  secret: watcherapi-secret
+  secret: watcher-kuttl
 status:
   conditions:
   - message: Setup complete
@@ -32,5 +32,5 @@ status:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: watcherapi-kuttl-config-data
+  name: watcher-kuttl
 type: Opaque
