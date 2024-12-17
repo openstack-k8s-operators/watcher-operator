@@ -24,6 +24,7 @@ import (
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -34,6 +35,7 @@ import (
 	"github.com/openstack-k8s-operators/lib-common/modules/common"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/helper"
+	common_rbac "github.com/openstack-k8s-operators/lib-common/modules/common/rbac"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/util"
 	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -74,6 +76,13 @@ func (r *WatcherReconciler) GetLogger(ctx context.Context) logr.Logger {
 //+kubebuilder:rbac:groups=rabbitmq.openstack.org,resources=transporturls,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=keystone.openstack.org,resources=keystoneservices,verbs=get;list;watch;create;update;patch;delete;
 //+kubebuilder:rbac:groups=keystone.openstack.org,resources=keystoneendpoints,verbs=get;list;watch;create;update;patch;delete;
+//+kubebuilder:rbac:groups="",resources=pods,verbs=create;delete;get;list;patch;update;watch
+
+// service account, role, rolebinding
+//+kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch
+//+kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=roles,verbs=get;list;watch;create;update;patch
+//+kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=rolebindings,verbs=get;list;watch;create;update;patch
+//+kubebuilder:rbac:groups="security.openshift.io",resourceNames=anyuid,resources=securitycontextconstraints,verbs=use
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -138,6 +147,12 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 
 	// initialize the status
 	err = r.initStatus(instance)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// initialize the rbac
+	err = r.ensureRbac(ctx, helper, instance)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -281,9 +296,51 @@ func (r *WatcherReconciler) initConditions(instance *watcherv1beta1.Watcher) err
 			condition.KeystoneServiceReadyCondition,
 			condition.InitReason,
 			"Service registration not started"),
+		condition.UnknownCondition(
+			condition.ServiceAccountReadyCondition,
+			condition.InitReason,
+			condition.ServiceAccountReadyInitMessage),
+		condition.UnknownCondition(
+			condition.RoleReadyCondition,
+			condition.InitReason,
+			condition.RoleReadyInitMessage),
+		condition.UnknownCondition(
+			condition.RoleBindingReadyCondition,
+			condition.InitReason,
+			condition.RoleBindingReadyInitMessage),
 	)
 
 	instance.Status.Conditions.Init(&cl)
+
+	return nil
+}
+
+// Create ServiceAccount, Role and RoleBinding
+func (r *WatcherReconciler) ensureRbac(
+	ctx context.Context,
+	h *helper.Helper,
+	instance *watcherv1beta1.Watcher) error {
+	// Service account, role, binding
+	rbacRules := []rbacv1.PolicyRule{
+		{
+			APIGroups:     []string{"security.openshift.io"},
+			ResourceNames: []string{"anyuid"},
+			Resources:     []string{"securitycontextconstraints"},
+			Verbs:         []string{"use"},
+		},
+		{
+			APIGroups: []string{""},
+			Resources: []string{"pods"},
+			Verbs:     []string{"create", "get", "list", "watch", "update", "patch", "delete"},
+		},
+	}
+
+	rbacResult, err := common_rbac.ReconcileRbac(ctx, h, instance, rbacRules)
+	if err != nil {
+		return err
+	} else if (rbacResult != ctrl.Result{}) {
+		return nil
+	}
 
 	return nil
 }
@@ -535,5 +592,8 @@ func (r *WatcherReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&mariadbv1.MariaDBAccount{}).
 		Owns(&rabbitmqv1.TransportURL{}).
 		Owns(&keystonev1.KeystoneService{}).
+		Owns(&corev1.ServiceAccount{}).
+		Owns(&rbacv1.Role{}).
+		Owns(&rbacv1.RoleBinding{}).
 		Complete(r)
 }

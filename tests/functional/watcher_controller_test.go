@@ -112,6 +112,39 @@ var _ = Describe("Watcher controller", func() {
 				condition.KeystoneServiceReadyCondition,
 				corev1.ConditionUnknown,
 			)
+
+		})
+
+		It("creates service account, role and rolebindig", func() {
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				condition.ServiceAccountReadyCondition,
+				corev1.ConditionTrue,
+			)
+			sa := th.GetServiceAccount(watcherTest.ServiceAccountName)
+
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				condition.RoleReadyCondition,
+				corev1.ConditionTrue,
+			)
+			role := th.GetRole(watcherTest.RoleName)
+			Expect(role.Rules).To(HaveLen(2))
+			Expect(role.Rules[0].Resources).To(Equal([]string{"securitycontextconstraints"}))
+			Expect(role.Rules[1].Resources).To(Equal([]string{"pods"}))
+
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				condition.RoleBindingReadyCondition,
+				corev1.ConditionTrue,
+			)
+			binding := th.GetRoleBinding(watcherTest.RoleBindingName)
+			Expect(binding.RoleRef.Name).To(Equal(role.Name))
+			Expect(binding.Subjects).To(HaveLen(1))
+			Expect(binding.Subjects[0].Name).To(Equal(sa.Name))
 		})
 
 		It("should have db not ready", func() {
@@ -228,6 +261,22 @@ var _ = Describe("Watcher controller", func() {
 				condition.KeystoneServiceReadyCondition,
 				corev1.ConditionTrue,
 			)
+
+			// Service Account and Role Ready
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				condition.ServiceAccountReadyCondition,
+				corev1.ConditionTrue,
+			)
+
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				condition.RoleReadyCondition,
+				corev1.ConditionTrue,
+			)
+
 			// Global status Ready
 			th.ExpectCondition(
 				watcherTest.Instance,

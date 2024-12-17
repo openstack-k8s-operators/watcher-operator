@@ -68,6 +68,21 @@ type WatcherList struct {
 	Items           []Watcher `json:"items"`
 }
 
+// RbacConditionsSet - set the conditions for the rbac object
+func (instance Watcher) RbacConditionsSet(c *condition.Condition) {
+	instance.Status.Conditions.Set(c)
+}
+
+// RbacNamespace - return the namespace
+func (instance Watcher) RbacNamespace() string {
+	return instance.Namespace
+}
+
+// RbacResourceName - return the name to be used for rbac objects (serviceaccount, role, rolebinding)
+func (instance Watcher) RbacResourceName() string {
+	return "watcher-" + instance.Name
+}
+
 func init() {
 	SchemeBuilder.Register(&Watcher{}, &WatcherList{})
 }
