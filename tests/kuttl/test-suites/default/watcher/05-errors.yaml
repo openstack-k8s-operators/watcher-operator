@@ -1,3 +1,8 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: watcher-watcher-kuttl
+---
 apiVersion: keystone.openstack.org/v1beta1
 kind: KeystoneService
 metadata:
