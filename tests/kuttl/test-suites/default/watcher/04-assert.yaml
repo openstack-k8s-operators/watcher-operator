@@ -33,6 +33,18 @@ status:
     reason: Ready
     status: "True"
     type: MariaDBAccountReady
+  - message: RoleBinding created
+    reason: Ready
+    status: "True"
+    type: RoleBindingReady
+  - message: Role created
+    reason: Ready
+    status: "True"
+    type: RoleReady
+  - message: ServiceAccount created
+    reason: Ready
+    status: "True"
+    type: ServiceAccountReady
   - message: WatcherRabbitMQTransportURL successfully created
     reason: Ready
     status: "True"

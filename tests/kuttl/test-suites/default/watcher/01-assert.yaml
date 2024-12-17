@@ -31,6 +31,18 @@ status:
     reason: Ready
     status: "True"
     type: MariaDBAccountReady
+  - message: RoleBinding created
+    reason: Ready
+    status: "True"
+    type: RoleBindingReady
+  - message: Role created
+    reason: Ready
+    status: "True"
+    type: RoleReady
+  - message: ServiceAccount created
+    reason: Ready
+    status: "True"
+    type: ServiceAccountReady
   - message: WatcherRabbitMQTransportURL successfully created
     reason: Ready
     status: "True"
@@ -108,6 +120,25 @@ spec:
   serviceName: watcher
   serviceType: infra-optim
   serviceUser: watcher
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: watcher-watcher-kuttl
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: watcher-watcher-kuttl-rolebinding
+  namespace: watcher-kuttl-default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: watcher-watcher-kuttl-role
+subjects:
+- kind: ServiceAccount
+  name: watcher-watcher-kuttl
+  namespace: watcher-kuttl-default
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
