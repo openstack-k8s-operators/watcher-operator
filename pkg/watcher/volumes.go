@@ -100,3 +100,13 @@ func GetLogVolume() []corev1.Volume {
 		},
 	}
 }
+
+// GetKollaConfigVolumeMount - Returns the VolumeMount for the kolla config file
+func GetKollaConfigVolumeMount(serviceName string) corev1.VolumeMount {
+	return corev1.VolumeMount{
+		Name:      ConfigVolume,
+		MountPath: "/var/lib/kolla/config_files/config.json",
+		SubPath:   serviceName + "-config.json",
+		ReadOnly:  true,
+	}
+}

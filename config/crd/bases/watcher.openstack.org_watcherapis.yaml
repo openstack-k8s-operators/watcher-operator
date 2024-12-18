@@ -48,6 +48,13 @@ spec:
                 description: MemcachedInstance is the name of the Memcached CR that
                   all watcher service will use.
                 type: string
+              nodeSelector:
+                additionalProperties:
+                  type: string
+                description: |-
+                  NodeSelector to target subset of worker nodes running this component. Setting here overrides
+                  any global NodeSelector settings within the Watcher CR.
+                type: object
               passwordSelectors:
                 default:
                   service: WatcherPassword
@@ -65,8 +72,77 @@ spec:
                 description: PreserveJobs - do not delete jobs after they finished
                   e.g. to check logs
                 type: boolean
+              replicas:
+                default: 1
+                description: Replicas of Watcher service to run
+                format: int32
+                maximum: 32
+                minimum: 0
+                type: integer
+              resources:
+                description: |-
+                  Resources - Compute Resources required by this service (Limits/Requests).
+                  https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                properties:
+                  claims:
+                    description: |-
+                      Claims lists the names of resources, defined in spec.resourceClaims,
+                      that are used by this container.
+
+
+                      This is an alpha field and requires enabling the
+                      DynamicResourceAllocation feature gate.
+
+
+                      This field is immutable. It can only be set for containers.
+                    items:
+                      description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                      properties:
+                        name:
+                          description: |-
+                            Name must match the name of one entry in pod.spec.resourceClaims of
+                            the Pod where this field is used. It makes that resource available
+                            inside a container.
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - name
+                    x-kubernetes-list-type: map
+                  limits:
+                    additionalProperties:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    description: |-
+                      Limits describes the maximum amount of compute resources allowed.
+                      More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                    type: object
+                  requests:
+                    additionalProperties:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    description: |-
+                      Requests describes the minimum amount of compute resources required.
+                      If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                      otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                      More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                    type: object
+                type: object
               secret:
                 description: Secret containing all passwords / keys needed
+                type: string
+              serviceAccount:
+                description: |-
+                  ServiceAccount - service account name used internally to provide
+                  Watcher services the default SA name
                 type: string
               serviceUser:
                 default: watcher
@@ -75,6 +151,7 @@ spec:
                 type: string
             required:
             - secret
+            - serviceAccount
             type: object
           status:
             description: WatcherAPIStatus defines the observed state of WatcherAPI
@@ -121,6 +198,11 @@ spec:
                   - type
                   type: object
                 type: array
+              hash:
+                additionalProperties:
+                  type: string
+                description: Map of hashes to track e.g. job status
+                type: object
               observedGeneration:
                 description: |-
                   ObservedGeneration - the most recent generation observed for this
@@ -128,6 +210,10 @@ spec:
                   then the controller has not processed the latest changes injected by
                   the openstack-operator in the top-level CR (e.g. the ContainerImage)
                 format: int64
+                type: integer
+              readyCount:
+                description: ReadyCount of watcher API instances
+                format: int32
                 type: integer
             type: object
         type: object

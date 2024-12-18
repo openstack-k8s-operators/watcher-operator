@@ -633,7 +633,9 @@ func (r *WatcherReconciler) generateServiceConfigDBSync(
 			db.GetDatabaseHostname(),
 			watcher.DatabaseName,
 		),
-		"TransportURL": string(transporturlSecret.Data[TransportURLSelector]),
+		"TransportURL":  string(transporturlSecret.Data[TransportURLSelector]),
+		"LogFile":       fmt.Sprintf("%s%s.log", watcher.WatcherLogPath, instance.Name),
+		"APIPublicPort": fmt.Sprintf("%d", watcher.WatcherPublicPort),
 	}
 
 	return GenerateConfigsGeneric(ctx, helper, instance, envVars, templateParameters, customData, labels, false)
