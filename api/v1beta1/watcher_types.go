@@ -21,6 +21,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	// DbSyncHash hash
+	DbSyncHash = "dbsync"
+)
+
 // WatcherSpec defines the desired state of Watcher
 type WatcherSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
@@ -28,7 +33,6 @@ type WatcherSpec struct {
 
 	WatcherTemplate `json:",inline"`
 
-	// +kubebuilder:validation:Required
 	WatcherImages `json:",inline"`
 }
 
@@ -39,6 +43,9 @@ type WatcherStatus struct {
 
 	// ServiceID - The ID of the watcher service registered in keystone
 	ServiceID string `json:"serviceID,omitempty"`
+
+	// Map of hashes to track e.g. job status
+	Hash map[string]string `json:"hash,omitempty"`
 
 	// ObservedGeneration - the most recent generation observed for this
 	// service. If the observed generation is less than the spec generation,

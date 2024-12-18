@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -34,7 +35,10 @@ import (
 	keystonev1 "github.com/openstack-k8s-operators/keystone-operator/api/v1beta1"
 	"github.com/openstack-k8s-operators/lib-common/modules/common"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/env"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/helper"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/job"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/labels"
 	common_rbac "github.com/openstack-k8s-operators/lib-common/modules/common/rbac"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/util"
 	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
@@ -77,6 +81,7 @@ func (r *WatcherReconciler) GetLogger(ctx context.Context) logr.Logger {
 //+kubebuilder:rbac:groups=keystone.openstack.org,resources=keystoneservices,verbs=get;list;watch;create;update;patch;delete;
 //+kubebuilder:rbac:groups=keystone.openstack.org,resources=keystoneendpoints,verbs=get;list;watch;create;update;patch;delete;
 //+kubebuilder:rbac:groups="",resources=pods,verbs=create;delete;get;list;patch;update;watch
+//+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete;
 
 // service account, role, rolebinding
 //+kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch
@@ -224,6 +229,21 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		return ctrl.Result{}, errors.New("error retrieving required data from secret")
 	}
 
+	hashTransporturl, _, transporturlSecret, err := ensureSecret(
+		ctx,
+		types.NamespacedName{Namespace: instance.Namespace, Name: transportURL.Status.SecretName},
+		[]string{
+			TransportURLSelector,
+		},
+		helper.GetClient(),
+		&instance.Status.Conditions,
+		r.RequeueTimeout,
+	)
+	if err != nil || hashTransporturl == "" {
+		// Empty hash means that there is some problem retrieving the key from the secret
+		return ctrl.Result{}, errors.New("error retrieving required data from transporturl secret")
+	}
+
 	instance.Status.Conditions.MarkTrue(condition.InputReadyCondition, condition.InputReadyMessage)
 	// End of Input Ready check
 
@@ -237,6 +257,31 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 
 	// End of Keystone service creation
 
+	// Generate config for dbsync
+	configVars := make(map[string]env.Setter)
+
+	err = r.generateServiceConfigDBSync(ctx, instance, db, &transporturlSecret, helper, &configVars)
+	if err != nil {
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			condition.ServiceConfigReadyCondition,
+			condition.ErrorReason,
+			condition.SeverityWarning,
+			condition.ServiceConfigReadyErrorMessage,
+			err.Error()))
+		return ctrl.Result{}, err
+	}
+
+	instance.Status.Conditions.MarkTrue(condition.ServiceConfigReadyCondition, condition.ServiceConfigReadyMessage)
+	// End of config generation for dbsync
+
+	ctrlResult, err := r.ensureDBSync(ctx, helper, instance, serviceLabels)
+	if err != nil {
+		return ctrlResult, err
+	} else if (ctrlResult != ctrl.Result{}) {
+		return ctrlResult, nil
+	}
+
+	//
 	// remove finalizers from unused MariaDBAccount records
 	// this assumes all database-depedendent deployments are up and
 	// running with current database account info
@@ -267,6 +312,11 @@ func (r *WatcherReconciler) initStatus(instance *watcherv1beta1.Watcher) error {
 
 	// Update the lastObserved generation before evaluating conditions
 	instance.Status.ObservedGeneration = instance.Generation
+
+	// initialize .Status.Hash
+	if instance.Status.Hash == nil {
+		instance.Status.Hash = make(map[string]string)
+	}
 
 	return nil
 }
@@ -308,6 +358,14 @@ func (r *WatcherReconciler) initConditions(instance *watcherv1beta1.Watcher) err
 			condition.RoleBindingReadyCondition,
 			condition.InitReason,
 			condition.RoleBindingReadyInitMessage),
+		condition.UnknownCondition(
+			condition.ServiceConfigReadyCondition,
+			condition.InitReason,
+			condition.ServiceConfigReadyInitMessage),
+		condition.UnknownCondition(
+			condition.DBSyncReadyCondition,
+			condition.InitReason,
+			condition.DBSyncReadyInitMessage),
 	)
 
 	instance.Status.Conditions.Init(&cl)
@@ -544,6 +602,87 @@ func (r *WatcherReconciler) ensureKeystoneSvc(
 	return ctrlResult, nil
 }
 
+func (r *WatcherReconciler) generateServiceConfigDBSync(
+	ctx context.Context,
+	instance *watcherv1beta1.Watcher,
+	db *mariadbv1.Database,
+	transporturlSecret *corev1.Secret,
+	helper *helper.Helper,
+	envVars *map[string]env.Setter,
+) error {
+	Log := r.GetLogger(ctx)
+	Log.Info("generateServiceConfigs - reconciling config for Watcher CR")
+
+	customData := map[string]string{}
+
+	labels := labels.GetLabels(instance, labels.GetGroupLabel(watcher.ServiceName), map[string]string{})
+	databaseAccount := db.GetAccount()
+	databaseSecret := db.GetSecret()
+	templateParameters := map[string]interface{}{
+		"DatabaseConnection": fmt.Sprintf("mysql+pymysql://%s:%s@%s/%s?charset=utf8",
+			databaseAccount.Spec.UserName,
+			string(databaseSecret.Data[mariadbv1.DatabasePasswordSelector]),
+			db.GetDatabaseHostname(),
+			watcher.DatabaseName,
+		),
+		"TransportURL": string(transporturlSecret.Data[TransportURLSelector]),
+	}
+
+	return GenerateConfigsGeneric(ctx, helper, instance, envVars, templateParameters, customData, labels, false)
+}
+
+func (r *WatcherReconciler) ensureDBSync(
+	ctx context.Context,
+	h *helper.Helper,
+	instance *watcherv1beta1.Watcher,
+	serviceLabels map[string]string,
+) (ctrl.Result, error) {
+	Log := r.GetLogger(ctx)
+	Log.Info(fmt.Sprintf("Reconciling the Keystone Service for '%s'", instance.Name))
+
+	// So far we are not using Service Annotations
+	dbSyncHash := instance.Status.Hash[watcherv1beta1.DbSyncHash]
+	jobDef := watcher.DbSyncJob(instance, serviceLabels, nil)
+
+	dbSyncjob := job.NewJob(
+		jobDef,
+		watcherv1beta1.DbSyncHash,
+		instance.Spec.PreserveJobs,
+		time.Duration(5)*time.Second,
+		dbSyncHash,
+	)
+
+	ctrlResult, err := dbSyncjob.DoJob(
+		ctx,
+		h,
+	)
+
+	if (ctrlResult != ctrl.Result{}) {
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			condition.DBSyncReadyCondition,
+			condition.RequestedReason,
+			condition.SeverityInfo,
+			condition.DBSyncReadyRunningMessage))
+		return ctrlResult, nil
+	}
+	if err != nil {
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			condition.DBSyncReadyCondition,
+			condition.ErrorReason,
+			condition.SeverityWarning,
+			condition.DBSyncReadyErrorMessage,
+			err.Error()))
+		return ctrl.Result{}, err
+	}
+	if dbSyncjob.HasChanged() {
+		instance.Status.Hash[watcherv1beta1.DbSyncHash] = dbSyncjob.GetHash()
+		Log.Info(fmt.Sprintf("Service '%s' - Job %s hash added - %s", instance.Name, jobDef.Name, instance.Status.Hash[watcherv1beta1.DbSyncHash]))
+	}
+	instance.Status.Conditions.MarkTrue(condition.DBSyncReadyCondition, condition.DBSyncReadyMessage)
+
+	return ctrlResult, nil
+}
+
 func (r *WatcherReconciler) reconcileDelete(ctx context.Context, instance *watcherv1beta1.Watcher, helper *helper.Helper) (ctrl.Result, error) {
 	Log := r.GetLogger(ctx)
 	Log.Info(fmt.Sprintf("Reconcile Service '%s' delete started", instance.Name))
@@ -595,5 +734,6 @@ func (r *WatcherReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.ServiceAccount{}).
 		Owns(&rbacv1.Role{}).
 		Owns(&rbacv1.RoleBinding{}).
+		Owns(&batchv1.Job{}).
 		Complete(r)
 }

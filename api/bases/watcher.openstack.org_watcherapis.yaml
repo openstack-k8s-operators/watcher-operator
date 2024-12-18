@@ -70,6 +70,11 @@ spec:
                       password from the Secret
                     type: string
                 type: object
+              preserveJobs:
+                default: false
+                description: PreserveJobs - do not delete jobs after they finished
+                  e.g. to check logs
+                type: boolean
               secret:
                 description: Secret containing all passwords / keys needed
                 type: string

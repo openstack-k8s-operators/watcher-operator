@@ -45,6 +45,7 @@ type WatcherTestData struct {
 	ServiceAccountName           types.NamespacedName
 	RoleName                     types.NamespacedName
 	RoleBindingName              types.NamespacedName
+	WatcherDBSync                types.NamespacedName
 }
 
 // GetWatcherTestData is a function that initialize the WatcherTestData
@@ -104,6 +105,10 @@ func GetWatcherTestData(watcherName types.NamespacedName) WatcherTestData {
 		RoleBindingName: types.NamespacedName{
 			Namespace: watcherName.Namespace,
 			Name:      "watcher-" + watcherName.Name + "-rolebinding",
+		},
+		WatcherDBSync: types.NamespacedName{
+			Namespace: watcherName.Namespace,
+			Name:      fmt.Sprintf("%s-db-sync", watcherName.Name),
 		},
 	}
 }

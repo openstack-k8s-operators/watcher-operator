@@ -11,6 +11,7 @@ import (
 	rabbitmqv1 "github.com/openstack-k8s-operators/infra-operator/apis/rabbitmq/v1beta1"
 	keystonev1beta1 "github.com/openstack-k8s-operators/keystone-operator/api/v1beta1"
 	. "github.com/openstack-k8s-operators/lib-common/modules/common/test/helpers"
+	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -45,12 +46,14 @@ var _ = Describe("Watcher controller with minimal spec values", func() {
 			Expect(Watcher.Spec.PasswordSelectors).Should(Equal(watcherv1beta1.PasswordSelector{Service: "WatcherPassword"}))
 			Expect(Watcher.Spec.RabbitMqClusterName).Should(Equal("rabbitmq"))
 			Expect(Watcher.Spec.ServiceUser).Should(Equal("watcher"))
+			Expect(Watcher.Spec.PreserveJobs).Should(BeFalse())
 		})
 
 		It("should have the Status fields initialized", func() {
 			Watcher := GetWatcher(watcherTest.Instance)
 			Expect(Watcher.Status.ObservedGeneration).To(Equal(int64(0)))
 			Expect(Watcher.Status.ServiceID).Should(Equal(""))
+			Expect(Watcher.Status.Hash).Should(BeEmpty())
 		})
 
 		It("It has the expected container image defaults", func() {
@@ -84,6 +87,7 @@ var _ = Describe("Watcher controller", func() {
 			Expect(Watcher.Spec.ServiceUser).Should(Equal("watcher"))
 			Expect(Watcher.Spec.Secret).Should(Equal("test-osp-secret"))
 			Expect(Watcher.Spec.RabbitMqClusterName).Should(Equal("rabbitmq"))
+			Expect(Watcher.Spec.PreserveJobs).Should(BeFalse())
 		})
 
 		It("should have the Status fields initialized", func() {
@@ -232,6 +236,8 @@ var _ = Describe("Watcher controller", func() {
 			// did its job and registered the watcher service
 			keystone.SimulateKeystoneServiceReady(watcherTest.KeystoneServiceName)
 
+			// Simulate dbsync success
+			th.SimulateJobSuccess(watcherTest.WatcherDBSync)
 			// We validate the full Watcher CR readiness status here
 			// DB Ready
 			th.ExpectCondition(
@@ -277,6 +283,14 @@ var _ = Describe("Watcher controller", func() {
 				corev1.ConditionTrue,
 			)
 
+			// DBSync execution
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				condition.DBSyncReadyCondition,
+				corev1.ConditionTrue,
+			)
+
 			// Global status Ready
 			th.ExpectCondition(
 				watcherTest.Instance,
@@ -294,6 +308,10 @@ var _ = Describe("Watcher controller", func() {
 			_ = th.K8sClient.List(ctx, ksrvList, listOpts)
 			Expect(ksrvList.Items).ToNot(BeEmpty())
 			Expect(ksrvList.Items[0].Status.Conditions).ToNot(BeNil())
+
+			// status.hash['dbsync'] should be populated when dbsync is successful
+			Watcher := GetWatcher(watcherTest.Instance)
+			Expect(Watcher.Status.Hash[watcherv1beta1.DbSyncHash]).ShouldNot(BeNil())
 
 		})
 
@@ -470,4 +488,136 @@ var _ = Describe("Watcher controller", func() {
 			Expect(Watcher.Spec.ApplierContainerImageURL).To(Equal("watcher-applier-custom-image-env"))
 		})
 	})
+	When("Watcher with non-default values are created", func() {
+		BeforeEach(func() {
+			DeferCleanup(th.DeleteInstance, CreateWatcher(watcherTest.Instance, GetNonDefaultWatcherSpec()))
+			DeferCleanup(k8sClient.Delete, ctx, CreateWatcherMessageBusSecret(watcherTest.Instance.Namespace, "rabbitmq-secret"))
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.Instance.Namespace,
+					GetWatcher(watcherTest.Instance).Spec.DatabaseInstance,
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+		})
+
+		It("should have the Spec fields with the expected values", func() {
+			Watcher := GetWatcher(watcherTest.Instance)
+			Expect(Watcher.Spec.DatabaseInstance).Should(Equal("fakeopenstack"))
+			Expect(Watcher.Spec.DatabaseAccount).Should(Equal("watcher"))
+			Expect(Watcher.Spec.ServiceUser).Should(Equal("fakeuser"))
+			Expect(Watcher.Spec.Secret).Should(Equal("test-osp-secret"))
+			Expect(Watcher.Spec.PreserveJobs).Should(BeTrue())
+			Expect(Watcher.Spec.RabbitMqClusterName).Should(Equal("rabbitmq"))
+		})
+
+		It("Should create watcher service with custom values", func() {
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+			infra.SimulateTransportURLReady(watcherTest.WatcherTransportURL)
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: SecretName},
+					map[string][]byte{
+						"WatcherPassword": []byte("password"),
+					},
+				))
+
+			// simulate that it becomes ready i.e. the keystone-operator
+			// did its job and registered the watcher service
+			keystone.SimulateKeystoneServiceReady(watcherTest.KeystoneServiceName)
+
+			// Simulate dbsync success
+			th.SimulateJobSuccess(watcherTest.WatcherDBSync)
+			// We validate the full Watcher CR readiness status here
+			// DB Ready
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				condition.DBReadyCondition,
+				corev1.ConditionTrue,
+			)
+			// RabbitMQ Ready
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				watcherv1beta1.WatcherRabbitMQTransportURLReadyCondition,
+				corev1.ConditionTrue,
+			)
+			// Input Ready (secrets)
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				condition.InputReadyCondition,
+				corev1.ConditionTrue,
+			)
+			// Keystone Service Ready
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				condition.KeystoneServiceReadyCondition,
+				corev1.ConditionTrue,
+			)
+
+			// Service Account and Role Ready
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				condition.ServiceAccountReadyCondition,
+				corev1.ConditionTrue,
+			)
+
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				condition.RoleReadyCondition,
+				corev1.ConditionTrue,
+			)
+
+			// DBSync execution
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				condition.DBSyncReadyCondition,
+				corev1.ConditionTrue,
+			)
+
+			// Global status Ready
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				condition.ReadyCondition,
+				corev1.ConditionTrue,
+			)
+
+			// assert that the MariaDBDatabase is created in non-default Database
+			mariadbList := &mariadbv1.MariaDBDatabaseList{}
+			listOpts := &client.ListOptions{
+				FieldSelector: fields.OneTermEqualSelector("metadata.name", "watcher"),
+				Namespace:     watcherTest.Instance.Namespace,
+			}
+			_ = th.K8sClient.List(ctx, mariadbList, listOpts)
+			// Check custom ServiceUser
+			Expect(mariadbList.Items[0].Labels["dbName"]).To(Equal("fakeopenstack"))
+
+			// assert that the KeystoneService for watcher is created
+			ksrvList := &keystonev1beta1.KeystoneServiceList{}
+			listOpts = &client.ListOptions{
+				FieldSelector: fields.OneTermEqualSelector("metadata.name", "watcher"),
+				Namespace:     watcherTest.Instance.Namespace,
+			}
+			_ = th.K8sClient.List(ctx, ksrvList, listOpts)
+			// Check custom ServiceUser
+			Expect(ksrvList.Items[0].Spec.ServiceUser).To(Equal("fakeuser"))
+
+			// status.hash['dbsync'] should be populated when dbsync is successful
+			Watcher := GetWatcher(watcherTest.Instance)
+			Expect(Watcher.Status.Hash[watcherv1beta1.DbSyncHash]).ShouldNot(BeNil())
+
+		})
+	})
+
 })

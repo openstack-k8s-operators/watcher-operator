@@ -52,6 +52,11 @@ type WatcherCommon struct {
 	// +kubebuilder:default=memcached
 	// MemcachedInstance is the name of the Memcached CR that all watcher service will use.
 	MemcachedInstance string `json:"memcachedInstance"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	// PreserveJobs - do not delete jobs after they finished e.g. to check logs
+	PreserveJobs bool `json:"preserveJobs"`
 }
 
 // WatcherTemplate defines the fields used in the top level CR

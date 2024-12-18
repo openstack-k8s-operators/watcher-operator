@@ -75,6 +75,11 @@ spec:
                       password from the Secret
                     type: string
                 type: object
+              preserveJobs:
+                default: false
+                description: PreserveJobs - do not delete jobs after they finished
+                  e.g. to check logs
+                type: boolean
               rabbitMqClusterName:
                 default: rabbitmq
                 description: |-
@@ -142,6 +147,11 @@ spec:
                   - type
                   type: object
                 type: array
+              hash:
+                additionalProperties:
+                  type: string
+                description: Map of hashes to track e.g. job status
+                type: object
               observedGeneration:
                 description: |-
                   ObservedGeneration - the most recent generation observed for this
