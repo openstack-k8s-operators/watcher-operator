@@ -21,6 +21,10 @@ status:
     reason: Ready
     status: "True"
     type: DBReady
+  - message: DBsync completed
+    reason: Ready
+    status: "True"
+    type: DBSyncReady
   - message: Input data complete
     reason: Ready
     status: "True"
@@ -45,6 +49,10 @@ status:
     reason: Ready
     status: "True"
     type: ServiceAccountReady
+  - message: Service config create completed
+    reason: Ready
+    status: "True"
+    type: ServiceConfigReady
   - message: WatcherRabbitMQTransportURL successfully created
     reason: Ready
     status: "True"
@@ -128,3 +136,16 @@ spec:
   serviceName: watcher
   serviceType: infra-optim
   serviceUser: watcher
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  labels:
+    service: watcher
+  name: watcher-kuttl-db-sync
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: watcher-kuttl-config-data
+---
