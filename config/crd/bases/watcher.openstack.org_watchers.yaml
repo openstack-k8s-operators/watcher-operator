@@ -84,7 +84,7 @@ spec:
                 default: rabbitmq
                 description: |-
                   RabbitMQ instance name
-                  Needed to request a transportURL that is created and used in Barbican
+                  Needed to request a transportURL that is created and used in Watcher
                 type: string
               secret:
                 default: osp-secret

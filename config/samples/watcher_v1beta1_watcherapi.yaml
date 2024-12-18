@@ -7,3 +7,8 @@ metadata:
   name: watcherapi-sample
 spec:
   secret: "watcher"
+  memcachedInstance: "memcached"
+  # jgilaber this field should be removed once we create the WatcherAPI from
+  # the Watcher controller
+  containerImage: "quay.io/podified-antelope-centos9/openstack-watcher-api:current-podified"
+  serviceAccount: "watcher-watcher"

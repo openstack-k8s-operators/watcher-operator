@@ -8,8 +8,8 @@
       "perm": "0600"
     },
     {
-      "source": "/var/lib/config-data/default/10-watcher_wsgi_main.conf",
-      "dest": "/etc/httpd/conf.d/10-watcher_wsgi_main.conf",
+      "source": "/var/lib/config-data/default/10-watcher-wsgi-main.conf",
+      "dest": "/etc/httpd/conf.d/10-watcher-wsgi-main.conf",
       "owner": "root",
       "perm": "0640",
       "optional": true

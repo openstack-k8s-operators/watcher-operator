@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"time"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -32,16 +33,21 @@ import (
 	"github.com/go-logr/logr"
 	memcachedv1 "github.com/openstack-k8s-operators/infra-operator/apis/memcached/v1beta1"
 	keystonev1 "github.com/openstack-k8s-operators/keystone-operator/api/v1beta1"
+	"github.com/openstack-k8s-operators/lib-common/modules/common"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/deployment"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/endpoint"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/env"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/helper"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/labels"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/service"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/util"
 
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
 	"github.com/openstack-k8s-operators/watcher-operator/pkg/watcher"
+	"github.com/openstack-k8s-operators/watcher-operator/pkg/watcherapi"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/fields"
@@ -68,6 +74,7 @@ func (r *WatcherAPIReconciler) GetLogger(ctx context.Context) logr.Logger {
 //+kubebuilder:rbac:groups=keystone.openstack.org,resources=keystoneendpoints,verbs=get;list;watch;create;update;patch;delete;
 //+kubebuilder:rbac:groups=memcached.openstack.org,resources=memcacheds,verbs=get;list;watch;update;patch
 //+kubebuilder:rbac:groups=memcached.openstack.org,resources=memcacheds/finalizers,verbs=update;patch
+//+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete;
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -186,7 +193,33 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
+	Log.Info(fmt.Sprintf("[API] Getting input hash '%s'", instance.Name))
+	//
+	// create hash over all the different input resources to identify if any those changed
+	// and a restart/recreate is required.
+	//
+
+	inputHash, hashChanged, errorHash := r.createHashOfInputHashes(ctx, instance, configVars)
+	if errorHash != nil {
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			condition.ServiceConfigReadyCondition,
+			condition.ErrorReason,
+			condition.SeverityWarning,
+			condition.ServiceConfigReadyErrorMessage,
+			err.Error()))
+		return ctrl.Result{}, err
+	} else if hashChanged {
+		// Hash changed and instance status should be updated (which will be done by main defer func),
+		// so we need to return and reconcile again
+		return ctrl.Result{}, nil
+	}
+
 	instance.Status.Conditions.MarkTrue(condition.ServiceConfigReadyCondition, condition.ServiceConfigReadyMessage)
+
+	result, err = r.createDeployment(ctx, helper, instance, inputHash)
+	if err != nil {
+		return result, err
+	}
 
 	// We reached the end of the Reconcile, update the Ready condition based on
 	// the sub conditions
@@ -208,7 +241,8 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 	Log := r.GetLogger(ctx)
 	Log.Info("generateServiceConfigs - reconciling")
 
-	labels := labels.GetLabels(instance, labels.GetGroupLabel(watcher.ServiceName), map[string]string{})
+	labels := labels.GetLabels(instance, labels.GetGroupLabel(WatcherAPILabelPrefix), map[string]string{})
+
 	// jgilaber this might be wrong? we should probably get keystonapi in the
 	// watcher controller and set the url in the spec eventually?
 	keystoneAPI, err := keystonev1.GetKeystoneAPI(ctx, helper, instance.Namespace, map[string]string{})
@@ -246,6 +280,8 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 		"ServiceUser":      instance.Spec.ServiceUser,
 		"TransportURL":     string(secret.Data[TransportURLSelector]),
 		"MemcachedServers": memcachedInstance.GetMemcachedServerListString(),
+		"LogFile":          fmt.Sprintf("%s%s.log", watcher.WatcherLogPath, instance.Name),
+		"APIPublicPort":    fmt.Sprintf("%d", watcher.WatcherPublicPort),
 	}
 
 	// create httpd  vhost template parameters
@@ -254,11 +290,69 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 		endptConfig := map[string]interface{}{}
 		endptConfig["ServerName"] = fmt.Sprintf("%s-%s.%s.svc", watcher.ServiceName, endpt.String(), instance.Namespace)
 		endptConfig["TLS"] = false // default TLS to false, and set it below when implemented
+		endptConfig["Port"] = fmt.Sprintf("%d", watcher.WatcherPublicPort)
 		httpdVhostConfig[endpt.String()] = endptConfig
 	}
 	templateParameters["VHosts"] = httpdVhostConfig
 
 	return GenerateConfigsGeneric(ctx, helper, instance, envVars, templateParameters, customData, labels, false)
+}
+
+func (r *WatcherAPIReconciler) createDeployment(
+	ctx context.Context,
+	helper *helper.Helper,
+	instance *watcherv1beta1.WatcherAPI,
+	configHash string,
+) (ctrl.Result, error) {
+	Log := r.GetLogger(ctx)
+	Log.Info(fmt.Sprintf("Defining WatcherAPI deployment '%s'", instance.Name))
+
+	// define a new Deployment object
+	deploymentDef, err := watcherapi.Deployment(instance, configHash, getAPIServiceLabels())
+	if err != nil {
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			condition.DeploymentReadyCondition,
+			condition.ErrorReason,
+			condition.SeverityWarning,
+			condition.DeploymentReadyErrorMessage,
+			err.Error()))
+		return ctrl.Result{}, err
+	}
+	Log.Info(fmt.Sprintf("Getting deployment '%s'", instance.Name))
+	deploymentObject := deployment.NewDeployment(deploymentDef, time.Duration(5)*time.Second)
+	Log.Info(fmt.Sprintf("Got deployment '%s'", instance.Name))
+	ctrlResult, errorResult := deploymentObject.CreateOrPatch(ctx, helper)
+	if errorResult != nil {
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			condition.DeploymentReadyCondition,
+			condition.ErrorReason,
+			condition.SeverityWarning,
+			condition.DeploymentReadyErrorMessage,
+			errorResult.Error()))
+		return ctrlResult, errorResult
+	} else if (ctrlResult != ctrl.Result{}) {
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			condition.DeploymentReadyCondition,
+			condition.RequestedReason,
+			condition.SeverityInfo,
+			condition.DeploymentReadyRunningMessage))
+		return ctrlResult, nil
+	}
+
+	instance.Status.ReadyCount = deploymentObject.GetDeployment().Status.ReadyReplicas
+
+	if instance.Status.ReadyCount > 0 {
+		instance.Status.Conditions.MarkTrue(condition.DeploymentReadyCondition, condition.DeploymentReadyMessage)
+	} else {
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			condition.DeploymentReadyCondition,
+			condition.RequestedReason,
+			condition.SeverityInfo,
+			condition.DeploymentReadyRunningMessage,
+		))
+	}
+
+	return ctrl.Result{}, nil
 }
 
 func (r *WatcherAPIReconciler) reconcileDelete(ctx context.Context, instance *watcherv1beta1.WatcherAPI, helper *helper.Helper) (ctrl.Result, error) {
@@ -295,12 +389,17 @@ func (r *WatcherAPIReconciler) initStatus(instance *watcherv1beta1.WatcherAPI) e
 		condition.UnknownCondition(condition.InputReadyCondition, condition.InitReason, condition.InputReadyInitMessage),
 		condition.UnknownCondition(condition.ServiceConfigReadyCondition, condition.InitReason, condition.ServiceConfigReadyMessage),
 		condition.UnknownCondition(condition.MemcachedReadyCondition, condition.InitReason, condition.MemcachedReadyInitMessage),
+		condition.UnknownCondition(condition.DeploymentReadyCondition, condition.InitReason, condition.DeploymentReadyMessage),
 	)
 
 	instance.Status.Conditions.Init(&cl)
 
 	// Update the lastObserved generation before evaluating conditions
 	instance.Status.ObservedGeneration = instance.Generation
+
+	if instance.Status.Hash == nil {
+		instance.Status.Hash = map[string]string{}
+	}
 
 	return nil
 }
@@ -322,6 +421,7 @@ func (r *WatcherAPIReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&watcherv1beta1.WatcherAPI{}).
 		Owns(&corev1.Secret{}).
+		Owns(&appsv1.Deployment{}).
 		Watches(
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.findObjectsForSrc),
@@ -362,4 +462,30 @@ func (r *WatcherAPIReconciler) findObjectsForSrc(ctx context.Context, src client
 	}
 
 	return requests
+}
+
+func (r *WatcherAPIReconciler) createHashOfInputHashes(
+	ctx context.Context,
+	instance *watcherv1beta1.WatcherAPI,
+	envVars map[string]env.Setter,
+) (string, bool, error) {
+	Log := r.GetLogger(ctx)
+	var hashMap map[string]string
+	changed := false
+	mergedMapVars := env.MergeEnvs([]corev1.EnvVar{}, envVars)
+	hash, err := util.ObjectHash(mergedMapVars)
+	if err != nil {
+		return hash, changed, err
+	}
+	if hashMap, changed = util.SetHash(instance.Status.Hash, common.InputHashName, hash); changed {
+		instance.Status.Hash = hashMap
+		Log.Info(fmt.Sprintf("Input maps hash %s - %s", common.InputHashName, hash))
+	}
+	return hash, changed, nil
+}
+
+func getAPIServiceLabels() map[string]string {
+	return map[string]string{
+		common.AppSelector: WatcherAPILabelPrefix,
+	}
 }
