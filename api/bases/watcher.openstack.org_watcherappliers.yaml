@@ -39,9 +39,9 @@ spec:
           spec:
             description: WatcherApplierSpec defines the desired state of WatcherApplier
             properties:
-              foo:
-                description: Foo is an example field of WatcherApplier. Edit watcherapplier_types.go
-                  to remove/update
+              containerImage:
+                description: The service specific Container Image URL (will be set
+                  to environmental default if empty)
                 type: string
             type: object
           status:

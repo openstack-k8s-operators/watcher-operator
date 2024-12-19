@@ -1,0 +1,19 @@
+# This patch inject custom ENV settings to the manager container
+# Used to set our default image locations
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+  namespace: system
+spec:
+  template:
+    spec:
+      containers:
+      - name: manager
+        env:
+        - name: WATCHER_API_IMAGE_URL_DEFAULT
+          value: quay.io/podified-antelope-centos9/openstack-watcher-api:current-podified
+        - name: WATCHER_DECISION_ENGINE_IMAGE_URL_DEFAULT
+          value: quay.io/podified-antelope-centos9/openstack-watcher-decision-engine:current-podified
+        - name: WATCHER_APPLIER_IMAGE_URL_DEFAULT
+          value: quay.io/podified-antelope-centos9/openstack-watcher-applier:current-podified
