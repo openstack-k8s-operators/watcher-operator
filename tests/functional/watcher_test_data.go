@@ -42,6 +42,10 @@ type WatcherTestData struct {
 	KeystoneServiceName          types.NamespacedName
 	WatcherAPI                   types.NamespacedName
 	MemcachedNamespace           types.NamespacedName
+	ServiceAccountName           types.NamespacedName
+	RoleName                     types.NamespacedName
+	RoleBindingName              types.NamespacedName
+	WatcherDBSync                types.NamespacedName
 }
 
 // GetWatcherTestData is a function that initialize the WatcherTestData
@@ -89,6 +93,22 @@ func GetWatcherTestData(watcherName types.NamespacedName) WatcherTestData {
 		MemcachedNamespace: types.NamespacedName{
 			Namespace: watcherName.Namespace,
 			Name:      "memcached",
+		},
+		ServiceAccountName: types.NamespacedName{
+			Namespace: watcherName.Namespace,
+			Name:      "watcher-" + watcherName.Name,
+		},
+		RoleName: types.NamespacedName{
+			Namespace: watcherName.Namespace,
+			Name:      "watcher-" + watcherName.Name + "-role",
+		},
+		RoleBindingName: types.NamespacedName{
+			Namespace: watcherName.Namespace,
+			Name:      "watcher-" + watcherName.Name + "-rolebinding",
+		},
+		WatcherDBSync: types.NamespacedName{
+			Namespace: watcherName.Namespace,
+			Name:      fmt.Sprintf("%s-db-sync", watcherName.Name),
 		},
 	}
 }

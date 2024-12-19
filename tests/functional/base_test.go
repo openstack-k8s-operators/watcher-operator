@@ -36,6 +36,16 @@ func GetDefaultWatcherSpec() map[string]interface{} {
 	}
 }
 
+// Second Watcher Spec to test proper parameters substitution
+func GetNonDefaultWatcherSpec() map[string]interface{} {
+	return map[string]interface{}{
+		"secret":           SecretName,
+		"preserveJobs":     true,
+		"databaseInstance": "fakeopenstack",
+		"serviceUser":      "fakeuser",
+	}
+}
+
 func GetDefaultWatcherAPISpec() map[string]interface{} {
 	return map[string]interface{}{
 		"databaseInstance":  "openstack",

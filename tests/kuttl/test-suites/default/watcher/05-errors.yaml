@@ -1,3 +1,8 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: watcher-watcher-kuttl
+---
 apiVersion: keystone.openstack.org/v1beta1
 kind: KeystoneService
 metadata:
@@ -22,6 +27,18 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: watcher-db-secret
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  labels:
+    service: watcher
+  name: watcher-kuttl-db-sync
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: watcher-kuttl-config-data
 ---
 apiVersion: watcher.openstack.org/v1beta1
 kind: Watcher

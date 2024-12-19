@@ -5,6 +5,15 @@ metadata:
   - openstack.org/watcher
   name: watcher-kuttl
   namespace: watcher-kuttl-default
+spec:
+  databaseAccount: watcher
+  databaseInstance: openstack
+  passwordSelectors:
+    service: WatcherPassword
+  preserveJobs: false
+  rabbitMqClusterName: rabbitmq
+  secret: osp-secret
+  serviceUser: watcher
 status:
   conditions:
   - message: Setup complete
@@ -15,6 +24,10 @@ status:
     reason: Ready
     status: "True"
     type: DBReady
+  - message: DBsync completed
+    reason: Ready
+    status: "True"
+    type: DBSyncReady
   - message: Input data complete
     reason: Ready
     status: "True"
@@ -27,6 +40,22 @@ status:
     reason: Ready
     status: "True"
     type: MariaDBAccountReady
+  - message: RoleBinding created
+    reason: Ready
+    status: "True"
+    type: RoleBindingReady
+  - message: Role created
+    reason: Ready
+    status: "True"
+    type: RoleReady
+  - message: ServiceAccount created
+    reason: Ready
+    status: "True"
+    type: ServiceAccountReady
+  - message: Service config create completed
+    reason: Ready
+    status: "True"
+    type: ServiceConfigReady
   - message: WatcherRabbitMQTransportURL successfully created
     reason: Ready
     status: "True"
@@ -105,6 +134,37 @@ spec:
   serviceType: infra-optim
   serviceUser: watcher
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: watcher-watcher-kuttl
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: watcher-watcher-kuttl-rolebinding
+  namespace: watcher-kuttl-default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: watcher-watcher-kuttl-role
+subjects:
+- kind: ServiceAccount
+  name: watcher-watcher-kuttl
+  namespace: watcher-kuttl-default
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  labels:
+    service: watcher
+  name: watcher-kuttl-db-sync
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: watcher-kuttl-config-data
+---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 namespaced: true
@@ -114,3 +174,4 @@ commands:
       oc exec -n watcher-kuttl-default openstackclient -- openstack service list -f value -c Name -c Type |[ $(grep -c ^watcher) == 1 ]
       SERVICEID=$(oc exec -n watcher-kuttl-default openstackclient -- openstack service list -f value -c Name -c Type -c ID | grep watcher| awk '{print $1}')
       [ $(oc get -n watcher-kuttl-default keystoneservice watcher -o jsonpath={.status.serviceID}) == $SERVICEID ]
+      [ -n "$(oc get -n watcher-kuttl-default watcher watcher-kuttl -o jsonpath={.status.hash.dbsync})" ]
