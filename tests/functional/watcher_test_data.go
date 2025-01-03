@@ -46,6 +46,7 @@ type WatcherTestData struct {
 	RoleName                     types.NamespacedName
 	RoleBindingName              types.NamespacedName
 	WatcherDBSync                types.NamespacedName
+	WatcherAPIDeployment         types.NamespacedName
 }
 
 // GetWatcherTestData is a function that initialize the WatcherTestData
@@ -109,6 +110,10 @@ func GetWatcherTestData(watcherName types.NamespacedName) WatcherTestData {
 		WatcherDBSync: types.NamespacedName{
 			Namespace: watcherName.Namespace,
 			Name:      fmt.Sprintf("%s-db-sync", watcherName.Name),
+		},
+		WatcherAPIDeployment: types.NamespacedName{
+			Namespace: watcherName.Namespace,
+			Name:      "watcher-api-api",
 		},
 	}
 }
