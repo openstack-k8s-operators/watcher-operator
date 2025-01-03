@@ -156,6 +156,33 @@ var _ = Describe("WatcherAPI controller", func() {
 				corev1.ConditionTrue,
 			)
 		})
+		It("creates a deployment for the watcher-api service", func() {
+			th.SimulateDeploymentReplicaReady(watcherTest.WatcherAPIDeployment)
+			th.ExpectCondition(
+				watcherTest.WatcherAPI,
+				ConditionGetterFunc(WatcherAPIConditionGetter),
+				condition.DeploymentReadyCondition,
+				corev1.ConditionTrue,
+			)
+
+			deployment := th.GetDeployment(watcherTest.WatcherAPIDeployment)
+			Expect(deployment.Spec.Template.Spec.ServiceAccountName).To(Equal("watcher-sa"))
+			Expect(int(*deployment.Spec.Replicas)).To(Equal(1))
+			Expect(deployment.Spec.Template.Spec.Volumes).To(HaveLen(3))
+			Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(2))
+			Expect(deployment.Spec.Selector.MatchLabels).To(Equal(map[string]string{"service": "watcher-api"}))
+
+			container := deployment.Spec.Template.Spec.Containers[0]
+			Expect(container.VolumeMounts).To(HaveLen(1))
+			Expect(container.Image).To(Equal("test://watcher"))
+
+			container = deployment.Spec.Template.Spec.Containers[1]
+			Expect(container.VolumeMounts).To(HaveLen(4))
+			Expect(container.Image).To(Equal("test://watcher"))
+
+			Expect(container.LivenessProbe.HTTPGet.Port.IntVal).To(Equal(int32(9322)))
+			Expect(container.ReadinessProbe.HTTPGet.Port.IntVal).To(Equal(int32(9322)))
+		})
 	})
 	When("the secret is created but missing fields", func() {
 		BeforeEach(func() {

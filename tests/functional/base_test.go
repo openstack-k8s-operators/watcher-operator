@@ -51,6 +51,8 @@ func GetDefaultWatcherAPISpec() map[string]interface{} {
 		"databaseInstance":  "openstack",
 		"secret":            SecretName,
 		"memcachedInstance": "memcached",
+		"serviceAccount":    "watcher-sa",
+		"containerImage":    "test://watcher",
 	}
 }
 
