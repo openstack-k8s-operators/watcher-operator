@@ -3,6 +3,5 @@ kind: WatcherAPI
 metadata:
   name: watcherapi-kuttl
 spec:
-  databaseInstance: openstack
   secret: watcher-kuttl
   memcachedInstance: "memcached"

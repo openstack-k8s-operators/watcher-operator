@@ -38,16 +38,6 @@ type WatcherCommon struct {
 	// PasswordSelectors - Selectors to identify the ServiceUser password from the Secret
 	PasswordSelectors PasswordSelector `json:"passwordSelectors"`
 
-	// +kubebuilder:validation:Required
-	// MariaDB instance name
-	// Required to use the mariadb-operator instance to create the DB and user
-	DatabaseInstance string `json:"databaseInstance"`
-
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:default=watcher
-	// DatabaseAccount - MariaDBAccount CR name used for watcher DB, defaults to watcher
-	DatabaseAccount string `json:"databaseAccount"`
-
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=memcached
 	// MemcachedInstance is the name of the Memcached CR that all watcher service will use.
@@ -75,6 +65,16 @@ type WatcherTemplate struct {
 	// +kubebuilder:default=osp-secret
 	// Secret containing all passwords / keys needed
 	Secret string `json:"secret"`
+
+	// +kubebuilder:validation:Required
+	// MariaDB instance name
+	// Required to use the mariadb-operator instance to create the DB and user
+	DatabaseInstance string `json:"databaseInstance"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=watcher
+	// DatabaseAccount - MariaDBAccount CR name used for watcher DB, defaults to watcher
+	DatabaseAccount string `json:"databaseAccount"`
 }
 
 // PasswordSelector to identify the DB and AdminUser password from the Secret

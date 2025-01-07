@@ -6,5 +6,4 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: watcherapi-sample
 spec:
-  databaseInstance: "openstack"
-  secret: "osp-secret"
+  secret: "watcher"

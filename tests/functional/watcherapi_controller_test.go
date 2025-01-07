@@ -12,7 +12,6 @@ import (
 	. "github.com/openstack-k8s-operators/lib-common/modules/common/test/helpers"
 	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
-	"github.com/openstack-k8s-operators/watcher-operator/pkg/watcher"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/ptr"
 )
@@ -20,7 +19,6 @@ import (
 var (
 	MinimalWatcherAPISpec = map[string]interface{}{
 		"secret":            "osp-secret",
-		"databaseInstance":  "openstack",
 		"memcachedInstance": "memcached",
 	}
 )
@@ -33,8 +31,6 @@ var _ = Describe("WatcherAPI controller with minimal spec values", func() {
 
 		It("should have the Spec fields defaulted", func() {
 			WatcherAPI := GetWatcherAPI(watcherTest.WatcherAPI)
-			Expect(WatcherAPI.Spec.DatabaseInstance).Should(Equal("openstack"))
-			Expect(WatcherAPI.Spec.DatabaseAccount).Should(Equal("watcher"))
 			Expect(WatcherAPI.Spec.Secret).Should(Equal("osp-secret"))
 			Expect(WatcherAPI.Spec.MemcachedInstance).Should(Equal("memcached"))
 			Expect(WatcherAPI.Spec.PasswordSelectors).Should(Equal(watcherv1beta1.PasswordSelector{Service: "WatcherPassword"}))
@@ -64,8 +60,6 @@ var _ = Describe("WatcherAPI controller", func() {
 
 		It("should have the Spec fields defaulted", func() {
 			WatcherAPI := GetWatcherAPI(watcherTest.WatcherAPI)
-			Expect(WatcherAPI.Spec.DatabaseInstance).Should(Equal("openstack"))
-			Expect(WatcherAPI.Spec.DatabaseAccount).Should(Equal("watcher"))
 			Expect(WatcherAPI.Spec.Secret).Should(Equal("test-osp-secret"))
 			Expect(WatcherAPI.Spec.MemcachedInstance).Should(Equal("memcached"))
 		})
@@ -218,54 +212,16 @@ var _ = Describe("WatcherAPI controller", func() {
 			)
 		})
 	})
-	When("A WatcherAPI instance without a database but with a secret is created", func() {
-		BeforeEach(func() {
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword": []byte("service-password"),
-					"transport_url":   []byte("url"),
-				},
-			)
-			DeferCleanup(k8sClient.Delete, ctx, secret)
-			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, GetDefaultWatcherAPISpec()))
-		})
-		It("should have input not ready", func() {
-			WatcherAPI := GetWatcherAPI(watcherTest.WatcherAPI)
-			customErrorString := fmt.Sprintf(
-				"couldn't get database %s and account %s",
-				watcher.DatabaseCRName,
-				WatcherAPI.Spec.DatabaseAccount,
-			)
-			errorString := fmt.Sprintf(
-				condition.InputReadyErrorMessage,
-				customErrorString,
-			)
-			th.ExpectConditionWithDetails(
-				watcherTest.WatcherAPI,
-				ConditionGetterFunc(WatcherAPIConditionGetter),
-				condition.InputReadyCondition,
-				corev1.ConditionFalse,
-				condition.ErrorReason,
-				errorString,
-			)
-		})
-		It("should have config service unknown", func() {
-			th.ExpectCondition(
-				watcherTest.WatcherAPI,
-				ConditionGetterFunc(WatcherAPIConditionGetter),
-				condition.ServiceConfigReadyCondition,
-				corev1.ConditionUnknown,
-			)
-		})
-	})
 	When("secret and db are created, but there is no memcached", func() {
 		BeforeEach(func() {
 			secret := th.CreateSecret(
 				watcherTest.InternalTopLevelSecretName,
 				map[string][]byte{
-					"WatcherPassword": []byte("service-password"),
-					"transport_url":   []byte("url"),
+					"WatcherPassword":   []byte("service-password"),
+					"transport_url":     []byte("url"),
+					"database_username": []byte("username"),
+					"database_password": []byte("password"),
+					"database_hostname": []byte("hostname"),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -303,8 +259,11 @@ var _ = Describe("WatcherAPI controller", func() {
 			secret := th.CreateSecret(
 				watcherTest.InternalTopLevelSecretName,
 				map[string][]byte{
-					"WatcherPassword": []byte("service-password"),
-					"transport_url":   []byte("url"),
+					"WatcherPassword":   []byte("service-password"),
+					"transport_url":     []byte("url"),
+					"database_username": []byte("username"),
+					"database_password": []byte("password"),
+					"database_hostname": []byte("hostname"),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)

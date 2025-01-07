@@ -43,16 +43,6 @@ spec:
                 description: The service specific Container Image URL (will be set
                   to environmental default if empty)
                 type: string
-              databaseAccount:
-                default: watcher
-                description: DatabaseAccount - MariaDBAccount CR name used for watcher
-                  DB, defaults to watcher
-                type: string
-              databaseInstance:
-                description: |-
-                  MariaDB instance name
-                  Required to use the mariadb-operator instance to create the DB and user
-                type: string
               memcachedInstance:
                 default: memcached
                 description: MemcachedInstance is the name of the Memcached CR that
@@ -84,7 +74,6 @@ spec:
                   to register in keystone
                 type: string
             required:
-            - databaseInstance
             - secret
             type: object
           status:

@@ -36,6 +36,13 @@ var (
 const (
 	// TransportURLSelector is the name of key in the secret created by TransportURL
 	TransportURLSelector = "transport_url"
+	// DatabaseUsername is the name of key in the secret for the user name used to login to the database
+	DatabaseUsername = "database_username"
+	// DatabaseUsername is the name of key in the secret for the password used to login to the database
+	DatabasePassword = "database_password"
+	// DatabaseUsername is the name of key in the secret for the database
+	// hostname
+	DatabaseHostname = "database_hostname"
 )
 
 // GetLogger returns a logger object with a prefix of "controller.name" and additional controller context fields

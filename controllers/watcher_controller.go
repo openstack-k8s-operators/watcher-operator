@@ -182,7 +182,6 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	} else if (result != ctrl.Result{}) {
 		return result, nil
 	}
-	_ = db
 	// create service DB - end
 
 	//
@@ -245,7 +244,7 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		return ctrl.Result{}, errors.New("error retrieving required data from transporturl secret")
 	}
 
-	subLevelSecretName, err := r.createSubLevelSecret(ctx, helper, instance, transporturlSecret, inputSecret)
+	subLevelSecretName, err := r.createSubLevelSecret(ctx, helper, instance, transporturlSecret, inputSecret, db)
 	if err != nil {
 		return ctrl.Result{}, nil
 	}
@@ -698,10 +697,18 @@ func (r *WatcherReconciler) createSubLevelSecret(
 	instance *watcherv1beta1.Watcher,
 	transportURLSecret corev1.Secret,
 	inputSecret corev1.Secret,
+	db *mariadbv1.Database,
 ) (string, error) {
+	Log := r.GetLogger(ctx)
+	Log.Info(fmt.Sprintf("Creating SubCr Level Secret for '%s'", instance.Name))
+	databaseAccount := db.GetAccount()
+	databaseSecret := db.GetSecret()
 	data := map[string]string{
 		instance.Spec.PasswordSelectors.Service: string(inputSecret.Data[instance.Spec.PasswordSelectors.Service]),
 		TransportURLSelector:                    string(transportURLSecret.Data[TransportURLSelector]),
+		DatabaseUsername:                        databaseAccount.Spec.UserName,
+		DatabasePassword:                        string(databaseSecret.Data[mariadbv1.DatabasePasswordSelector]),
+		DatabaseHostname:                        db.GetDatabaseHostname(),
 	}
 	secretName := instance.Name
 

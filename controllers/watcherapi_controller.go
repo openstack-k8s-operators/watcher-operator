@@ -38,7 +38,6 @@ import (
 	"github.com/openstack-k8s-operators/lib-common/modules/common/helper"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/labels"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/service"
-	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
 	"github.com/openstack-k8s-operators/watcher-operator/pkg/watcher"
@@ -160,17 +159,6 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	configVars[instance.Spec.Secret] = env.SetValue(secretHash)
 
-	db, err := mariadbv1.GetDatabaseByNameAndAccount(ctx, helper, watcher.DatabaseCRName, instance.Spec.DatabaseAccount, instance.Namespace)
-	if err != nil {
-		instance.Status.Conditions.Set(condition.FalseCondition(
-			condition.InputReadyCondition,
-			condition.ErrorReason,
-			condition.SeverityWarning,
-			condition.InputReadyErrorMessage,
-			fmt.Sprintf("couldn't get database %s and account %s", watcher.DatabaseCRName, instance.Spec.DatabaseAccount)))
-		return ctrl.Result{}, err
-	}
-
 	// all our input checks out so report InputReady
 	instance.Status.Conditions.MarkTrue(condition.InputReadyCondition, condition.InputReadyMessage)
 
@@ -193,7 +181,7 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 	}
 
-	err = r.generateServiceConfigs(ctx, instance, secret, db, memcached, helper, &configVars)
+	err = r.generateServiceConfigs(ctx, instance, secret, memcached, helper, &configVars)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -213,7 +201,7 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 // generateServiceConfigs - create Secret which holds the service configuration
 func (r *WatcherAPIReconciler) generateServiceConfigs(
 	ctx context.Context, instance *watcherv1beta1.WatcherAPI,
-	secret corev1.Secret, db *mariadbv1.Database,
+	secret corev1.Secret,
 	memcachedInstance *memcachedv1.Memcached,
 	helper *helper.Helper, envVars *map[string]env.Setter,
 ) error {
@@ -243,13 +231,14 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 	// implement CustomServiceConfig later
 	customData := map[string]string{}
 
-	databaseAccount := db.GetAccount()
-	databaseSecret := db.GetSecret()
+	databaseUsername := string(secret.Data[DatabaseUsername])
+	databaseHostname := string(secret.Data[DatabaseHostname])
+	databasePassword := string(secret.Data[DatabasePassword])
 	templateParameters := map[string]interface{}{
 		"DatabaseConnection": fmt.Sprintf("mysql+pymysql://%s:%s@%s/%s?charset=utf8",
-			databaseAccount.Spec.UserName,
-			string(databaseSecret.Data[mariadbv1.DatabasePasswordSelector]),
-			db.GetDatabaseHostname(),
+			databaseUsername,
+			databasePassword,
+			databaseHostname,
 			watcher.DatabaseName,
 		),
 		"KeystoneAuthURL":  keystoneInternalURL,
