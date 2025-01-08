@@ -41,7 +41,7 @@ type WatcherCommon struct {
 	// +kubebuilder:validation:Required
 	// MariaDB instance name
 	// Required to use the mariadb-operator instance to create the DB and user
-	DatabaseInstance string `json:"databaseInstance"`
+	DatabaseInstance *string `json:"databaseInstance"`
 
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=watcher
@@ -69,7 +69,7 @@ type WatcherTemplate struct {
 	// +kubebuilder:default=rabbitmq
 	// RabbitMQ instance name
 	// Needed to request a transportURL that is created and used in Barbican
-	RabbitMqClusterName string `json:"rabbitMqClusterName"`
+	RabbitMqClusterName *string `json:"rabbitMqClusterName"`
 
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=osp-secret

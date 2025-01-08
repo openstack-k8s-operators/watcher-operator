@@ -17,6 +17,8 @@ limitations under the License.
 package v1beta1
 
 import (
+	"errors"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -64,12 +66,28 @@ var _ webhook.Validator = &Watcher{}
 func (r *Watcher) ValidateCreate() (admission.Warnings, error) {
 	watcherlog.Info("validate create", "name", r.Name)
 
+	if *r.Spec.DatabaseInstance == "" {
+		return nil, errors.New("DatabaseInstance field should not be empty.")
+	}
+
+	if *r.Spec.RabbitMqClusterName == "" {
+		return nil, errors.New("RabbitMqClusterName field should not be empty")
+	}
+
 	return nil, nil
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
 func (r *Watcher) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
 	watcherlog.Info("validate update", "name", r.Name)
+
+	if *r.Spec.DatabaseInstance == "" {
+		return nil, errors.New("DatabaseInstance field should not be empty.")
+	}
+
+	if *r.Spec.RabbitMqClusterName == "" {
+		return nil, errors.New("RabbitMqClusterName field should not be empty")
+	}
 
 	return nil, nil
 }

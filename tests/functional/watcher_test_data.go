@@ -23,6 +23,7 @@ import (
 	"github.com/openstack-k8s-operators/watcher-operator/pkg/watcher"
 
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 )
 
 type APIType string
@@ -30,8 +31,8 @@ type APIType string
 // WatcherTestData is the data structure used to provide input data to envTest
 type WatcherTestData struct {
 	//DatabaseHostname             string
-	DatabaseInstance             string
-	RabbitMqClusterName          string
+	DatabaseInstance             *string
+	RabbitMqClusterName          *string
 	Instance                     types.NamespacedName
 	Watcher                      types.NamespacedName
 	WatcherDatabaseName          types.NamespacedName
@@ -67,7 +68,7 @@ func GetWatcherTestData(watcherName types.NamespacedName) WatcherTestData {
 			Namespace: watcherName.Namespace,
 			Name:      "watcher",
 		},
-		DatabaseInstance: "openstack",
+		DatabaseInstance: ptr.To("openstack"),
 		//DatabaseHostname: "database-hostname",
 		WatcherDatabaseAccountSecret: types.NamespacedName{
 			Namespace: watcherName.Namespace,
@@ -77,7 +78,7 @@ func GetWatcherTestData(watcherName types.NamespacedName) WatcherTestData {
 			Namespace: watcherName.Namespace,
 			Name:      "test-osp-secret",
 		},
-		RabbitMqClusterName: "rabbitmq",
+		RabbitMqClusterName: ptr.To("rabbitmq"),
 		WatcherTransportURL: types.NamespacedName{
 			Namespace: watcherName.Namespace,
 			Name:      fmt.Sprintf("%s-watcher-transport", watcherName.Name),
