@@ -24,6 +24,14 @@ var (
 		"databaseInstance": "openstack",
 	}
 
+	MinimalWatcherEmptyDatabaseSpec = map[string]interface{}{
+		"databaseInstance": "",
+	}
+
+	MinimalWatcherEmptyRabbitMqSpec = map[string]interface{}{
+		"rabbitMqClusterName": "",
+	}
+
 	MinimalWatcherContainerSpec = map[string]interface{}{
 		"databaseInstance":                "openstack",
 		"apiContainerImageURL":            "watcher-api-custom-image",
@@ -488,6 +496,27 @@ var _ = Describe("Watcher controller", func() {
 			Expect(Watcher.Spec.ApplierContainerImageURL).To(Equal("watcher-applier-custom-image-env"))
 		})
 	})
+
+	When("Watcher is created with empty databaseinstance", func() {
+		BeforeEach(func() {
+			DeferCleanup(th.DeleteInstance, CreateWatcher(watcherTest.Instance, MinimalWatcherEmptyDatabaseSpec))
+		})
+		It("It should raise error for empty databaseInstance", func() {
+			err := GetWatcher(watcherTest.Instance)
+			Expect(err).To(HaveOccurred())
+		})
+	})
+
+	When("Watcher is created with empty RabbitMqClusterName", func() {
+		BeforeEach(func() {
+			DeferCleanup(th.DeleteInstance, CreateWatcher(watcherTest.Instance, MinimalWatcherEmptyRabbitMqSpec))
+		})
+		It("It should raise error for empty rabbitMqClusterName", func() {
+			err := GetWatcher(watcherTest.Instance)
+			Expect(err).To(HaveOccurred())
+		})
+	})
+
 	When("Watcher with non-default values are created", func() {
 		BeforeEach(func() {
 			DeferCleanup(th.DeleteInstance, CreateWatcher(watcherTest.Instance, GetNonDefaultWatcherSpec()))
