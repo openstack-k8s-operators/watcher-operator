@@ -185,6 +185,10 @@ status:
     reason: Ready
     status: "True"
     type: Ready
+  - message: Create service completed
+    reason: Ready
+    status: "True"
+    type: CreateServiceReady
   - message: Deployment completed
     reason: Ready
     status: "True"

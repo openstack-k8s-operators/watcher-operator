@@ -67,3 +67,19 @@ kind: Pod
 metadata:
   labels:
     service: watcher-api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    endpoint: internal
+    service: watcher-api
+  name: watcher-internal
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    endpoint: public
+    service: watcher-api
+  name: watcher-public

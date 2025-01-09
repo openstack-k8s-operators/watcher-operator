@@ -183,6 +183,19 @@ var _ = Describe("WatcherAPI controller", func() {
 			Expect(container.LivenessProbe.HTTPGet.Port.IntVal).To(Equal(int32(9322)))
 			Expect(container.ReadinessProbe.HTTPGet.Port.IntVal).To(Equal(int32(9322)))
 		})
+		It("creates the public and internal services for the watcher-api service", func() {
+			th.ExpectCondition(
+				watcherTest.WatcherAPI,
+				ConditionGetterFunc(WatcherAPIConditionGetter),
+				condition.CreateServiceReadyCondition,
+				corev1.ConditionTrue,
+			)
+			public := th.GetService(watcherTest.WatcherPublicServiceName)
+			Expect(public.Labels["service"]).To(Equal("watcher-api"))
+			internal := th.GetService(watcherTest.WatcherInternalServiceName)
+			Expect(internal.Labels["service"]).To(Equal("watcher-api"))
+
+		})
 	})
 	When("the secret is created but missing fields", func() {
 		BeforeEach(func() {

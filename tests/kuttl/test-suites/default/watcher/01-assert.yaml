@@ -204,6 +204,10 @@ status:
     reason: Ready
     status: "True"
     type: Ready
+  - message: Create service completed
+    reason: Ready
+    status: "True"
+    type: CreateServiceReady
   - message: Deployment completed
     reason: Ready
     status: "True"
@@ -249,6 +253,23 @@ spec:
   - name: watcher-api
 status:
   phase: Running
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    endpoint: internal
+    service: watcher-api
+  name: watcher-internal
+spec:
+  ports:
+  - name: watcher-internal
+    port: 9322
+    protocol: TCP
+    targetPort: 9322
+  selector:
+    service: watcher-api
+  type: ClusterIP
 ---
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
