@@ -181,11 +181,30 @@ var _ = Describe("WatcherAPI controller", func() {
 				condition.ExposeServiceReadyCondition,
 				corev1.ConditionTrue,
 			)
+			th.AssertRouteExists(watcherTest.WatcherRouteName)
 			public := th.GetService(watcherTest.WatcherPublicServiceName)
 			Expect(public.Labels["service"]).To(Equal("watcher-api"))
+			Expect(public.Labels["public"]).To(Equal("true"))
 			internal := th.GetService(watcherTest.WatcherInternalServiceName)
 			Expect(internal.Labels["service"]).To(Equal("watcher-api"))
-			th.AssertRouteExists(watcherTest.WatcherRouteName)
+			Expect(internal.Labels["internal"]).To(Equal("true"))
+		})
+		It("created the keystone endpoint for the watcher-api service", func() {
+			keystone.SimulateKeystoneEndpointReady(watcherTest.WatcherKeystoneEndpointName)
+			// it registers the endpointURL as the public endpoint and svc
+			// for the internal
+			keystoneEndpoint := keystone.GetKeystoneEndpoint(watcherTest.WatcherKeystoneEndpointName)
+			endpoints := keystoneEndpoint.Spec.Endpoints
+			// jgilaber: the public endpoint returned by the exposeEndpoint
+			// function of lib-common has an empty hostname
+			Expect(endpoints).To(HaveKeyWithValue("public", "http://"))
+			Expect(endpoints).To(HaveKeyWithValue("internal", "http://watcher-internal."+watcherTest.WatcherAPI.Namespace+".svc:9322"))
+			th.ExpectCondition(
+				watcherTest.WatcherAPI,
+				ConditionGetterFunc(WatcherAPIConditionGetter),
+				condition.KeystoneEndpointReadyCondition,
+				corev1.ConditionTrue,
+			)
 		})
 	})
 	When("the secret is created but missing fields", func() {
@@ -356,6 +375,9 @@ var _ = Describe("WatcherAPI controller", func() {
 		})
 		It("creates MetalLB service", func() {
 			th.SimulateDeploymentReplicaReady(watcherTest.WatcherAPIDeployment)
+			// simulate that the internal service got a LoadBalancerIP
+			// assigned
+			th.SimulateLoadBalancerServiceIP(watcherTest.WatcherInternalServiceName)
 
 			// As the public endpoint is not mentioned in the service override
 			// a generic Service and a Route is created
@@ -363,6 +385,8 @@ var _ = Describe("WatcherAPI controller", func() {
 			Expect(public.Annotations).NotTo(HaveKey("metallb.universe.tf/address-pool"))
 			Expect(public.Annotations).NotTo(HaveKey("metallb.universe.tf/allow-shared-ip"))
 			Expect(public.Annotations).NotTo(HaveKey("metallb.universe.tf/loadBalancerIPs"))
+			Expect(public.Labels["service"]).To(Equal("watcher-api"))
+			Expect(public.Labels["public"]).To(Equal("true"))
 			th.AssertRouteExists(watcherTest.WatcherRouteName)
 
 			// As the internal endpoint is configure in the service override it
@@ -372,12 +396,12 @@ var _ = Describe("WatcherAPI controller", func() {
 			Expect(internal.Annotations).To(HaveKeyWithValue("metallb.universe.tf/address-pool", "osp-internalapi"))
 			Expect(internal.Annotations).To(HaveKeyWithValue("metallb.universe.tf/allow-shared-ip", "osp-internalapi"))
 			Expect(internal.Annotations).To(HaveKeyWithValue("metallb.universe.tf/loadBalancerIPs", "internal-lb-ip-1,internal-lb-ip-2"))
+			Expect(internal.Labels["service"]).To(Equal("watcher-api"))
+			Expect(internal.Labels["internal"]).To(Equal("true"))
 			th.AssertRouteNotExists(watcherTest.WatcherInternalRouteName)
 
-			// simulate that the internal service got a LoadBalancerIP
-			// assigned
-			th.SimulateLoadBalancerServiceIP(watcherTest.WatcherInternalServiceName)
-
+			// simulate the keystone endpoint
+			keystone.SimulateKeystoneEndpointReady(watcherTest.WatcherKeystoneEndpointName)
 			th.ExpectCondition(
 				watcherTest.WatcherAPI,
 				ConditionGetterFunc(WatcherAPIConditionGetter),

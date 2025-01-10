@@ -141,6 +141,7 @@ metadata:
   finalizers:
   - openstack.org/watcher
   - openstack.org/keystoneservice
+  - openstack.org/keystoneendpoint-watcher
 spec:
   enabled: true
   passwordSelector: WatcherPassword
@@ -197,6 +198,10 @@ status:
     reason: Ready
     status: "True"
     type: InputReady
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: KeystoneEndpointReady
   - message: " Memcached instance has been provisioned"
     reason: Ready
     status: "True"

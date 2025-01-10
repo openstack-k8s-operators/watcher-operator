@@ -253,6 +253,9 @@ var _ = Describe("Watcher controller", func() {
 			// We validate the full Watcher CR readiness status here
 			// DB Ready
 
+			// Simulate KeystoneEndpoint success
+			keystone.SimulateKeystoneEndpointReady(watcherTest.WatcherKeystoneEndpointName)
+
 			// Simulate WatcherAPI deployment
 			th.SimulateDeploymentReplicaReady(watcherTest.WatcherAPIDeployment)
 			th.ExpectCondition(
@@ -640,6 +643,9 @@ var _ = Describe("Watcher controller", func() {
 
 			// Simulate dbsync success
 			th.SimulateJobSuccess(watcherTest.WatcherDBSync)
+
+			// Simulate KeystoneEndpoint success
+			keystone.SimulateKeystoneEndpointReady(watcherTest.WatcherKeystoneEndpointName)
 
 			// Simulate WatcherAPI deployment
 			th.SimulateDeploymentReplicaReady(watcherTest.WatcherAPIDeployment)

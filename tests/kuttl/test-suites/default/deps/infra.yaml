@@ -32,3 +32,8 @@ spec:
     enabled: false
   telemetry:
     enabled: false
+  tls:
+    ingress:
+      enabled: false
+    podLevel:
+      enabled: false

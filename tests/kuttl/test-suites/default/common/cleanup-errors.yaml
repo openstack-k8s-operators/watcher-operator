@@ -91,3 +91,8 @@ metadata:
     public: "true"
     service: watcher-api
   name: watcher-public
+---
+apiVersion: keystone.openstack.org/v1beta1
+kind: KeystoneEndpoint
+metadata:
+  name: watcher
