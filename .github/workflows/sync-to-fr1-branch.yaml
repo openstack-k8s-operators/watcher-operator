@@ -1,0 +1,24 @@
+name: Mirror to fr1 branch
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  mirror-main-to-fr1:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Push changes to fr1 branch
+        run: |
+          git checkout main
+          git branch -a -v
+          git push origin main:18.0-fr1
