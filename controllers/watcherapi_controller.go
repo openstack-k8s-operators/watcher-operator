@@ -232,7 +232,13 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		// but we have to return while waiting for the service to be exposed
 		return ctrl.Result{}, err
 	}
-	_ = apiEndpoints // we'll use the apiEndpoints later
+
+	result, err = r.ensureKeystoneEndpoint(ctx, helper, instance, apiEndpoints)
+	if (err != nil || result != ctrl.Result{}) {
+		// We can ignore RequeueAfter as we are watching the KeystoneEndpoint
+		// resource
+		return result, err
+	}
 
 	// We reached the end of the Reconcile, update the Ready condition based on
 	// the sub conditions
@@ -444,9 +450,81 @@ func (r *WatcherAPIReconciler) ensureServiceExposed(
 	return apiEndpoints, ctrl.Result{}, nil
 }
 
+func (r *WatcherAPIReconciler) ensureKeystoneEndpoint(
+	ctx context.Context,
+	helper *helper.Helper,
+	instance *watcherv1beta1.WatcherAPI,
+	apiEndpoints map[string]string,
+) (ctrl.Result, error) {
+	Log := r.GetLogger(ctx)
+	Log.Info(fmt.Sprintf("Defining WatcherAPI KeystoneEndpoint '%s'", instance.Name))
+
+	endpointSpec := keystonev1.KeystoneEndpointSpec{
+		ServiceName: watcher.ServiceName,
+		Endpoints:   apiEndpoints,
+	}
+	endpoint := keystonev1.NewKeystoneEndpoint(
+		watcher.ServiceName,
+		instance.Namespace,
+		endpointSpec,
+		getAPIServiceLabels(),
+		r.RequeueTimeout,
+	)
+	ctrlResult, err := endpoint.CreateOrPatch(ctx, helper)
+	if err != nil {
+		return ctrlResult, err
+	}
+
+	c := endpoint.GetConditions().Mirror(condition.KeystoneEndpointReadyCondition)
+	if c != nil {
+		instance.Status.Conditions.Set(c)
+	}
+
+	return ctrlResult, nil
+}
+
+func (r *WatcherAPIReconciler) ensureKeystoneEndpointDeletion(
+	ctx context.Context,
+	helper *helper.Helper,
+	instance *watcherv1beta1.WatcherAPI,
+) error {
+	// Remove the finalizer from our KeystoneEndpoint CR
+	// This is oddly added automatically when we created KeystoneEndpoint but
+	// we need to remove it manually
+	Log := r.GetLogger(ctx)
+
+	endpoint, err := keystonev1.GetKeystoneEndpointWithName(ctx, helper, watcher.ServiceName, instance.Namespace)
+	if err != nil && !k8s_errors.IsNotFound(err) {
+		return err
+	}
+
+	if k8s_errors.IsNotFound(err) {
+		// Nothing to do as it was never created
+		return nil
+	}
+
+	updated := controllerutil.RemoveFinalizer(endpoint, helper.GetFinalizer())
+	if !updated {
+		// No finalizer to remove
+		return nil
+	}
+
+	if err = helper.GetClient().Update(ctx, endpoint); err != nil && !k8s_errors.IsNotFound(err) {
+		return err
+	}
+	Log.Info("Removed finalizer from WatcherAPI KeystoneEndpoint")
+
+	return nil
+}
+
 func (r *WatcherAPIReconciler) reconcileDelete(ctx context.Context, instance *watcherv1beta1.WatcherAPI, helper *helper.Helper) (ctrl.Result, error) {
 	Log := r.GetLogger(ctx)
 	Log.Info(fmt.Sprintf("Reconcile Service '%s' delete started", instance.Name))
+
+	err := r.ensureKeystoneEndpointDeletion(ctx, helper, instance)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 
 	// Remove our finalizer from Memcached
 	memcached, err := memcachedv1.GetMemcachedByName(ctx, helper, instance.Spec.MemcachedInstance, instance.Namespace)
@@ -480,6 +558,7 @@ func (r *WatcherAPIReconciler) initStatus(instance *watcherv1beta1.WatcherAPI) e
 		condition.UnknownCondition(condition.MemcachedReadyCondition, condition.InitReason, condition.MemcachedReadyInitMessage),
 		condition.UnknownCondition(condition.DeploymentReadyCondition, condition.InitReason, condition.DeploymentReadyInitMessage),
 		condition.UnknownCondition(condition.ExposeServiceReadyCondition, condition.InitReason, condition.ExposeServiceReadyInitMessage),
+		condition.UnknownCondition(condition.KeystoneEndpointReadyCondition, condition.InitReason, "KeystoneEndpoint not created"),
 	)
 
 	instance.Status.Conditions.Init(&cl)
@@ -514,6 +593,7 @@ func (r *WatcherAPIReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Owns(&routev1.Route{}).
+		Owns(&keystonev1.KeystoneEndpoint{}).
 		Watches(
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.findObjectsForSrc),
