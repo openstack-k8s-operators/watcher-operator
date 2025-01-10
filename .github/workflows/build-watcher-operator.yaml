@@ -3,7 +3,7 @@ name: watcher operator image builder
 on:
   push:
     branches:
-      - '*'
+      - 'main'
 
 env:
   imageregistry: 'quay.io'
