@@ -265,6 +265,20 @@ func (r *WatcherAPIReconciler) reconcileDelete(ctx context.Context, instance *wa
 	Log := r.GetLogger(ctx)
 	Log.Info(fmt.Sprintf("Reconcile Service '%s' delete started", instance.Name))
 
+	// Remove our finalizer from Memcached
+	memcached, err := memcachedv1.GetMemcachedByName(ctx, helper, instance.Spec.MemcachedInstance, instance.Namespace)
+	if err != nil && !k8s_errors.IsNotFound(err) {
+		return ctrl.Result{}, nil
+	}
+	if memcached != nil {
+		if controllerutil.RemoveFinalizer(memcached, helper.GetFinalizer()) {
+			err := helper.GetClient().Update(ctx, memcached)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+	}
+
 	controllerutil.RemoveFinalizer(instance, helper.GetFinalizer())
 	Log.Info(fmt.Sprintf("Reconciled Service '%s' delete successfully", instance.Name))
 	return ctrl.Result{}, nil
