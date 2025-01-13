@@ -25,4 +25,13 @@ const (
 
 	// LogVolume is the default logVolume name used to mount logs
 	LogVolume = "logs"
+
+	// WatcherPublicPort - public port of watcher containers
+	WatcherPublicPort int32 = 9322
+
+	// WatcherLogPath is the path used by WatcherAPI to stream/store its logs
+	WatcherLogPath = "/var/log/watcher/"
+
+	// ConfigVolume is the default volume name used to mount service config
+	ConfigVolume = "config-data"
 )

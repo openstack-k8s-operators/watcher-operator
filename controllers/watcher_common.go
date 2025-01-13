@@ -43,6 +43,10 @@ const (
 	// DatabaseUsername is the name of key in the secret for the database
 	// hostname
 	DatabaseHostname = "database_hostname"
+
+	// WatcherAPILabelPrefix - a unique, service binary specific prefix for the
+	// labels the WatcherAPI controller uses on children objects
+	WatcherAPILabelPrefix = "watcher-api"
 )
 
 // GetLogger returns a logger object with a prefix of "controller.name" and additional controller context fields

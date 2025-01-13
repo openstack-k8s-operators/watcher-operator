@@ -5,3 +5,5 @@ metadata:
 spec:
   secret: watcher-kuttl
   memcachedInstance: "memcached"
+  containerImage: "quay.io/podified-master-centos9/openstack-watcher-api:current-podified"
+  serviceAccount: watcher-watcher-kuttl

@@ -16,7 +16,10 @@ limitations under the License.
 
 package v1beta1
 
-import "github.com/openstack-k8s-operators/lib-common/modules/common/util"
+import (
+	"github.com/openstack-k8s-operators/lib-common/modules/common/util"
+	corev1 "k8s.io/api/core/v1"
+)
 
 // Container image fall-back defaults
 const (
@@ -58,7 +61,7 @@ type WatcherTemplate struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:default=rabbitmq
 	// RabbitMQ instance name
-	// Needed to request a transportURL that is created and used in Barbican
+	// Needed to request a transportURL that is created and used in Watcher
 	RabbitMqClusterName string `json:"rabbitMqClusterName"`
 
 	// +kubebuilder:validation:Optional
@@ -90,6 +93,28 @@ type WatcherSubCrsCommon struct {
 	// +kubebuilder:validation:Optional
 	// The service specific Container Image URL (will be set to environmental default if empty)
 	ContainerImage string `json:"containerImage"`
+
+	// +kubebuilder:validation:Optional
+	// NodeSelector to target subset of worker nodes running this component. Setting here overrides
+	// any global NodeSelector settings within the Watcher CR.
+	NodeSelector *map[string]string `json:"nodeSelector,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=1
+	// +kubebuilder:validation:Maximum=32
+	// +kubebuilder:validation:Minimum=0
+	// Replicas of Watcher service to run
+	Replicas *int32 `json:"replicas"`
+
+	// +kubebuilder:validation:Optional
+	// Resources - Compute Resources required by this service (Limits/Requests).
+	// https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+
+	// +kubebuilder:validation:Required
+	// ServiceAccount - service account name used internally to provide
+	// Watcher services the default SA name
+	ServiceAccount string `json:"serviceAccount"`
 }
 
 type WatcherImages struct {
@@ -121,7 +146,7 @@ func (r *WatcherImages) Default(defaults WatcherDefaults) {
 // SetupDefaults - initializes any CRD field defaults based on environment variables (the defaulting mechanism itself is implemented via webhooks)
 
 func SetupDefaults() {
-	// Acquire environmental defaults and initialize Nova defaults with them
+	// Acquire environmental defaults and initialize Watcher defaults with them
 	watcherDefaults := WatcherDefaults{
 		APIContainerImageURL:            util.GetEnvVar("WATCHER_API_IMAGE_URL_DEFAULT", WatcherAPIContainerImage),
 		ApplierContainerImageURL:        util.GetEnvVar("WATCHER_APPLIER_IMAGE_URL_DEFAULT", WatcherApplierContainerImage),
