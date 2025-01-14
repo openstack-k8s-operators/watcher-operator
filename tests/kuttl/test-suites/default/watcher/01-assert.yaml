@@ -258,16 +258,9 @@ commands:
       set -euxo pipefail
       oc exec -n watcher-kuttl-default openstackclient -- openstack service list -f value -c Name -c Type |[ $(grep -c ^watcher) == 1 ]
       SERVICEID=$(oc exec -n watcher-kuttl-default openstackclient -- openstack service list -f value -c Name -c Type -c ID | grep watcher| awk '{print $1}')
-      [ $(oc get -n watcher-kuttl-default keystoneservice watcher -o jsonpath={.status.serviceID}) == $SERVICEID ]
+      [ $(oc get -n watcher-kuttl-default keystoneservice watcher -o jsonpath={.status.serviceID}) == ${SERVICEID} ]
       [ -n "$(oc get -n watcher-kuttl-default watcher watcher-kuttl -o jsonpath={.status.hash.dbsync})" ]
----
-# Check for Container Image environment variables
-apiVersion: kuttl.dev/v1beta1
-kind: TestAssert
-commands:
-  - script: |
-      set -euxo pipefail
-      # If we are running the container locally, skip this test
+      # If we are running the container locally, skip following test
       if [ "$(oc get pods -n openstack-operators -o name -l openstack.org/operator-name=watcher)" == "" ]; then
           exit 0
       fi
