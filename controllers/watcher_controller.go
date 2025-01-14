@@ -289,6 +289,15 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		return ctrlResult, nil
 	}
 
+	// Create Watcher API
+	_, _, err = r.ensureAPI(ctx, instance)
+
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// End of Watcher API creation
+
 	//
 	// remove finalizers from unused MariaDBAccount records
 	// this assumes all database-depedendent deployments are up and
@@ -374,6 +383,10 @@ func (r *WatcherReconciler) initConditions(instance *watcherv1beta1.Watcher) err
 			condition.DBSyncReadyCondition,
 			condition.InitReason,
 			condition.DBSyncReadyInitMessage),
+		condition.UnknownCondition(
+			watcherv1beta1.WatcherAPIReadyCondition,
+			condition.InitReason,
+			watcherv1beta1.WatcherAPIReadyInitMessage),
 	)
 
 	instance.Status.Conditions.Init(&cl)
@@ -728,6 +741,79 @@ func (r *WatcherReconciler) createSubLevelSecret(
 	err := secret.EnsureSecrets(ctx, helper, instance, []util.Template{template}, nil)
 
 	return secretName, err
+}
+
+func (r *WatcherReconciler) ensureAPI(
+	ctx context.Context,
+	instance *watcherv1beta1.Watcher,
+) (*watcherv1beta1.WatcherAPI, controllerutil.OperationResult, error) {
+	Log := r.GetLogger(ctx)
+	Log.Info(fmt.Sprintf("Creating WatcherAPI '%s'", instance.Name))
+
+	watcherAPISpec := watcherv1beta1.WatcherAPISpec{
+		Secret: instance.Name,
+		WatcherCommon: watcherv1beta1.WatcherCommon{
+			ServiceUser:       instance.Spec.ServiceUser,
+			PasswordSelectors: instance.Spec.PasswordSelectors,
+			MemcachedInstance: instance.Spec.MemcachedInstance,
+			NodeSelector:      instance.Spec.APIServiceTemplate.NodeSelector,
+			PreserveJobs:      instance.Spec.PreserveJobs,
+		},
+		WatcherSubCrsCommon: watcherv1beta1.WatcherSubCrsCommon{
+			ContainerImage: instance.Spec.APIContainerImageURL,
+			Replicas:       instance.Spec.APIServiceTemplate.Replicas,
+			Resources:      instance.Spec.APIServiceTemplate.Resources,
+			ServiceAccount: "watcher-" + instance.Name,
+		},
+	}
+
+	// If NodeSelector is not specified in Watcher APIServiceTemplate, the current
+	// API instance inherits the value from the top-level Watcher CR.
+	if watcherAPISpec.NodeSelector == nil {
+		watcherAPISpec.NodeSelector = instance.Spec.NodeSelector
+	}
+
+	apiDeployment := &watcherv1beta1.WatcherAPI{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-api", instance.Name),
+			Namespace: instance.Namespace,
+		},
+	}
+
+	op, err := controllerutil.CreateOrPatch(ctx, r.Client, apiDeployment, func() error {
+		apiDeployment.Spec = watcherAPISpec
+		err := controllerutil.SetControllerReference(instance, apiDeployment, r.Scheme)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+
+	if err != nil {
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			watcherv1beta1.WatcherAPIReadyCondition,
+			condition.ErrorReason,
+			condition.SeverityError,
+			watcherv1beta1.WatcherAPIReadyErrorMessage,
+			err.Error()))
+		return nil, op, err
+	}
+	if op != controllerutil.OperationResultNone {
+		Log.Info(fmt.Sprintf("WatcherAPI %s , WatcherPI.Name %s.", string(op), apiDeployment.Name))
+	}
+
+	if apiDeployment.Generation == apiDeployment.Status.ObservedGeneration {
+		c := apiDeployment.Status.Conditions.Mirror(watcherv1beta1.WatcherAPIReadyCondition)
+		// NOTE(gibi): it can be nil if the WatcherAPI CR is created but no
+		// reconciliation is run on it to initialize the ReadyCondition yet.
+		if c != nil {
+			instance.Status.Conditions.Set(c)
+		}
+		instance.Status.APIServiceReadyCount = apiDeployment.Status.ReadyCount
+	}
+
+	return apiDeployment, op, nil
+
 }
 
 func (r *WatcherReconciler) reconcileDelete(ctx context.Context, instance *watcherv1beta1.Watcher, helper *helper.Helper) (ctrl.Result, error) {

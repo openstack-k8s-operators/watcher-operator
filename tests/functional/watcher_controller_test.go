@@ -8,6 +8,7 @@ import (
 	//revive:disable-next-line:dot-imports
 	"os"
 
+	memcachedv1 "github.com/openstack-k8s-operators/infra-operator/apis/memcached/v1beta1"
 	rabbitmqv1 "github.com/openstack-k8s-operators/infra-operator/apis/rabbitmq/v1beta1"
 	keystonev1beta1 "github.com/openstack-k8s-operators/keystone-operator/api/v1beta1"
 	. "github.com/openstack-k8s-operators/lib-common/modules/common/test/helpers"
@@ -16,6 +17,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -180,10 +182,17 @@ var _ = Describe("Watcher controller", func() {
 
 	})
 
-	When("Watcher DB and RabbitMQ are created", func() {
+	When("Watcher is created with default Spec", func() {
 		BeforeEach(func() {
 			DeferCleanup(th.DeleteInstance, CreateWatcher(watcherTest.Instance, GetDefaultWatcherSpec()))
 			DeferCleanup(k8sClient.Delete, ctx, CreateWatcherMessageBusSecret(watcherTest.Instance.Namespace, "rabbitmq-secret"))
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.Watcher.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
 			DeferCleanup(
 				mariadb.DeleteDBService,
 				mariadb.CreateDBService(
@@ -194,6 +203,7 @@ var _ = Describe("Watcher controller", func() {
 					},
 				),
 			)
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
 		})
 
 		It("Should set DBReady Condition Status when DB is Created", func() {
@@ -240,6 +250,9 @@ var _ = Describe("Watcher controller", func() {
 			th.SimulateJobSuccess(watcherTest.WatcherDBSync)
 			// We validate the full Watcher CR readiness status here
 			// DB Ready
+
+			// Simulate WatcherAPI deployment
+			th.SimulateDeploymentReplicaReady(watcherTest.WatcherAPIDeployment)
 			th.ExpectCondition(
 				watcherTest.Instance,
 				ConditionGetterFunc(WatcherConditionGetter),
@@ -291,6 +304,14 @@ var _ = Describe("Watcher controller", func() {
 				corev1.ConditionTrue,
 			)
 
+			// Get WatcherAPI Ready condition
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				watcherv1beta1.WatcherAPIReadyCondition,
+				corev1.ConditionTrue,
+			)
+
 			// Global status Ready
 			th.ExpectCondition(
 				watcherTest.Instance,
@@ -319,6 +340,22 @@ var _ = Describe("Watcher controller", func() {
 			Expect(createdSecret.Data["WatcherPassword"]).To(Equal([]byte("password")))
 			Expect(createdSecret.Data["transport_url"]).To(Equal([]byte("rabbit://rabbitmq-secret/fake")))
 
+			// Check WatcherAPI is created
+			WatcherAPI := GetWatcherAPI(watcherTest.WatcherAPI)
+			//Expect(WatcherAPI.Spec.Replicas).To(Equal(int(1)))
+			Expect(WatcherAPI.Spec.ContainerImage).To(Equal(watcherv1beta1.WatcherAPIContainerImage))
+			Expect(WatcherAPI.Spec.Secret).To(Equal("watcher"))
+			Expect(WatcherAPI.Spec.ServiceAccount).To(Equal("watcher-watcher"))
+			Expect(int(*WatcherAPI.Spec.Replicas)).To(Equal(1))
+			Expect(WatcherAPI.Spec.NodeSelector).To(BeNil())
+
+			// Assert that the watcher deployment is created
+			deployment := th.GetDeployment(watcherTest.WatcherAPIDeployment)
+			Expect(deployment.Spec.Template.Spec.ServiceAccountName).To(Equal("watcher-watcher"))
+			Expect(int(*deployment.Spec.Replicas)).To(Equal(1))
+			Expect(deployment.Spec.Template.Spec.Volumes).To(HaveLen(3))
+			Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(2))
+			Expect(deployment.Spec.Selector.MatchLabels).To(Equal(map[string]string{"service": "watcher-api"}))
 		})
 
 		It("Should fail to register watcher service to keystone when has not the expected secret", func() {
@@ -498,6 +535,13 @@ var _ = Describe("Watcher controller", func() {
 		BeforeEach(func() {
 			DeferCleanup(th.DeleteInstance, CreateWatcher(watcherTest.Instance, GetNonDefaultWatcherSpec()))
 			DeferCleanup(k8sClient.Delete, ctx, CreateWatcherMessageBusSecret(watcherTest.Instance.Namespace, "rabbitmq-secret"))
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.Watcher.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
 			DeferCleanup(
 				mariadb.DeleteDBService,
 				mariadb.CreateDBService(
@@ -508,6 +552,7 @@ var _ = Describe("Watcher controller", func() {
 					},
 				),
 			)
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
 		})
 
 		It("should have the Spec fields with the expected values", func() {
@@ -538,6 +583,10 @@ var _ = Describe("Watcher controller", func() {
 
 			// Simulate dbsync success
 			th.SimulateJobSuccess(watcherTest.WatcherDBSync)
+
+			// Simulate WatcherAPI deployment
+			th.SimulateDeploymentReplicaReady(watcherTest.WatcherAPIDeployment)
+
 			// We validate the full Watcher CR readiness status here
 			// DB Ready
 			th.ExpectCondition(
@@ -591,6 +640,14 @@ var _ = Describe("Watcher controller", func() {
 				corev1.ConditionTrue,
 			)
 
+			// Get WatcherAPI Ready condition
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				watcherv1beta1.WatcherAPIReadyCondition,
+				corev1.ConditionTrue,
+			)
+
 			// Global status Ready
 			th.ExpectCondition(
 				watcherTest.Instance,
@@ -622,6 +679,23 @@ var _ = Describe("Watcher controller", func() {
 			// status.hash['dbsync'] should be populated when dbsync is successful
 			Watcher := GetWatcher(watcherTest.Instance)
 			Expect(Watcher.Status.Hash[watcherv1beta1.DbSyncHash]).ShouldNot(BeNil())
+
+			// Check WatcherAPI is created with non-default values
+			WatcherAPI := GetWatcherAPI(watcherTest.WatcherAPI)
+			//Expect(WatcherAPI.Spec.Replicas).To(Equal(int(1)))
+			Expect(WatcherAPI.Spec.ContainerImage).To(Equal("fake-API-Container-URL"))
+			Expect(WatcherAPI.Spec.Secret).To(Equal("watcher"))
+			Expect(WatcherAPI.Spec.ServiceAccount).To(Equal("watcher-watcher"))
+			Expect(int(*WatcherAPI.Spec.Replicas)).To(Equal(2))
+			Expect(*WatcherAPI.Spec.NodeSelector).To(Equal(map[string]string{"foo": "bar"}))
+
+			// Assert that the watcher deployment is created
+			deployment := th.GetDeployment(watcherTest.WatcherAPIDeployment)
+			Expect(deployment.Spec.Template.Spec.ServiceAccountName).To(Equal("watcher-watcher"))
+			Expect(int(*deployment.Spec.Replicas)).To(Equal(2))
+			Expect(deployment.Spec.Template.Spec.Volumes).To(HaveLen(3))
+			Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(2))
+			Expect(deployment.Spec.Selector.MatchLabels).To(Equal(map[string]string{"service": "watcher-api"}))
 
 		})
 	})

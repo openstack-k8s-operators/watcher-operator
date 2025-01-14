@@ -44,13 +44,6 @@ spec:
                 description: The service specific Container Image URL (will be set
                   to environmental default if empty)
                 type: string
-              nodeSelector:
-                additionalProperties:
-                  type: string
-                description: |-
-                  NodeSelector to target subset of worker nodes running this component. Setting here overrides
-                  any global NodeSelector settings within the Watcher CR.
-                type: object
               replicas:
                 default: 1
                 description: Replicas of Watcher service to run

@@ -53,6 +53,12 @@ type WatcherAPIStatus struct {
 	Hash map[string]string `json:"hash,omitempty"`
 }
 
+// WatcherAPITemplate defines the input parameters specified by the user to
+// create a WatcherAPI via higher level CRDs.
+type WatcherAPITemplate struct {
+	WatcherSubCrsTemplate `json:",inline"`
+}
+
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 

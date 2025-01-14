@@ -50,6 +50,11 @@ type WatcherCommon struct {
 	// +kubebuilder:default=false
 	// PreserveJobs - do not delete jobs after they finished e.g. to check logs
 	PreserveJobs bool `json:"preserveJobs"`
+
+	// +kubebuilder:validation:Optional
+	// NodeSelector to target subset of worker nodes running this component. Setting here overrides
+	// any global NodeSelector settings within the Watcher CR.
+	NodeSelector *map[string]string `json:"nodeSelector,omitempty"`
 }
 
 // WatcherTemplate defines the fields used in the top level CR
@@ -78,6 +83,11 @@ type WatcherTemplate struct {
 	// +kubebuilder:default=watcher
 	// DatabaseAccount - MariaDBAccount CR name used for watcher DB, defaults to watcher
 	DatabaseAccount string `json:"databaseAccount"`
+
+	// +kubebuilder:validation:Required
+	// +kubebuilder:default={replicas:1}
+	// APIServiceTemplate - define the watcher-api service
+	APIServiceTemplate WatcherAPITemplate `json:"apiServiceTemplate"`
 }
 
 // PasswordSelector to identify the DB and AdminUser password from the Secret
@@ -95,11 +105,6 @@ type WatcherSubCrsCommon struct {
 	ContainerImage string `json:"containerImage"`
 
 	// +kubebuilder:validation:Optional
-	// NodeSelector to target subset of worker nodes running this component. Setting here overrides
-	// any global NodeSelector settings within the Watcher CR.
-	NodeSelector *map[string]string `json:"nodeSelector,omitempty"`
-
-	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=1
 	// +kubebuilder:validation:Maximum=32
 	// +kubebuilder:validation:Minimum=0
@@ -115,6 +120,27 @@ type WatcherSubCrsCommon struct {
 	// ServiceAccount - service account name used internally to provide
 	// Watcher services the default SA name
 	ServiceAccount string `json:"serviceAccount"`
+}
+
+// WatcherSubCrsTemplate define de common part of the input parameters specified by the user to
+// create a 2nd CR via higher level CRDs.
+type WatcherSubCrsTemplate struct {
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=1
+	// +kubebuilder:validation:Maximum=32
+	// +kubebuilder:validation:Minimum=0
+	// Replicas of Watcher service to run
+	Replicas *int32 `json:"replicas"`
+
+	// +kubebuilder:validation:Optional
+	// Resources - Compute Resources required by this service (Limits/Requests).
+	// https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// NodeSelector to target subset of worker nodes running this component. Setting here overrides
+	// any global NodeSelector settings within the Watcher CR.
+	NodeSelector *map[string]string `json:"nodeSelector,omitempty"`
 }
 
 type WatcherImages struct {

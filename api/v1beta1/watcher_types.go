@@ -52,6 +52,9 @@ type WatcherStatus struct {
 	// then the controller has not processed the latest changes injected by
 	// the opentack-operator in the top-level CR (e.g. the ContainerImage)
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// APIServiceReadyCount defines the number or replicas ready from watcher-api
+	APIServiceReadyCount int32 `json:"apiServiceReadyCount,omitempty"`
 }
 
 //+kubebuilder:object:root=true
