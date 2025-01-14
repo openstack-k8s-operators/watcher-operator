@@ -49,3 +49,21 @@ apiVersion: watcher.openstack.org/v1beta1
 kind: Watcher
 metadata:
   name: watcher-kuttl
+---
+apiVersion: watcher.openstack.org/v1beta1
+kind: WatcherAPI
+metadata:
+  finalizers:
+  - openstack.org/watcherapi
+  name: watcher-kuttl-api
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: watcher-kuttl-api-api
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    service: watcher-api

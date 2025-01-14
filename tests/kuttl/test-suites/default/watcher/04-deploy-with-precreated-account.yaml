@@ -6,3 +6,8 @@ metadata:
 spec:
   databaseInstance: "openstack"
   databaseAccount: watcher-precreated
+  apiContainerImageURL: "quay.io/podified-master-centos9/openstack-watcher-api:current-podified"
+  decisionengineContainerImageURL: "quay.io/podified-master-centos9/openstack-watcher-decision-engine:current-podified"
+  applierContainerImageURL: "quay.io/podified-master-centos9/openstack-watcher-applier:current-podified"
+  apiServiceTemplate:
+    replicas: 2

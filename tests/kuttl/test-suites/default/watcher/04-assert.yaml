@@ -11,7 +11,11 @@ spec:
   passwordSelectors:
     service: WatcherPassword
   secret: osp-secret
+  apiServiceTemplate:
+    replicas: 2
+    resources: {}
 status:
+  apiServiceReadyCount: 2
   conditions:
   - message: Setup complete
     reason: Ready
@@ -53,6 +57,10 @@ status:
     reason: Ready
     status: "True"
     type: ServiceConfigReady
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: WatcherAPIReady
   - message: WatcherRabbitMQTransportURL successfully created
     reason: Ready
     status: "True"
@@ -154,3 +162,59 @@ kind: Secret
 metadata:
   name: watcher-kuttl-config-data
 ---
+apiVersion: watcher.openstack.org/v1beta1
+kind: WatcherAPI
+metadata:
+  finalizers:
+  - openstack.org/watcherapi
+  name: watcher-kuttl-api
+spec:
+  containerImage: quay.io/podified-master-centos9/openstack-watcher-api:current-podified
+  memcachedInstance: memcached
+  passwordSelectors:
+    service: WatcherPassword
+  preserveJobs: false
+  replicas: 2
+  resources: {}
+  secret: watcher-kuttl
+  serviceAccount: watcher-watcher-kuttl
+  serviceUser: watcher
+status:
+  conditions:
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: Ready
+  - message: Deployment completed
+    reason: Ready
+    status: "True"
+    type: DeploymentReady
+  - message: Input data complete
+    reason: Ready
+    status: "True"
+    type: InputReady
+  - message: " Memcached instance has been provisioned"
+    reason: Ready
+    status: "True"
+    type: MemcachedReady
+  - message: Service config create completed
+    reason: Ready
+    status: "True"
+    type: ServiceConfigReady
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: watcher-kuttl-api-api
+  labels:
+    service: watcher-api
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+      - name: watcher-kuttl-api-log
+      - name: watcher-api
+status:
+  readyReplicas: 2
+  replicas: 2
