@@ -560,6 +560,16 @@ func (in *WatcherSubCrsTemplate) DeepCopy() *WatcherSubCrsTemplate {
 func (in *WatcherTemplate) DeepCopyInto(out *WatcherTemplate) {
 	*out = *in
 	in.WatcherCommon.DeepCopyInto(&out.WatcherCommon)
+	if in.RabbitMqClusterName != nil {
+		in, out := &in.RabbitMqClusterName, &out.RabbitMqClusterName
+		*out = new(string)
+		**out = **in
+	}
+	if in.DatabaseInstance != nil {
+		in, out := &in.DatabaseInstance, &out.DatabaseInstance
+		*out = new(string)
+		**out = **in
+	}
 	in.APIServiceTemplate.DeepCopyInto(&out.APIServiceTemplate)
 }
 

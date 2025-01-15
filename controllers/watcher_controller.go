@@ -457,11 +457,11 @@ func (r *WatcherReconciler) ensureDB(
 	// create watcher DB instance
 	//
 	db := mariadbv1.NewDatabaseForAccount(
-		instance.Spec.DatabaseInstance, // mariadb/galera service to target
-		watcher.DatabaseName,           // name used in CREATE DATABASE in mariadb
-		watcher.DatabaseCRName,         // CR name for MariaDBDatabase
-		instance.Spec.DatabaseAccount,  // CR name for MariaDBAccount
-		instance.Namespace,             // namespace
+		*instance.Spec.DatabaseInstance, // mariadb/galera service to target
+		watcher.DatabaseName,            // name used in CREATE DATABASE in mariadb
+		watcher.DatabaseCRName,          // CR name for MariaDBDatabase
+		instance.Spec.DatabaseAccount,   // CR name for MariaDBAccount
+		instance.Namespace,              // namespace
 	)
 
 	// create or patch the DB
@@ -528,7 +528,7 @@ func (r *WatcherReconciler) ensureMQ(
 	}
 
 	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, transportURL, func() error {
-		transportURL.Spec.RabbitmqClusterName = instance.Spec.RabbitMqClusterName
+		transportURL.Spec.RabbitmqClusterName = *instance.Spec.RabbitMqClusterName
 
 		err := controllerutil.SetControllerReference(instance, transportURL, r.Scheme)
 		return err

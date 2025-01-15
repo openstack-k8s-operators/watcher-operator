@@ -15,10 +15,12 @@ import (
 	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 var (
@@ -42,11 +44,11 @@ var _ = Describe("Watcher controller with minimal spec values", func() {
 
 		It("should have the Spec fields defaulted", func() {
 			Watcher := GetWatcher(watcherTest.Instance)
-			Expect(Watcher.Spec.DatabaseInstance).Should(Equal("openstack"))
+			Expect(*(Watcher.Spec.DatabaseInstance)).Should(Equal("openstack"))
 			Expect(Watcher.Spec.DatabaseAccount).Should(Equal("watcher"))
 			Expect(Watcher.Spec.Secret).Should(Equal("osp-secret"))
 			Expect(Watcher.Spec.PasswordSelectors).Should(Equal(watcherv1beta1.PasswordSelector{Service: "WatcherPassword"}))
-			Expect(Watcher.Spec.RabbitMqClusterName).Should(Equal("rabbitmq"))
+			Expect(*(Watcher.Spec.RabbitMqClusterName)).Should(Equal("rabbitmq"))
 			Expect(Watcher.Spec.ServiceUser).Should(Equal("watcher"))
 			Expect(Watcher.Spec.PreserveJobs).Should(BeFalse())
 		})
@@ -84,11 +86,11 @@ var _ = Describe("Watcher controller", func() {
 
 		It("should have the Spec fields defaulted", func() {
 			Watcher := GetWatcher(watcherTest.Instance)
-			Expect(Watcher.Spec.DatabaseInstance).Should(Equal("openstack"))
+			Expect(*(Watcher.Spec.DatabaseInstance)).Should(Equal("openstack"))
 			Expect(Watcher.Spec.DatabaseAccount).Should(Equal("watcher"))
 			Expect(Watcher.Spec.ServiceUser).Should(Equal("watcher"))
 			Expect(Watcher.Spec.Secret).Should(Equal("test-osp-secret"))
-			Expect(Watcher.Spec.RabbitMqClusterName).Should(Equal("rabbitmq"))
+			Expect(*(Watcher.Spec.RabbitMqClusterName)).Should(Equal("rabbitmq"))
 			Expect(Watcher.Spec.PreserveJobs).Should(BeFalse())
 		})
 
@@ -197,7 +199,7 @@ var _ = Describe("Watcher controller", func() {
 				mariadb.DeleteDBService,
 				mariadb.CreateDBService(
 					watcherTest.Instance.Namespace,
-					GetWatcher(watcherTest.Instance).Spec.DatabaseInstance,
+					*GetWatcher(watcherTest.Instance).Spec.DatabaseInstance,
 					corev1.ServiceSpec{
 						Ports: []corev1.ServicePort{{Port: 3306}},
 					},
@@ -459,7 +461,7 @@ var _ = Describe("Watcher controller", func() {
 				mariadb.DeleteDBService,
 				mariadb.CreateDBService(
 					watcherTest.Instance.Namespace,
-					GetWatcher(watcherTest.Instance).Spec.DatabaseInstance,
+					*GetWatcher(watcherTest.Instance).Spec.DatabaseInstance,
 					corev1.ServiceSpec{
 						Ports: []corev1.ServicePort{{Port: 3306}},
 					},
@@ -531,6 +533,61 @@ var _ = Describe("Watcher controller", func() {
 			Expect(Watcher.Spec.ApplierContainerImageURL).To(Equal("watcher-applier-custom-image-env"))
 		})
 	})
+
+	When("Watcher rejects when empty databaseinstance is used", func() {
+		It("should raise an error for empty databaseInstance", func() {
+			spec := GetDefaultWatcherAPISpec()
+			spec["databaseInstance"] = ""
+
+			raw := map[string]interface{}{
+				"apiVersion": "watcher.openstack.org/v1beta1",
+				"kind":       "watcher",
+				"metadata": map[string]interface{}{
+					"name":      watcherName.Name,
+					"namespace": watcherName.Namespace,
+				},
+				"spec": spec,
+			}
+
+			unstructuredObj := &unstructured.Unstructured{Object: raw}
+			_, err := controllerutil.CreateOrPatch(
+				th.Ctx, th.K8sClient, unstructuredObj, func() error { return nil })
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(
+				ContainSubstring(
+					"admission webhook \"vwatcher.kb.io\" denied the request: " +
+						"databaseInstance field should not be empty"),
+			)
+
+		})
+	})
+
+	When("Watcher is created with empty RabbitMqClusterName", func() {
+		It("should raise an error for empty RabbitMqClusterName", func() {
+			spec := GetDefaultWatcherAPISpec()
+			spec["rabbitMqClusterName"] = ""
+
+			raw := map[string]interface{}{
+				"apiVersion": "watcher.openstack.org/v1beta1",
+				"kind":       "watcher",
+				"metadata": map[string]interface{}{
+					"name":      watcherName.Name,
+					"namespace": watcherName.Namespace,
+				},
+				"spec": spec,
+			}
+
+			unstructuredObj := &unstructured.Unstructured{Object: raw}
+			_, err := controllerutil.CreateOrPatch(
+				th.Ctx, th.K8sClient, unstructuredObj, func() error { return nil })
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(
+				ContainSubstring(
+					"admission webhook \"vwatcher.kb.io\" denied the request: " +
+						"rabbitMqClusterName field should not be empty"),
+			)
+		})
+	})
 	When("Watcher with non-default values are created", func() {
 		BeforeEach(func() {
 			DeferCleanup(th.DeleteInstance, CreateWatcher(watcherTest.Instance, GetNonDefaultWatcherSpec()))
@@ -546,7 +603,7 @@ var _ = Describe("Watcher controller", func() {
 				mariadb.DeleteDBService,
 				mariadb.CreateDBService(
 					watcherTest.Instance.Namespace,
-					GetWatcher(watcherTest.Instance).Spec.DatabaseInstance,
+					*GetWatcher(watcherTest.Instance).Spec.DatabaseInstance,
 					corev1.ServiceSpec{
 						Ports: []corev1.ServicePort{{Port: 3306}},
 					},
@@ -557,12 +614,12 @@ var _ = Describe("Watcher controller", func() {
 
 		It("should have the Spec fields with the expected values", func() {
 			Watcher := GetWatcher(watcherTest.Instance)
-			Expect(Watcher.Spec.DatabaseInstance).Should(Equal("fakeopenstack"))
+			Expect(*(Watcher.Spec.DatabaseInstance)).Should(Equal("fakeopenstack"))
 			Expect(Watcher.Spec.DatabaseAccount).Should(Equal("watcher"))
 			Expect(Watcher.Spec.ServiceUser).Should(Equal("fakeuser"))
 			Expect(Watcher.Spec.Secret).Should(Equal("test-osp-secret"))
 			Expect(Watcher.Spec.PreserveJobs).Should(BeTrue())
-			Expect(Watcher.Spec.RabbitMqClusterName).Should(Equal("rabbitmq"))
+			Expect(*(Watcher.Spec.RabbitMqClusterName)).Should(Equal("rabbitmq"))
 		})
 
 		It("Should create watcher service with custom values", func() {
