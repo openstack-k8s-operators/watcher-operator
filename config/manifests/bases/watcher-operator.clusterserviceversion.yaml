@@ -42,6 +42,10 @@ spec:
       displayName: Watcher Decision Engine
       kind: WatcherDecisionEngine
       name: watcherdecisionengines.watcher.openstack.org
+      specDescriptors:
+      - description: TLS - Parameters related to the TLS
+        displayName: TLS
+        path: tls
       version: v1beta1
     - description: Watcher is the Schema for the watchers API
       displayName: Watcher

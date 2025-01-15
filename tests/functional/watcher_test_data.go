@@ -47,6 +47,7 @@ type WatcherTestData struct {
 	RoleBindingName              types.NamespacedName
 	WatcherDBSync                types.NamespacedName
 	WatcherAPIDeployment         types.NamespacedName
+	WatcherDecisionEngine        types.NamespacedName
 	WatcherPublicServiceName     types.NamespacedName
 	WatcherInternalServiceName   types.NamespacedName
 	WatcherRouteName             types.NamespacedName
@@ -96,6 +97,10 @@ func GetWatcherTestData(watcherName types.NamespacedName) WatcherTestData {
 		WatcherAPI: types.NamespacedName{
 			Namespace: watcherName.Namespace,
 			Name:      "watcher-api",
+		},
+		WatcherDecisionEngine: types.NamespacedName{
+			Namespace: watcherName.Namespace,
+			Name:      "watcher-decision-engine",
 		},
 		MemcachedNamespace: types.NamespacedName{
 			Namespace: watcherName.Namespace,

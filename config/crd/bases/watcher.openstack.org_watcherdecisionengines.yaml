@@ -44,6 +44,41 @@ spec:
                 description: The service specific Container Image URL (will be set
                   to environmental default if empty)
                 type: string
+              customServiceConfig:
+                description: |-
+                  CustomServiceConfig - customize the service config using this parameter to change service defaults,
+                  or overwrite rendered information using raw OpenStack config format. The content gets added to
+                  to /etc/<service>/<service>.conf.d directory as a custom config file.
+                type: string
+              memcachedInstance:
+                default: memcached
+                description: MemcachedInstance is the name of the Memcached CR that
+                  all watcher service will use.
+                type: string
+              nodeSelector:
+                additionalProperties:
+                  type: string
+                description: |-
+                  NodeSelector to target subset of worker nodes running this component. Setting here overrides
+                  any global NodeSelector settings within the Watcher CR.
+                type: object
+              passwordSelectors:
+                default:
+                  service: WatcherPassword
+                description: PasswordSelectors - Selectors to identify the ServiceUser
+                  password from the Secret
+                properties:
+                  service:
+                    default: WatcherPassword
+                    description: Service - Selector to get the watcher service user
+                      password from the Secret
+                    type: string
+                type: object
+              preserveJobs:
+                default: false
+                description: PreserveJobs - do not delete jobs after they finished
+                  e.g. to check logs
+                type: boolean
               replicas:
                 default: 1
                 description: Replicas of Watcher service to run
@@ -108,17 +143,114 @@ spec:
                       More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
                     type: object
                 type: object
+              secret:
+                description: Secret containing all passwords / keys needed
+                type: string
               serviceAccount:
                 description: |-
                   ServiceAccount - service account name used internally to provide
                   Watcher services the default SA name
                 type: string
+              serviceUser:
+                default: watcher
+                description: ServiceUser - optional username used for this service
+                  to register in keystone
+                type: string
+              tls:
+                description: TLS - Parameters related to the TLS
+                properties:
+                  api:
+                    description: API tls type which encapsulates for API services
+                    properties:
+                      internal:
+                        description: Internal GenericService - holds the secret for
+                          the internal endpoint
+                        properties:
+                          secretName:
+                            description: SecretName - holding the cert, key for the
+                              service
+                            type: string
+                        type: object
+                      public:
+                        description: Public GenericService - holds the secret for
+                          the public endpoint
+                        properties:
+                          secretName:
+                            description: SecretName - holding the cert, key for the
+                              service
+                            type: string
+                        type: object
+                    type: object
+                  caBundleSecretName:
+                    description: CaBundleSecretName - holding the CA certs in a pre-created
+                      bundle file
+                    type: string
+                type: object
             required:
+            - secret
             - serviceAccount
             type: object
           status:
             description: WatcherDecisionEngineStatus defines the observed state of
               WatcherDecisionEngine
+            properties:
+              conditions:
+                description: |-
+                  INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
+                  Important: Run "make" to regenerate code after modifying this file
+                items:
+                  description: Condition defines an observation of a API resource
+                    operational state.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        Last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed. If that is not known, then using the time when
+                        the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: A human readable message indicating details about
+                        the transition.
+                      type: string
+                    reason:
+                      description: The reason for the condition's last transition
+                        in CamelCase.
+                      type: string
+                    severity:
+                      description: |-
+                        Severity provides a classification of Reason code, so the current situation is immediately
+                        understandable and could act accordingly.
+                        It is meant for situations where Status=False and it should be indicated if it is just
+                        informational, warning (next reconciliation might fix it) or an error (e.g. DB create issue
+                        and no actions to automatically resolve the issue can/should be done).
+                        For conditions where Status=Unknown or Status=True the Severity should be SeverityNone.
+                      type: string
+                    status:
+                      description: Status of the condition, one of True, False, Unknown.
+                      type: string
+                    type:
+                      description: Type of condition in CamelCase.
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - status
+                  - type
+                  type: object
+                type: array
+              hash:
+                additionalProperties:
+                  type: string
+                description: Map of hashes to track e.g. job status
+                type: object
+              observedGeneration:
+                description: |-
+                  ObservedGeneration - the most recent generation observed for this
+                  service. If the observed generation is less than the spec generation,
+                  then the controller has not processed the latest changes injected by
+                  the openstack-operator in the top-level CR (e.g. the ContainerImage)
+                format: int64
+                type: integer
             type: object
         type: object
     served: true

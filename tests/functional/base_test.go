@@ -76,6 +76,16 @@ func GetDefaultWatcherApplierSpec() map[string]interface{} {
 	}
 }
 
+func GetDefaultWatcherDecisionEngineSpec() map[string]interface{} {
+	return map[string]interface{}{
+		"databaseInstance":  "openstack",
+		"secret":            SecretName,
+		"memcachedInstance": "memcached",
+		"serviceAccount":    "watcher-sa",
+		"containerImage":    "test://watcher",
+	}
+}
+
 func CreateWatcher(name types.NamespacedName, spec map[string]interface{}) client.Object {
 	raw := map[string]interface{}{
 		"apiVersion": "watcher.openstack.org/v1beta1",
@@ -154,6 +164,11 @@ func WatcherApplierConditionGetter(name types.NamespacedName) condition.Conditio
 	return instance.Status.Conditions
 }
 
+func WatcherDecisionEngineConditionGetter(name types.NamespacedName) condition.Conditions {
+	instance := GetWatcherDecisionEngine(name)
+	return instance.Status.Conditions
+}
+
 func CreateWatcherMessageBusSecret(namespace string, name string) *corev1.Secret {
 	s := th.CreateSecret(
 		types.NamespacedName{Namespace: namespace, Name: name},
@@ -163,4 +178,25 @@ func CreateWatcherMessageBusSecret(namespace string, name string) *corev1.Secret
 	)
 	logger.Info("Secret created", "name", name)
 	return s
+}
+
+func CreateWatcherDecisionEngine(name types.NamespacedName, spec map[string]interface{}) client.Object {
+	raw := map[string]interface{}{
+		"apiVersion": "watcher.openstack.org/v1beta1",
+		"kind":       "WatcherDecisionEngine",
+		"metadata": map[string]interface{}{
+			"name":      name.Name,
+			"namespace": name.Namespace,
+		},
+		"spec": spec,
+	}
+	return th.CreateUnstructured(raw)
+}
+
+func GetWatcherDecisionEngine(name types.NamespacedName) *watcherv1.WatcherDecisionEngine {
+	instance := &watcherv1.WatcherDecisionEngine{}
+	Eventually(func(g Gomega) {
+		g.Expect(k8sClient.Get(ctx, name, instance)).Should(Succeed())
+	}, timeout, interval).Should(Succeed())
+	return instance
 }
