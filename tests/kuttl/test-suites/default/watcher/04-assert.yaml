@@ -205,7 +205,7 @@ status:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: watcher-kuttl-api-api
+  name: watcher-kuttl-api
   labels:
     service: watcher-api
 spec:

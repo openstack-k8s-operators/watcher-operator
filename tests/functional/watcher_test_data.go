@@ -113,7 +113,7 @@ func GetWatcherTestData(watcherName types.NamespacedName) WatcherTestData {
 		},
 		WatcherAPIDeployment: types.NamespacedName{
 			Namespace: watcherName.Namespace,
-			Name:      "watcher-api-api",
+			Name:      "watcher-api",
 		},
 	}
 }

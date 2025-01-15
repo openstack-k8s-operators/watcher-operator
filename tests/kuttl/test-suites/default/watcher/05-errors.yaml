@@ -60,7 +60,7 @@ metadata:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: watcher-kuttl-api-api
+  name: watcher-kuttl-api
 ---
 apiVersion: v1
 kind: Pod
