@@ -5,3 +5,5 @@ metadata:
   namespace: watcher-kuttl-default
 spec:
   databaseInstance: "openstack"
+  tls:
+    caBundleSecretName: "combined-ca-bundle"

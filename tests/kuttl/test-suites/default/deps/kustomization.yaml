@@ -5,6 +5,8 @@ namespace: watcher-kuttl-default
 secretGenerator:
 - literals:
   - AdminPassword=password
+  - AodhPassword=password
+  - CeilometerPassword=password
   - DbRootPassword=password
   - DatabasePassword=password
   - WatcherPassword=password
@@ -40,3 +42,4 @@ patches:
       secret: osp-secret
 - path: infra.yaml
 - path: keystone.yaml
+- path: telemetry.yaml
