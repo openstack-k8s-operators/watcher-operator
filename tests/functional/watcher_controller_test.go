@@ -860,7 +860,7 @@ var _ = Describe("Watcher controller", func() {
 			deployment := th.GetDeployment(watcherTest.WatcherAPIDeployment)
 			Expect(deployment.Spec.Template.Spec.ServiceAccountName).To(Equal("watcher-watcher"))
 			Expect(int(*deployment.Spec.Replicas)).To(Equal(2))
-			Expect(deployment.Spec.Template.Spec.Volumes).To(HaveLen(3))
+			Expect(deployment.Spec.Template.Spec.Volumes).To(HaveLen(5))
 			Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(2))
 			Expect(deployment.Spec.Selector.MatchLabels).To(Equal(map[string]string{"service": "watcher-api"}))
 

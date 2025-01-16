@@ -34,6 +34,8 @@ var _ = Describe("WatcherAPI controller with minimal spec values", func() {
 			Expect(WatcherAPI.Spec.Secret).Should(Equal("osp-secret"))
 			Expect(WatcherAPI.Spec.MemcachedInstance).Should(Equal("memcached"))
 			Expect(WatcherAPI.Spec.PasswordSelectors).Should(Equal(watcherv1beta1.PasswordSelector{Service: "WatcherPassword"}))
+			Expect(WatcherAPI.Spec.TLS.CaBundleSecretName).Should(Equal(""))
+			Expect(WatcherAPI.Spec.PrometheusTLSCaCertSecret).Should(BeNil())
 		})
 
 		It("should have the Status fields initialized", func() {
@@ -111,6 +113,9 @@ var _ = Describe("WatcherAPI controller", func() {
 				map[string][]byte{
 					"WatcherPassword": []byte("service-password"),
 					"transport_url":   []byte("url"),
+					"prometheus_host": []byte("prometheus.example.com"),
+					"prometheus_port": []byte("1234"),
+					"prometheus_tls":  []byte("false"),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -249,6 +254,9 @@ var _ = Describe("WatcherAPI controller", func() {
 					"database_username": []byte("username"),
 					"database_password": []byte("password"),
 					"database_hostname": []byte("hostname"),
+					"prometheus_host":   []byte("prometheus.example.com"),
+					"prometheus_port":   []byte("1234"),
+					"prometheus_tls":    []byte("false"),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -291,6 +299,9 @@ var _ = Describe("WatcherAPI controller", func() {
 					"database_username": []byte("username"),
 					"database_password": []byte("password"),
 					"database_hostname": []byte("hostname"),
+					"prometheus_host":   []byte("prometheus.example.com"),
+					"prometheus_port":   []byte("1234"),
+					"prometheus_tls":    []byte("false"),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
