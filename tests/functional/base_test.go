@@ -25,8 +25,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	condition "github.com/openstack-k8s-operators/lib-common/modules/common/condition"
+	telemetryv1 "github.com/openstack-k8s-operators/telemetry-operator/api/v1beta1"
 	watcherv1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func GetDefaultWatcherSpec() map[string]interface{} {
@@ -47,6 +50,15 @@ func GetNonDefaultWatcherSpec() map[string]interface{} {
 		"apiServiceTemplate": map[string]interface{}{
 			"replicas":     2,
 			"nodeSelector": map[string]string{"foo": "bar"},
+		},
+		"prometheusHost": "fakehost.example.com",
+		"prometheusPort": 1234,
+		"prometheusTLSCaCertSecret": map[string]interface{}{
+			"key":  "fakeCaCertKey",
+			"name": "fakeCaCertName",
+		},
+		"tls": map[string]interface{}{
+			"caBundleSecretName": "combined-ca-bundle",
 		},
 	}
 }
@@ -72,6 +84,44 @@ func CreateWatcher(name types.NamespacedName, spec map[string]interface{}) clien
 		"spec": spec,
 	}
 	return th.CreateUnstructured(raw)
+}
+
+func CreateMetricStorage(namespace string) types.NamespacedName {
+
+	metricstorage := &telemetryv1.MetricStorage{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "telemetry.openstack.org/v1beta1",
+			Kind:       "MetricStorage",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "metric-storage",
+			Namespace: namespace,
+		},
+		Spec: telemetryv1.MetricStorageSpec{},
+	}
+
+	err := th.K8sClient.Create(th.Ctx, metricstorage.DeepCopy())
+	name := types.NamespacedName{Namespace: namespace, Name: metricstorage.Name}
+	if err != nil {
+		return name
+	}
+
+	return name
+}
+
+func DeleteMetricStorage(name types.NamespacedName) {
+	metricstorage := &telemetryv1.MetricStorage{}
+	err := th.K8sClient.Get(th.Ctx, name, metricstorage)
+	// if it is already gone that is OK
+	if k8s_errors.IsNotFound(err) {
+		return
+	}
+
+	err = th.K8sClient.Delete(th.Ctx, metricstorage)
+	if err != nil {
+		return
+	}
+
 }
 
 func GetWatcher(name types.NamespacedName) *watcherv1.Watcher {

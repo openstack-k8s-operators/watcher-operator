@@ -206,6 +206,7 @@ var _ = Describe("Watcher controller", func() {
 				),
 			)
 			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
+			DeferCleanup(DeleteMetricStorage, CreateMetricStorage(watcherTest.WatcherAPI.Namespace))
 		})
 
 		It("Should set DBReady Condition Status when DB is Created", func() {
@@ -341,6 +342,9 @@ var _ = Describe("Watcher controller", func() {
 			Expect(createdSecret).ShouldNot(BeNil())
 			Expect(createdSecret.Data["WatcherPassword"]).To(Equal([]byte("password")))
 			Expect(createdSecret.Data["transport_url"]).To(Equal([]byte("rabbit://rabbitmq-secret/fake")))
+			Expect(createdSecret.Data["prometheus_host"]).To(Equal([]byte("metric-storage-prometheus." + Watcher.Namespace + ".svc")))
+			Expect(createdSecret.Data["prometheus_port"]).To(Equal([]byte("9090")))
+			Expect(createdSecret.Data["prometheus_tls"]).To(Equal([]byte("false")))
 
 			// Check WatcherAPI is created
 			WatcherAPI := GetWatcherAPI(watcherTest.WatcherAPI)
@@ -558,6 +562,88 @@ var _ = Describe("Watcher controller", func() {
 					"admission webhook \"vwatcher.kb.io\" denied the request: " +
 						"databaseInstance field should not be empty"),
 			)
+		})
+	})
+	When("Watcher is created with default Spec but there is no MetricStorage", func() {
+		BeforeEach(func() {
+			DeferCleanup(th.DeleteInstance, CreateWatcher(watcherTest.Instance, GetDefaultWatcherSpec()))
+			DeferCleanup(k8sClient.Delete, ctx, CreateWatcherMessageBusSecret(watcherTest.Instance.Namespace, "rabbitmq-secret"))
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.Watcher.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.Instance.Namespace,
+					*GetWatcher(watcherTest.Instance).Spec.DatabaseInstance,
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+			infra.SimulateTransportURLReady(watcherTest.WatcherTransportURL)
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: SecretName},
+					map[string][]byte{
+						"WatcherPassword": []byte("password"),
+					},
+				))
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
+		})
+
+		It("Should set DBReady Condition Status when DB is Created", func() {
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				condition.DBReadyCondition,
+				corev1.ConditionTrue,
+			)
+		})
+
+		It("Should set TransportURL Condition Status TransportURL is Created", func() {
+			infra.SimulateTransportURLReady(watcherTest.WatcherTransportURL)
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				watcherv1beta1.WatcherRabbitMQTransportURLReadyCondition,
+				corev1.ConditionTrue,
+			)
+			transportURL := &rabbitmqv1.TransportURL{}
+			Expect(k8sClient.Get(ctx, watcherTest.WatcherTransportURL, transportURL)).Should(Succeed())
+		})
+
+		It("Should set InputReady condition to Error with specific error message", func() {
+			// Input Ready (secrets)
+			th.ExpectConditionWithDetails(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				condition.InputReadyCondition,
+				corev1.ConditionFalse,
+				condition.ErrorReason,
+				"Metrics storage not found in the controlplane",
+			)
+			// Secret should not be created
+			subCrsSecret := &corev1.Secret{}
+			Expect(k8sClient.Get(ctx,
+				types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: watcherTest.Instance.Name},
+				subCrsSecret)).ShouldNot(Succeed())
+		})
+
+		It("Should not create WatcherAPI CR", func() {
+			// Check WatcherAPI is not created
+			watcherAPI := &watcherv1beta1.WatcherAPI{}
+			Expect(k8sClient.Get(ctx,
+				types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: watcherTest.Instance.Name + "-api"},
+				watcherAPI)).ShouldNot(Succeed())
 
 		})
 	})
@@ -609,7 +695,9 @@ var _ = Describe("Watcher controller", func() {
 					},
 				),
 			)
+
 			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
+			DeferCleanup(DeleteMetricStorage, CreateMetricStorage(watcherTest.WatcherAPI.Namespace))
 		})
 
 		It("should have the Spec fields with the expected values", func() {
@@ -620,6 +708,11 @@ var _ = Describe("Watcher controller", func() {
 			Expect(Watcher.Spec.Secret).Should(Equal("test-osp-secret"))
 			Expect(Watcher.Spec.PreserveJobs).Should(BeTrue())
 			Expect(*(Watcher.Spec.RabbitMqClusterName)).Should(Equal("rabbitmq"))
+			Expect(Watcher.Spec.TLS.CaBundleSecretName).Should(Equal("combined-ca-bundle"))
+			Expect(Watcher.Spec.PrometheusHost).Should(Equal("fakehost.example.com"))
+			Expect(Watcher.Spec.PrometheusPort).Should(Equal(int32(1234)))
+			Expect(Watcher.Spec.PrometheusTLSCaCertSecret.Key).Should(Equal("fakeCaCertKey"))
+			Expect(Watcher.Spec.PrometheusTLSCaCertSecret.Name).Should(Equal("fakeCaCertName"))
 		})
 
 		It("Should create watcher service with custom values", func() {
@@ -737,7 +830,22 @@ var _ = Describe("Watcher controller", func() {
 			Watcher := GetWatcher(watcherTest.Instance)
 			Expect(Watcher.Status.Hash[watcherv1beta1.DbSyncHash]).ShouldNot(BeNil())
 
+			// assert that the top level secret is created with proper content
+			createdSecret := th.GetSecret(watcherTest.Watcher)
+			Expect(createdSecret).ShouldNot(BeNil())
+			Expect(createdSecret.Data["WatcherPassword"]).To(Equal([]byte("password")))
+			Expect(createdSecret.Data["transport_url"]).To(Equal([]byte("rabbit://rabbitmq-secret/fake")))
+			Expect(createdSecret.Data["prometheus_host"]).To(Equal([]byte("fakehost.example.com")))
+			Expect(createdSecret.Data["prometheus_port"]).To(Equal([]byte("1234")))
+			Expect(createdSecret.Data["prometheus_tls"]).To(Equal([]byte("true")))
+			Expect(createdSecret.Data["prometheus_cacert"]).To(Equal([]byte("/etc/pki/ca-trust/extracted/pem/fakeCaCertKey")))
+
 			// Check WatcherAPI is created with non-default values
+			watcherAPI := &watcherv1beta1.WatcherAPI{}
+			Expect(k8sClient.Get(ctx,
+				types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: watcherTest.Instance.Name + "-api"},
+				watcherAPI)).Should(Succeed())
+
 			WatcherAPI := GetWatcherAPI(watcherTest.WatcherAPI)
 			//Expect(WatcherAPI.Spec.Replicas).To(Equal(int(1)))
 			Expect(WatcherAPI.Spec.ContainerImage).To(Equal("fake-API-Container-URL"))
@@ -745,6 +853,8 @@ var _ = Describe("Watcher controller", func() {
 			Expect(WatcherAPI.Spec.ServiceAccount).To(Equal("watcher-watcher"))
 			Expect(int(*WatcherAPI.Spec.Replicas)).To(Equal(2))
 			Expect(*WatcherAPI.Spec.NodeSelector).To(Equal(map[string]string{"foo": "bar"}))
+			Expect(WatcherAPI.Spec.PrometheusTLSCaCertSecret.Key).Should(Equal("fakeCaCertKey"))
+			Expect(WatcherAPI.Spec.PrometheusTLSCaCertSecret.Name).Should(Equal("fakeCaCertName"))
 
 			// Assert that the watcher deployment is created
 			deployment := th.GetDeployment(watcherTest.WatcherAPIDeployment)
