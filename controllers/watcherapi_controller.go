@@ -290,6 +290,11 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 	databaseHostname := string(secret.Data[DatabaseHostname])
 	databasePassword := string(secret.Data[DatabasePassword])
 	prometheusTLS, _ := strconv.ParseBool(string(secret.Data[PrometheusTLSKey]))
+
+	var CaFilePath string
+	if instance.Spec.TLS.CaBundleSecretName != "" {
+		CaFilePath = tls.DownstreamTLSCABundlePath
+	}
 	templateParameters := map[string]interface{}{
 		"DatabaseConnection": fmt.Sprintf("mysql+pymysql://%s:%s@%s/%s?read_default_file=/etc/my.cnf",
 			databaseUsername,
@@ -310,6 +315,7 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 		"PrometheusPort":           string(secret.Data[PrometheusPortKey]),
 		"PrometheusTLS":            prometheusTLS,
 		"PrometheusCaCert":         string(secret.Data[PrometheusCaCertKey]),
+		"CaFilePath":               CaFilePath,
 	}
 
 	// create httpd  vhost template parameters
