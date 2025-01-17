@@ -305,6 +305,11 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 	databaseUsername := string(secret.Data[DatabaseUsername])
 	databaseHostname := string(secret.Data[DatabaseHostname])
 	databasePassword := string(secret.Data[DatabasePassword])
+
+	var CaFilePath string
+	if instance.Spec.TLS.CaBundleSecretName != "" {
+		CaFilePath = tls.DownstreamTLSCABundlePath
+	}
 	templateParameters := map[string]interface{}{
 		"DatabaseConnection": fmt.Sprintf("mysql+pymysql://%s:%s@%s/%s?read_default_file=/etc/my.cnf",
 			databaseUsername,
@@ -321,6 +326,7 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 		"MemcachedTLS":             memcachedInstance.GetMemcachedTLSSupport(),
 		"LogFile":                  fmt.Sprintf("%s%s.log", watcher.WatcherLogPath, instance.Name),
 		"APIPublicPort":            fmt.Sprintf("%d", watcher.WatcherPublicPort),
+		"CaFilePath":               CaFilePath,
 	}
 
 	// create httpd  vhost template parameters
