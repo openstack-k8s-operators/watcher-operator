@@ -8,6 +8,9 @@
     KUBECONFIG: "{{ cifmw_openshift_kubeconfig }}"
     PATH: "{{ cifmw_path }}"
   tasks:
+    - name: Import tasks for creating COO subscription
+      ansible.builtin.include_tasks: "create-coo-subscription.yaml"
+
     - name: Install Watcher Operator
       cifmw.general.ci_script:
         output_dir: "{{ cifmw_basedir }}/artifacts"
