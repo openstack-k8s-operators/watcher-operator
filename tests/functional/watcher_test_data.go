@@ -49,6 +49,8 @@ type WatcherTestData struct {
 	WatcherAPIDeployment         types.NamespacedName
 	WatcherPublicServiceName     types.NamespacedName
 	WatcherInternalServiceName   types.NamespacedName
+	WatcherRouteName             types.NamespacedName
+	WatcherInternalRouteName     types.NamespacedName
 }
 
 // GetWatcherTestData is a function that initialize the WatcherTestData
@@ -122,6 +124,14 @@ func GetWatcherTestData(watcherName types.NamespacedName) WatcherTestData {
 			Name:      "watcher-public",
 		},
 		WatcherInternalServiceName: types.NamespacedName{
+			Namespace: watcherName.Namespace,
+			Name:      "watcher-internal",
+		},
+		WatcherRouteName: types.NamespacedName{
+			Namespace: watcherName.Namespace,
+			Name:      "watcher-public",
+		},
+		WatcherInternalRouteName: types.NamespacedName{
 			Namespace: watcherName.Namespace,
 			Name:      "watcher-internal",
 		},

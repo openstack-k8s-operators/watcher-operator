@@ -28,6 +28,7 @@ import (
 
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	routev1 "github.com/openshift/api/route/v1"
 	memcachedv1 "github.com/openstack-k8s-operators/infra-operator/apis/memcached/v1beta1"
 	rabbitmqv1 "github.com/openstack-k8s-operators/infra-operator/apis/rabbitmq/v1beta1"
 	keystonev1 "github.com/openstack-k8s-operators/keystone-operator/api/v1beta1"
@@ -97,6 +98,8 @@ var _ = BeforeSuite(func() {
 	keystoneCRDs, err := test.GetCRDDirFromModule(
 		"github.com/openstack-k8s-operators/keystone-operator/api", "../../go.mod", "bases")
 	Expect(err).ShouldNot(HaveOccurred())
+	routev1CRDs, err := test.GetOpenShiftCRDDir("route/v1", "../../go.mod")
+	Expect(err).ShouldNot(HaveOccurred())
 
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
@@ -105,6 +108,7 @@ var _ = BeforeSuite(func() {
 			mariaDBCRDs,
 			rabbitmqCRDs,
 			keystoneCRDs,
+			routev1CRDs,
 		},
 
 		ErrorIfCRDPathMissing: true,
@@ -135,6 +139,8 @@ var _ = BeforeSuite(func() {
 	err = keystonev1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 	err = memcachedv1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+	err = routev1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	logger = ctrl.Log.WithName("---Test---")

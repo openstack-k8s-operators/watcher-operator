@@ -10,7 +10,6 @@ import (
 	memcachedv1 "github.com/openstack-k8s-operators/infra-operator/apis/memcached/v1beta1"
 	condition "github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 	. "github.com/openstack-k8s-operators/lib-common/modules/common/test/helpers"
-	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/ptr"
@@ -114,14 +113,6 @@ var _ = Describe("WatcherAPI controller", func() {
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
-			mariadb.CreateMariaDBDatabase(watcherTest.WatcherDatabaseName.Namespace, watcherTest.WatcherDatabaseName.Name, mariadbv1.MariaDBDatabaseSpec{})
-			DeferCleanup(k8sClient.Delete, ctx, mariadb.GetMariaDBDatabase(watcherTest.WatcherDatabaseName))
-
-			mariadb.SimulateMariaDBTLSDatabaseCompleted(watcherTest.WatcherDatabaseName)
-			apiMariaDBAccount, apiMariaDBSecret := mariadb.CreateMariaDBAccountAndSecret(
-				watcherTest.WatcherDatabaseAccount, mariadbv1.MariaDBAccountSpec{})
-			DeferCleanup(k8sClient.Delete, ctx, apiMariaDBAccount)
-			DeferCleanup(k8sClient.Delete, ctx, apiMariaDBSecret)
 			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, GetDefaultWatcherAPISpec()))
 			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
 			memcachedSpec := memcachedv1.MemcachedSpec{
@@ -183,18 +174,18 @@ var _ = Describe("WatcherAPI controller", func() {
 			Expect(container.LivenessProbe.HTTPGet.Port.IntVal).To(Equal(int32(9322)))
 			Expect(container.ReadinessProbe.HTTPGet.Port.IntVal).To(Equal(int32(9322)))
 		})
-		It("creates the public and internal services for the watcher-api service", func() {
+		It("exposes the watcher-api service", func() {
 			th.ExpectCondition(
 				watcherTest.WatcherAPI,
 				ConditionGetterFunc(WatcherAPIConditionGetter),
-				condition.CreateServiceReadyCondition,
+				condition.ExposeServiceReadyCondition,
 				corev1.ConditionTrue,
 			)
 			public := th.GetService(watcherTest.WatcherPublicServiceName)
 			Expect(public.Labels["service"]).To(Equal("watcher-api"))
 			internal := th.GetService(watcherTest.WatcherInternalServiceName)
 			Expect(internal.Labels["service"]).To(Equal("watcher-api"))
-
+			th.AssertRouteExists(watcherTest.WatcherRouteName)
 		})
 	})
 	When("the secret is created but missing fields", func() {
@@ -204,14 +195,6 @@ var _ = Describe("WatcherAPI controller", func() {
 				map[string][]byte{},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
-			mariadb.CreateMariaDBDatabase(watcherTest.WatcherDatabaseName.Namespace, watcherTest.WatcherDatabaseName.Name, mariadbv1.MariaDBDatabaseSpec{})
-			DeferCleanup(k8sClient.Delete, ctx, mariadb.GetMariaDBDatabase(watcherTest.WatcherDatabaseName))
-
-			mariadb.SimulateMariaDBTLSDatabaseCompleted(watcherTest.WatcherDatabaseName)
-			apiMariaDBAccount, apiMariaDBSecret := mariadb.CreateMariaDBAccountAndSecret(
-				watcherTest.WatcherDatabaseAccount, mariadbv1.MariaDBAccountSpec{})
-			DeferCleanup(k8sClient.Delete, ctx, apiMariaDBAccount)
-			DeferCleanup(k8sClient.Delete, ctx, apiMariaDBSecret)
 			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, GetDefaultWatcherAPISpec()))
 		})
 		It("should have input false", func() {
@@ -265,14 +248,7 @@ var _ = Describe("WatcherAPI controller", func() {
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
-			mariadb.CreateMariaDBDatabase(watcherTest.WatcherDatabaseName.Namespace, watcherTest.WatcherDatabaseName.Name, mariadbv1.MariaDBDatabaseSpec{})
-			DeferCleanup(k8sClient.Delete, ctx, mariadb.GetMariaDBDatabase(watcherTest.WatcherDatabaseName))
 
-			mariadb.SimulateMariaDBTLSDatabaseCompleted(watcherTest.WatcherDatabaseName)
-			apiMariaDBAccount, apiMariaDBSecret := mariadb.CreateMariaDBAccountAndSecret(
-				watcherTest.WatcherDatabaseAccount, mariadbv1.MariaDBAccountSpec{})
-			DeferCleanup(k8sClient.Delete, ctx, apiMariaDBAccount)
-			DeferCleanup(k8sClient.Delete, ctx, apiMariaDBSecret)
 			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, GetDefaultWatcherAPISpec()))
 		})
 		It("should have input ready true", func() {
@@ -307,14 +283,6 @@ var _ = Describe("WatcherAPI controller", func() {
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
-			mariadb.CreateMariaDBDatabase(watcherTest.WatcherDatabaseName.Namespace, watcherTest.WatcherDatabaseName.Name, mariadbv1.MariaDBDatabaseSpec{})
-			DeferCleanup(k8sClient.Delete, ctx, mariadb.GetMariaDBDatabase(watcherTest.WatcherDatabaseName))
-
-			mariadb.SimulateMariaDBTLSDatabaseCompleted(watcherTest.WatcherDatabaseName)
-			apiMariaDBAccount, apiMariaDBSecret := mariadb.CreateMariaDBAccountAndSecret(
-				watcherTest.WatcherDatabaseAccount, mariadbv1.MariaDBAccountSpec{})
-			DeferCleanup(k8sClient.Delete, ctx, apiMariaDBAccount)
-			DeferCleanup(k8sClient.Delete, ctx, apiMariaDBSecret)
 			memcachedSpec := memcachedv1.MemcachedSpec{
 				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
 					Replicas: ptr.To(int32(1)),
@@ -353,6 +321,69 @@ var _ = Describe("WatcherAPI controller", func() {
 				corev1.ConditionFalse,
 				condition.ErrorReason,
 				errorString,
+			)
+		})
+	})
+	When("WatcherAPI is created with extrenalEndpoints", func() {
+		BeforeEach(func() {
+			secret := th.CreateSecret(
+				watcherTest.InternalTopLevelSecretName,
+				map[string][]byte{
+					"WatcherPassword": []byte("service-password"),
+					"transport_url":   []byte("url"),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, secret)
+			spec := GetDefaultWatcherAPISpec()
+			var externalEndpoints []interface{}
+			externalEndpoints = append(
+				externalEndpoints, map[string]interface{}{
+					"endpoint":        "internal",
+					"ipAddressPool":   "osp-internalapi",
+					"loadBalancerIPs": []string{"internal-lb-ip-1", "internal-lb-ip-2"},
+				},
+			)
+			spec["externalEndpoints"] = externalEndpoints
+			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, spec))
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.WatcherAPI.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+
+		})
+		It("creates MetalLB service", func() {
+			th.SimulateDeploymentReplicaReady(watcherTest.WatcherAPIDeployment)
+
+			// As the public endpoint is not mentioned in the ExternalEndpoints
+			// a generic Service and a Route is created
+			public := th.GetService(watcherTest.WatcherPublicServiceName)
+			Expect(public.Annotations).NotTo(HaveKey("metallb.universe.tf/address-pool"))
+			Expect(public.Annotations).NotTo(HaveKey("metallb.universe.tf/allow-shared-ip"))
+			Expect(public.Annotations).NotTo(HaveKey("metallb.universe.tf/loadBalancerIPs"))
+			th.AssertRouteExists(watcherTest.WatcherRouteName)
+
+			// As the internal endpoint is configure in ExternalEndpoints it
+			// does not get a Route but a Service with MetalLB annotations
+			// instead
+			internal := th.GetService(watcherTest.WatcherInternalServiceName)
+			Expect(internal.Annotations).To(HaveKeyWithValue("metallb.universe.tf/address-pool", "osp-internalapi"))
+			Expect(internal.Annotations).To(HaveKeyWithValue("metallb.universe.tf/allow-shared-ip", "osp-internalapi"))
+			Expect(internal.Annotations).To(HaveKeyWithValue("metallb.universe.tf/loadBalancerIPs", "internal-lb-ip-1,internal-lb-ip-2"))
+			th.AssertRouteNotExists(watcherTest.WatcherInternalRouteName)
+
+			// simulate that the internal service got a LoadBalancerIP
+			// assigned
+			th.SimulateLoadBalancerServiceIP(watcherTest.WatcherInternalServiceName)
+
+			th.ExpectCondition(
+				watcherTest.WatcherAPI,
+				ConditionGetterFunc(WatcherAPIConditionGetter),
+				condition.ReadyCondition,
+				corev1.ConditionTrue,
 			)
 		})
 	})
