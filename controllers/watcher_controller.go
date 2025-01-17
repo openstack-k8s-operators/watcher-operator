@@ -41,6 +41,7 @@ import (
 	"github.com/openstack-k8s-operators/lib-common/modules/common/labels"
 	common_rbac "github.com/openstack-k8s-operators/lib-common/modules/common/rbac"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/secret"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/tls"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/util"
 	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -634,13 +635,20 @@ func (r *WatcherReconciler) generateServiceConfigDBSync(
 	Log := r.GetLogger(ctx)
 	Log.Info("generateServiceConfigs - reconciling config for Watcher CR")
 
-	customData := map[string]string{}
+	var tlsCfg *tls.Service
+	if instance.Spec.TLS.Ca.CaBundleSecretName != "" {
+		tlsCfg = &tls.Service{}
+	}
+	// customData hold any customization for the service.
+	customData := map[string]string{
+		"my.cnf": db.GetDatabaseClientConfig(tlsCfg), //(mschuppert) for now just get the default my.cnf
+	}
 
 	labels := labels.GetLabels(instance, labels.GetGroupLabel(watcher.ServiceName), map[string]string{})
 	databaseAccount := db.GetAccount()
 	databaseSecret := db.GetSecret()
 	templateParameters := map[string]interface{}{
-		"DatabaseConnection": fmt.Sprintf("mysql+pymysql://%s:%s@%s/%s?charset=utf8",
+		"DatabaseConnection": fmt.Sprintf("mysql+pymysql://%s:%s@%s/%s?read_default_file=/etc/my.cnf",
 			databaseAccount.Spec.UserName,
 			string(databaseSecret.Data[mariadbv1.DatabasePasswordSelector]),
 			db.GetDatabaseHostname(),
@@ -721,6 +729,7 @@ func (r *WatcherReconciler) createSubLevelSecret(
 	data := map[string]string{
 		instance.Spec.PasswordSelectors.Service: string(inputSecret.Data[instance.Spec.PasswordSelectors.Service]),
 		TransportURLSelector:                    string(transportURLSecret.Data[TransportURLSelector]),
+		DatabaseAccount:                         databaseAccount.Name,
 		DatabaseUsername:                        databaseAccount.Spec.UserName,
 		DatabasePassword:                        string(databaseSecret.Data[mariadbv1.DatabasePasswordSelector]),
 		DatabaseHostname:                        db.GetDatabaseHostname(),

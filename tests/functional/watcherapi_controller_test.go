@@ -10,6 +10,7 @@ import (
 	memcachedv1 "github.com/openstack-k8s-operators/infra-operator/apis/memcached/v1beta1"
 	condition "github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 	. "github.com/openstack-k8s-operators/lib-common/modules/common/test/helpers"
+	"github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/ptr"
@@ -108,11 +109,40 @@ var _ = Describe("WatcherAPI controller", func() {
 			secret := th.CreateSecret(
 				watcherTest.InternalTopLevelSecretName,
 				map[string][]byte{
-					"WatcherPassword": []byte("service-password"),
-					"transport_url":   []byte("url"),
+					"WatcherPassword":   []byte("service-password"),
+					"transport_url":     []byte("url"),
+					"database_username": []byte("username"),
+					"database_password": []byte("password"),
+					"database_hostname": []byte("hostname"),
+					"database_account":  []byte("watcher"),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.WatcherAPI.Namespace,
+					"openstack",
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+			mariadb.CreateMariaDBAccountAndSecret(
+				watcherTest.WatcherDatabaseAccount,
+				v1beta1.MariaDBAccountSpec{
+					UserName: "watcher",
+				},
+			)
+			mariadb.CreateMariaDBDatabase(
+				watcherTest.WatcherAPI.Namespace,
+				"watcher",
+				v1beta1.MariaDBDatabaseSpec{
+					Name: "watcher",
+				},
+			)
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
 			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, GetDefaultWatcherAPISpec()))
 			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
 			memcachedSpec := memcachedv1.MemcachedSpec{
@@ -122,6 +152,7 @@ var _ = Describe("WatcherAPI controller", func() {
 			}
 			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.WatcherAPI.Namespace, MemcachedInstance, memcachedSpec))
 			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+
 		})
 		It("should have input ready", func() {
 			th.ExpectCondition(
@@ -264,6 +295,7 @@ var _ = Describe("WatcherAPI controller", func() {
 					"database_username": []byte("username"),
 					"database_password": []byte("password"),
 					"database_hostname": []byte("hostname"),
+					"database_account":  []byte("watcher"),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -299,6 +331,7 @@ var _ = Describe("WatcherAPI controller", func() {
 					"database_username": []byte("username"),
 					"database_password": []byte("password"),
 					"database_hostname": []byte("hostname"),
+					"database_account":  []byte("watcher"),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -348,8 +381,9 @@ var _ = Describe("WatcherAPI controller", func() {
 			secret := th.CreateSecret(
 				watcherTest.InternalTopLevelSecretName,
 				map[string][]byte{
-					"WatcherPassword": []byte("service-password"),
-					"transport_url":   []byte("url"),
+					"WatcherPassword":  []byte("service-password"),
+					"transport_url":    []byte("url"),
+					"database_account": []byte("watcher"),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -371,6 +405,31 @@ var _ = Describe("WatcherAPI controller", func() {
 			}
 			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.WatcherAPI.Namespace, MemcachedInstance, memcachedSpec))
 			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.WatcherAPI.Namespace,
+					"openstack",
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+			mariadb.CreateMariaDBAccountAndSecret(
+				watcherTest.WatcherDatabaseAccount,
+				v1beta1.MariaDBAccountSpec{
+					UserName: "watcher",
+				},
+			)
+			mariadb.CreateMariaDBDatabase(
+				watcherTest.WatcherAPI.Namespace,
+				"watcher",
+				v1beta1.MariaDBDatabaseSpec{
+					Name: "watcher",
+				},
+			)
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
 
 		})
 		It("creates MetalLB service", func() {

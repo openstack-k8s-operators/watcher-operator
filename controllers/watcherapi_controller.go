@@ -43,9 +43,12 @@ import (
 	"github.com/openstack-k8s-operators/lib-common/modules/common/helper"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/labels"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/service"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/tls"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/util"
 
+	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
+
 	"github.com/openstack-k8s-operators/watcher-operator/pkg/watcher"
 	"github.com/openstack-k8s-operators/watcher-operator/pkg/watcherapi"
 
@@ -160,6 +163,7 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		[]string{
 			instance.Spec.PasswordSelectors.Service,
 			TransportURLSelector,
+			DatabaseAccount,
 		},
 		helper.GetClient(),
 		&instance.Status.Conditions,
@@ -280,16 +284,29 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 	if err != nil {
 		return err
 	}
+
+	databaseAccount := string(secret.Data[DatabaseAccount])
+	db, err := mariadbv1.GetDatabaseByNameAndAccount(ctx, helper, watcher.DatabaseCRName, databaseAccount, instance.Namespace)
+	if err != nil {
+		return err
+	}
 	// customData hold any customization for the service.
 	// NOTE jgilaber making an empty map for now, we'll probably want to
 	// implement CustomServiceConfig later
-	customData := map[string]string{}
+	var tlsCfg *tls.Service
+	if instance.Spec.TLS.Ca.CaBundleSecretName != "" {
+		tlsCfg = &tls.Service{}
+	}
+	// customData hold any customization for the service.
+	customData := map[string]string{
+		"my.cnf": db.GetDatabaseClientConfig(tlsCfg), //(mschuppert) for now just get the default my.cnf
+	}
 
 	databaseUsername := string(secret.Data[DatabaseUsername])
 	databaseHostname := string(secret.Data[DatabaseHostname])
 	databasePassword := string(secret.Data[DatabasePassword])
 	templateParameters := map[string]interface{}{
-		"DatabaseConnection": fmt.Sprintf("mysql+pymysql://%s:%s@%s/%s?charset=utf8",
+		"DatabaseConnection": fmt.Sprintf("mysql+pymysql://%s:%s@%s/%s?read_default_file=/etc/my.cnf",
 			databaseUsername,
 			databasePassword,
 			databaseHostname,

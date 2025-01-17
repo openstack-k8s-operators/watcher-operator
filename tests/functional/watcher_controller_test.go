@@ -345,6 +345,7 @@ var _ = Describe("Watcher controller", func() {
 			Expect(createdSecret).ShouldNot(BeNil())
 			Expect(createdSecret.Data["WatcherPassword"]).To(Equal([]byte("password")))
 			Expect(createdSecret.Data["transport_url"]).To(Equal([]byte("rabbit://rabbitmq-secret/fake")))
+			Expect(createdSecret.Data["database_account"]).To(Equal([]byte("watcher")))
 
 			// Check WatcherAPI is created
 			WatcherAPI := GetWatcherAPI(watcherTest.WatcherAPI)
@@ -746,6 +747,21 @@ var _ = Describe("Watcher controller", func() {
 			Expect(Watcher.Status.Hash[watcherv1beta1.DbSyncHash]).ShouldNot(BeNil())
 
 			// Check WatcherAPI is created with non-default values
+			watcherAPI := &watcherv1beta1.WatcherAPI{}
+			Expect(k8sClient.Get(ctx,
+				types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: watcherTest.Instance.Name + "-api"},
+				watcherAPI)).Should(Succeed())
+
+			// Check the config-data volume of watcherapi has expected info
+			apiConfigSecret := th.GetSecret(
+				types.NamespacedName{
+					Name:      watcherTest.Instance.Name + "-api-config-data",
+					Namespace: watcherTest.Instance.Namespace,
+				},
+			)
+			Expect(apiConfigSecret).ShouldNot(BeNil())
+			Expect(apiConfigSecret.Data["my.cnf"]).To(Equal([]byte("[client]\nssl=0")))
+
 			WatcherAPI := GetWatcherAPI(watcherTest.WatcherAPI)
 			//Expect(WatcherAPI.Spec.Replicas).To(Equal(int(1)))
 			Expect(WatcherAPI.Spec.ContainerImage).To(Equal("fake-API-Container-URL"))

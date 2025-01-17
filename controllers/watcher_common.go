@@ -36,6 +36,8 @@ var (
 const (
 	// TransportURLSelector is the name of key in the secret created by TransportURL
 	TransportURLSelector = "transport_url"
+	// DatabaseAccount is the name of key in the secret for the name of the Database Acount object
+	DatabaseAccount = "database_account"
 	// DatabaseUsername is the name of key in the secret for the user name used to login to the database
 	DatabaseUsername = "database_username"
 	// DatabaseUsername is the name of key in the secret for the password used to login to the database
