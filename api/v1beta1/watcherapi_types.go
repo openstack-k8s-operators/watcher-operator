@@ -61,6 +61,10 @@ type WatcherAPIStatus struct {
 // create a WatcherAPI via higher level CRDs.
 type WatcherAPITemplate struct {
 	WatcherSubCrsTemplate `json:",inline"`
+
+	// +kubebuilder:validation:Optional
+	// ExternalEndpoints, expose a VIP via MetalLB on the pre-created address pool
+	ExternalEndpoints []MetalLBConfig `json:"externalEndpoints,omitempty"`
 }
 
 //+kubebuilder:object:root=true
