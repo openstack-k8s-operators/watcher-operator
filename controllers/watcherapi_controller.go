@@ -312,13 +312,15 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 			databaseHostname,
 			watcher.DatabaseName,
 		),
-		"KeystoneAuthURL":  keystoneInternalURL,
-		"ServicePassword":  string(secret.Data[instance.Spec.PasswordSelectors.Service]),
-		"ServiceUser":      instance.Spec.ServiceUser,
-		"TransportURL":     string(secret.Data[TransportURLSelector]),
-		"MemcachedServers": memcachedInstance.GetMemcachedServerListString(),
-		"LogFile":          fmt.Sprintf("%s%s.log", watcher.WatcherLogPath, instance.Name),
-		"APIPublicPort":    fmt.Sprintf("%d", watcher.WatcherPublicPort),
+		"KeystoneAuthURL":          keystoneInternalURL,
+		"ServicePassword":          string(secret.Data[instance.Spec.PasswordSelectors.Service]),
+		"ServiceUser":              instance.Spec.ServiceUser,
+		"TransportURL":             string(secret.Data[TransportURLSelector]),
+		"MemcachedServers":         memcachedInstance.GetMemcachedServerListString(),
+		"MemcachedServersWithInet": memcachedInstance.GetMemcachedServerListWithInetString(),
+		"MemcachedTLS":             memcachedInstance.GetMemcachedTLSSupport(),
+		"LogFile":                  fmt.Sprintf("%s%s.log", watcher.WatcherLogPath, instance.Name),
+		"APIPublicPort":            fmt.Sprintf("%d", watcher.WatcherPublicPort),
 	}
 
 	// create httpd  vhost template parameters
