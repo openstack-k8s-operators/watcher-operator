@@ -111,11 +111,15 @@ var _ = Describe("WatcherAPI controller", func() {
 			secret := th.CreateSecret(
 				watcherTest.InternalTopLevelSecretName,
 				map[string][]byte{
-					"WatcherPassword": []byte("service-password"),
-					"transport_url":   []byte("url"),
-					"prometheus_host": []byte("prometheus.example.com"),
-					"prometheus_port": []byte("1234"),
-					"prometheus_tls":  []byte("false"),
+					"WatcherPassword":   []byte("service-password"),
+					"transport_url":     []byte("url"),
+					"database_username": []byte("username"),
+					"database_password": []byte("password"),
+					"database_hostname": []byte("hostname"),
+					"prometheus_host":   []byte("prometheus.example.com"),
+					"prometheus_port":   []byte("1234"),
+					"prometheus_tls":    []byte("false"),
+					"database_account":  []byte("watcher"),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -257,6 +261,7 @@ var _ = Describe("WatcherAPI controller", func() {
 					"prometheus_host":   []byte("prometheus.example.com"),
 					"prometheus_port":   []byte("1234"),
 					"prometheus_tls":    []byte("false"),
+					"database_account":  []byte("watcher"),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -302,6 +307,7 @@ var _ = Describe("WatcherAPI controller", func() {
 					"prometheus_host":   []byte("prometheus.example.com"),
 					"prometheus_port":   []byte("1234"),
 					"prometheus_tls":    []byte("false"),
+					"database_account":  []byte("watcher"),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
