@@ -23,9 +23,9 @@ import (
 
 // Container image fall-back defaults
 const (
-	WatcherAPIContainerImage            = "quay.io/podified-antelope-centos9/openstack-watcher-api:current-podified"
-	WatcherDecisionEngineContainerImage = "quay.io/podified-antelope-centos9/openstack-watcher-decision-engine:current-podified"
-	WatcherApplierContainerImage        = "quay.io/podified-antelope-centos9/openstack-watcher-applier:current-podified"
+	WatcherAPIContainerImage            = "quay.io/podified-master-centos9/openstack-watcher-api:current-podified"
+	WatcherDecisionEngineContainerImage = "quay.io/podified-master-centos9/openstack-watcher-decision-engine:current-podified"
+	WatcherApplierContainerImage        = "quay.io/podified-master-centos9/openstack-watcher-applier:current-podified"
 )
 
 // WatcherCommon defines a spec based reusable for all the CRDs
