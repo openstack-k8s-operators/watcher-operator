@@ -47,6 +47,12 @@ spec:
                   replicas: 1
                 description: APIServiceTemplate - define the watcher-api service
                 properties:
+                  customServiceConfig:
+                    description: |-
+                      CustomServiceConfig - customize the service config using this parameter to change service defaults,
+                      or overwrite rendered information using raw OpenStack config format. The content gets added to
+                      to /etc/<service>/<service>.conf.d directory as a custom config file.
+                    type: string
                   nodeSelector:
                     additionalProperties:
                       type: string
@@ -166,6 +172,12 @@ spec:
                 type: object
               applierContainerImageURL:
                 description: ApplierContainerImageURL
+                type: string
+              customServiceConfig:
+                description: |-
+                  CustomServiceConfig - customize the service config using this parameter to change service defaults,
+                  or overwrite rendered information using raw OpenStack config format. The content gets added to
+                  to /etc/<service>/<service>.conf.d directory as a custom config file.
                 type: string
               databaseAccount:
                 default: watcher

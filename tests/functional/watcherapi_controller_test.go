@@ -109,12 +109,13 @@ var _ = Describe("WatcherAPI controller", func() {
 			secret := th.CreateSecret(
 				watcherTest.InternalTopLevelSecretName,
 				map[string][]byte{
-					"WatcherPassword":   []byte("service-password"),
-					"transport_url":     []byte("url"),
-					"database_username": []byte("username"),
-					"database_password": []byte("password"),
-					"database_hostname": []byte("hostname"),
-					"database_account":  []byte("watcher"),
+					"WatcherPassword":       []byte("service-password"),
+					"transport_url":         []byte("url"),
+					"database_username":     []byte("username"),
+					"database_password":     []byte("password"),
+					"database_hostname":     []byte("hostname"),
+					"database_account":      []byte("watcher"),
+					"01-global-custom.conf": []byte(""),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -290,12 +291,13 @@ var _ = Describe("WatcherAPI controller", func() {
 			secret := th.CreateSecret(
 				watcherTest.InternalTopLevelSecretName,
 				map[string][]byte{
-					"WatcherPassword":   []byte("service-password"),
-					"transport_url":     []byte("url"),
-					"database_username": []byte("username"),
-					"database_password": []byte("password"),
-					"database_hostname": []byte("hostname"),
-					"database_account":  []byte("watcher"),
+					"WatcherPassword":       []byte("service-password"),
+					"transport_url":         []byte("url"),
+					"database_username":     []byte("username"),
+					"database_password":     []byte("password"),
+					"database_hostname":     []byte("hostname"),
+					"database_account":      []byte("watcher"),
+					"01-global-custom.conf": []byte(""),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -326,12 +328,13 @@ var _ = Describe("WatcherAPI controller", func() {
 			secret := th.CreateSecret(
 				watcherTest.InternalTopLevelSecretName,
 				map[string][]byte{
-					"WatcherPassword":   []byte("service-password"),
-					"transport_url":     []byte("url"),
-					"database_username": []byte("username"),
-					"database_password": []byte("password"),
-					"database_hostname": []byte("hostname"),
-					"database_account":  []byte("watcher"),
+					"WatcherPassword":       []byte("service-password"),
+					"transport_url":         []byte("url"),
+					"database_username":     []byte("username"),
+					"database_password":     []byte("password"),
+					"database_hostname":     []byte("hostname"),
+					"database_account":      []byte("watcher"),
+					"01-global-custom.conf": []byte(""),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -381,9 +384,10 @@ var _ = Describe("WatcherAPI controller", func() {
 			secret := th.CreateSecret(
 				watcherTest.InternalTopLevelSecretName,
 				map[string][]byte{
-					"WatcherPassword":  []byte("service-password"),
-					"transport_url":    []byte("url"),
-					"database_account": []byte("watcher"),
+					"WatcherPassword":       []byte("service-password"),
+					"transport_url":         []byte("url"),
+					"database_account":      []byte("watcher"),
+					"01-global-custom.conf": []byte(""),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)

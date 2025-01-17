@@ -164,6 +164,7 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			instance.Spec.PasswordSelectors.Service,
 			TransportURLSelector,
 			DatabaseAccount,
+			watcher.GlobalCustomConfigFileName,
 		},
 		helper.GetClient(),
 		&instance.Status.Conditions,
@@ -299,7 +300,9 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 	}
 	// customData hold any customization for the service.
 	customData := map[string]string{
-		"my.cnf": db.GetDatabaseClientConfig(tlsCfg), //(mschuppert) for now just get the default my.cnf
+		watcher.GlobalCustomConfigFileName:  string(secret.Data[watcher.GlobalCustomConfigFileName]),
+		watcher.ServiceCustomConfigFileName: instance.Spec.CustomServiceConfig,
+		"my.cnf":                            db.GetDatabaseClientConfig(tlsCfg), //(mschuppert) for now just get the default my.cnf
 	}
 
 	databaseUsername := string(secret.Data[DatabaseUsername])

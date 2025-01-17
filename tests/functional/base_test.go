@@ -44,9 +44,11 @@ func GetNonDefaultWatcherSpec() map[string]interface{} {
 		"preserveJobs":         true,
 		"databaseInstance":     "fakeopenstack",
 		"serviceUser":          "fakeuser",
+		"customServiceConfig":  "# Global config",
 		"apiServiceTemplate": map[string]interface{}{
-			"replicas":     2,
-			"nodeSelector": map[string]string{"foo": "bar"},
+			"replicas":            2,
+			"nodeSelector":        map[string]string{"foo": "bar"},
+			"customServiceConfig": "# Service config",
 		},
 		"tls": map[string]interface{}{
 			"caBundleSecretName": "combined-ca-bundle",

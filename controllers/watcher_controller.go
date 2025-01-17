@@ -641,7 +641,8 @@ func (r *WatcherReconciler) generateServiceConfigDBSync(
 	}
 	// customData hold any customization for the service.
 	customData := map[string]string{
-		"my.cnf": db.GetDatabaseClientConfig(tlsCfg), //(mschuppert) for now just get the default my.cnf
+		watcher.GlobalCustomConfigFileName: instance.Spec.CustomServiceConfig,
+		"my.cnf":                           db.GetDatabaseClientConfig(tlsCfg), //(mschuppert) for now just get the default my.cnf
 	}
 
 	labels := labels.GetLabels(instance, labels.GetGroupLabel(watcher.ServiceName), map[string]string{})
@@ -733,6 +734,7 @@ func (r *WatcherReconciler) createSubLevelSecret(
 		DatabaseUsername:                        databaseAccount.Spec.UserName,
 		DatabasePassword:                        string(databaseSecret.Data[mariadbv1.DatabasePasswordSelector]),
 		DatabaseHostname:                        db.GetDatabaseHostname(),
+		watcher.GlobalCustomConfigFileName:      instance.Spec.CustomServiceConfig,
 	}
 	secretName := instance.Name
 
@@ -762,11 +764,12 @@ func (r *WatcherReconciler) ensureAPI(
 	watcherAPISpec := watcherv1beta1.WatcherAPISpec{
 		Secret: instance.Name,
 		WatcherCommon: watcherv1beta1.WatcherCommon{
-			ServiceUser:       instance.Spec.ServiceUser,
-			PasswordSelectors: instance.Spec.PasswordSelectors,
-			MemcachedInstance: instance.Spec.MemcachedInstance,
-			NodeSelector:      instance.Spec.APIServiceTemplate.NodeSelector,
-			PreserveJobs:      instance.Spec.PreserveJobs,
+			ServiceUser:         instance.Spec.ServiceUser,
+			PasswordSelectors:   instance.Spec.PasswordSelectors,
+			MemcachedInstance:   instance.Spec.MemcachedInstance,
+			NodeSelector:        instance.Spec.APIServiceTemplate.NodeSelector,
+			PreserveJobs:        instance.Spec.PreserveJobs,
+			CustomServiceConfig: instance.Spec.APIServiceTemplate.CustomServiceConfig,
 		},
 		WatcherSubCrsCommon: watcherv1beta1.WatcherSubCrsCommon{
 			ContainerImage: instance.Spec.APIContainerImageURL,
