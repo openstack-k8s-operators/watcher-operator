@@ -72,6 +72,28 @@ spec:
                 description: PreserveJobs - do not delete jobs after they finished
                   e.g. to check logs
                 type: boolean
+              prometheusTLSCaCertSecret:
+                description: If defined, specifies which CA certificate to use for
+                  user deployed prometheus
+                nullable: true
+                properties:
+                  key:
+                    description: The key of the secret to select from.  Must be a
+                      valid secret key.
+                    type: string
+                  name:
+                    description: |-
+                      Name of the referent.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      TODO: Add other useful fields. apiVersion, kind, uid?
+                    type: string
+                  optional:
+                    description: Specify whether the Secret or its key must be defined
+                    type: boolean
+                required:
+                - key
+                type: object
+                x-kubernetes-map-type: atomic
               replicas:
                 default: 1
                 description: Replicas of Watcher service to run
@@ -149,6 +171,36 @@ spec:
                 description: ServiceUser - optional username used for this service
                   to register in keystone
                 type: string
+              tls:
+                description: TLS - Parameters related to the TLS
+                properties:
+                  api:
+                    description: API tls type which encapsulates for API services
+                    properties:
+                      internal:
+                        description: Internal GenericService - holds the secret for
+                          the internal endpoint
+                        properties:
+                          secretName:
+                            description: SecretName - holding the cert, key for the
+                              service
+                            type: string
+                        type: object
+                      public:
+                        description: Public GenericService - holds the secret for
+                          the public endpoint
+                        properties:
+                          secretName:
+                            description: SecretName - holding the cert, key for the
+                              service
+                            type: string
+                        type: object
+                    type: object
+                  caBundleSecretName:
+                    description: CaBundleSecretName - holding the CA certs in a pre-created
+                      bundle file
+                    type: string
+                type: object
             required:
             - secret
             - serviceAccount

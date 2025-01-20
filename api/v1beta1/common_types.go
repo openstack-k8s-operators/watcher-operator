@@ -17,6 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
+	"github.com/openstack-k8s-operators/lib-common/modules/common/tls"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/util"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -55,6 +56,11 @@ type WatcherCommon struct {
 	// NodeSelector to target subset of worker nodes running this component. Setting here overrides
 	// any global NodeSelector settings within the Watcher CR.
 	NodeSelector *map[string]string `json:"nodeSelector,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
+	// TLS - Parameters related to the TLS
+	TLS tls.API `json:"tls,omitempty"`
 }
 
 // WatcherTemplate defines the fields used in the top level CR
@@ -88,6 +94,21 @@ type WatcherTemplate struct {
 	// +kubebuilder:default={replicas:1}
 	// APIServiceTemplate - define the watcher-api service
 	APIServiceTemplate WatcherAPITemplate `json:"apiServiceTemplate"`
+
+	// Host of user deployed prometheus
+	// +kubebuilder:validation:Optional
+	PrometheusHost string `json:"prometheusHost,omitempty"`
+
+	// Port of user deployed prometheus
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
+	// +kubebuilder:validation:Optional
+	PrometheusPort int32 `json:"prometheusPort,omitempty"`
+
+	// If defined, specifies which CA certificate to use for user deployed prometheus
+	// +kubebuilder:validation:Optional
+	// +nullable
+	PrometheusTLSCaCertSecret *corev1.SecretKeySelector `json:"prometheusTLSCaCertSecret,omitempty"`
 }
 
 // PasswordSelector to identify the DB and AdminUser password from the Secret
@@ -120,6 +141,11 @@ type WatcherSubCrsCommon struct {
 	// ServiceAccount - service account name used internally to provide
 	// Watcher services the default SA name
 	ServiceAccount string `json:"serviceAccount"`
+
+	// If defined, specifies which CA certificate to use for user deployed prometheus
+	// +kubebuilder:validation:Optional
+	// +nullable
+	PrometheusTLSCaCertSecret *corev1.SecretKeySelector `json:"prometheusTLSCaCertSecret,omitempty"`
 }
 
 // WatcherSubCrsTemplate define de common part of the input parameters specified by the user to

@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -29,7 +30,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	rabbitmqv1 "github.com/openstack-k8s-operators/infra-operator/apis/rabbitmq/v1beta1"
 	keystonev1 "github.com/openstack-k8s-operators/keystone-operator/api/v1beta1"
@@ -41,12 +44,15 @@ import (
 	"github.com/openstack-k8s-operators/lib-common/modules/common/labels"
 	common_rbac "github.com/openstack-k8s-operators/lib-common/modules/common/rbac"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/secret"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/tls"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/util"
 	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
 
+	telemetryv1 "github.com/openstack-k8s-operators/telemetry-operator/api/v1beta1"
 	"github.com/openstack-k8s-operators/watcher-operator/pkg/watcher"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 )
@@ -83,6 +89,7 @@ func (r *WatcherReconciler) GetLogger(ctx context.Context) logr.Logger {
 //+kubebuilder:rbac:groups=keystone.openstack.org,resources=keystoneendpoints,verbs=get;list;watch;create;update;patch;delete;
 //+kubebuilder:rbac:groups="",resources=pods,verbs=create;delete;get;list;patch;update;watch
 //+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete;
+//+kubebuilder:rbac:groups=telemetry.openstack.org,resources=metricstorages,verbs=get;list;watch;
 
 // service account, role, rolebinding
 //+kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch
@@ -246,7 +253,7 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 
 	subLevelSecretName, err := r.createSubLevelSecret(ctx, helper, instance, transporturlSecret, inputSecret, db)
 	if err != nil {
-		return ctrl.Result{}, nil
+		return ctrl.Result{RequeueAfter: time.Duration(60) * time.Second}, nil
 	}
 	// the subLevelSecretName will be the value for the Secret field in the
 	// subCrs spec, once they are created by Watcher
@@ -634,13 +641,20 @@ func (r *WatcherReconciler) generateServiceConfigDBSync(
 	Log := r.GetLogger(ctx)
 	Log.Info("generateServiceConfigs - reconciling config for Watcher CR")
 
-	customData := map[string]string{}
+	var tlsCfg *tls.Service
+	if instance.Spec.TLS.Ca.CaBundleSecretName != "" {
+		tlsCfg = &tls.Service{}
+	}
+	// customData hold any customization for the service.
+	customData := map[string]string{
+		"my.cnf": db.GetDatabaseClientConfig(tlsCfg), //(mschuppert) for now just get the default my.cnf
+	}
 
 	labels := labels.GetLabels(instance, labels.GetGroupLabel(watcher.ServiceName), map[string]string{})
 	databaseAccount := db.GetAccount()
 	databaseSecret := db.GetSecret()
 	templateParameters := map[string]interface{}{
-		"DatabaseConnection": fmt.Sprintf("mysql+pymysql://%s:%s@%s/%s?charset=utf8",
+		"DatabaseConnection": fmt.Sprintf("mysql+pymysql://%s:%s@%s/%s?read_default_file=/etc/my.cnf",
 			databaseAccount.Spec.UserName,
 			string(databaseSecret.Data[mariadbv1.DatabasePasswordSelector]),
 			db.GetDatabaseHostname(),
@@ -718,14 +732,70 @@ func (r *WatcherReconciler) createSubLevelSecret(
 	Log.Info(fmt.Sprintf("Creating SubCr Level Secret for '%s'", instance.Name))
 	databaseAccount := db.GetAccount()
 	databaseSecret := db.GetSecret()
+
+	secretName := instance.Name
+
+	//
+	// Get correct prometheus host, port and if TLS should be used
+	//
+	var PrometheusHost string
+	var PrometheusPort int32
+	var PrometheusTLS bool
+	var PrometheusCaCert string
+
+	if instance.Spec.PrometheusHost == "" {
+		PrometheusHost = fmt.Sprintf("%s-prometheus.%s.svc", telemetryv1.DefaultServiceName, instance.Namespace)
+	} else {
+		PrometheusHost = instance.Spec.PrometheusHost
+	}
+	if instance.Spec.PrometheusPort == 0 {
+		PrometheusPort = telemetryv1.DefaultPrometheusPort
+	} else {
+		PrometheusPort = instance.Spec.PrometheusPort
+	}
+	if instance.Spec.PrometheusHost == "" {
+		// We're using MetricStorage for Prometheus. Set TLS accordingly
+		metricStorage := &telemetryv1.MetricStorage{}
+		err := r.Client.Get(ctx, client.ObjectKey{
+			Namespace: instance.Namespace,
+			Name:      telemetryv1.DefaultServiceName,
+		}, metricStorage)
+		if err != nil {
+			Log.Info(fmt.Sprintf("Metrics storage not found in '%s'", instance.Namespace))
+			instance.Status.Conditions.Set(condition.FalseCondition(
+				condition.InputReadyCondition,
+				condition.ErrorReason,
+				condition.SeverityError,
+				"Metrics storage not found in the controlplane",
+			))
+			return secretName, err
+		}
+
+		PrometheusTLS = metricStorage.Spec.PrometheusTLS.Enabled()
+	} else {
+		// We're using user-deployed Prometheus. Set TLS based on PrometheusTLSCaCertSecret
+		PrometheusTLS = instance.Spec.PrometheusTLSCaCertSecret != nil
+	}
+
+	if instance.Spec.PrometheusTLSCaCertSecret != nil {
+		PrometheusCaCert = watcher.CustomPrometheusCaCertFolderPath + instance.Spec.PrometheusTLSCaCertSecret.Key
+	} else {
+		PrometheusCaCert = tls.DownstreamTLSCABundlePath
+	}
+	//
+
 	data := map[string]string{
 		instance.Spec.PasswordSelectors.Service: string(inputSecret.Data[instance.Spec.PasswordSelectors.Service]),
 		TransportURLSelector:                    string(transportURLSecret.Data[TransportURLSelector]),
+		DatabaseAccount:                         databaseAccount.Name,
 		DatabaseUsername:                        databaseAccount.Spec.UserName,
 		DatabasePassword:                        string(databaseSecret.Data[mariadbv1.DatabasePasswordSelector]),
 		DatabaseHostname:                        db.GetDatabaseHostname(),
+		PrometheusHostKey:                       PrometheusHost,
+		PrometheusPortKey:                       strconv.FormatInt(int64(PrometheusPort), 10),
+		PrometheusTLSKey:                        strconv.FormatBool(PrometheusTLS),
+		PrometheusCaCertKey:                     PrometheusCaCert,
 	}
-	secretName := instance.Name
 
 	labels := labels.GetLabels(instance, labels.GetGroupLabel(watcher.ServiceName), map[string]string{})
 
@@ -766,6 +836,12 @@ func (r *WatcherReconciler) ensureAPI(
 			ServiceAccount: "watcher-" + instance.Name,
 		},
 	}
+
+	// We need to have TLS defined in SubCRs to have some values available
+	watcherAPISpec.TLS = instance.Spec.TLS
+	// We need to have PrometheusTLSCaCertSecret defined in SubCRs as a convenient way
+	// to identify when we need to mount the custom CaCert secret
+	watcherAPISpec.PrometheusTLSCaCertSecret = instance.Spec.PrometheusTLSCaCertSecret
 
 	// If NodeSelector is not specified in Watcher APIServiceTemplate, the current
 	// API instance inherits the value from the top-level Watcher CR.
@@ -855,6 +931,38 @@ func (r *WatcherReconciler) reconcileDelete(ctx context.Context, instance *watch
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *WatcherReconciler) SetupWithManager(mgr ctrl.Manager) error {
+
+	logger := mgr.GetLogger()
+
+	metricstorageFn := func(_ context.Context, o client.Object) []reconcile.Request {
+		result := []reconcile.Request{}
+
+		// get all Watcher CRs
+		watchers := &watcherv1beta1.WatcherList{}
+		listOpts := []client.ListOption{
+			client.InNamespace(o.GetNamespace()),
+		}
+		if err := r.Client.List(context.Background(), watchers, listOpts...); err != nil {
+			logger.Info("Unable to retrieve Watcher CRs")
+			return nil
+		}
+
+		for _, cr := range watchers.Items {
+			logger.Info(fmt.Sprintf("MetricStorage is used by Watcher CR in namespace: %s", cr.Namespace))
+			name := client.ObjectKey{
+				Namespace: o.GetNamespace(),
+				Name:      cr.Name,
+			}
+			result = append(result, reconcile.Request{NamespacedName: name})
+		}
+
+		if len(result) > 0 {
+			return result
+		}
+
+		return nil
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&watcherv1beta1.Watcher{}).
 		Owns(&watcherv1beta1.WatcherAPI{}).
@@ -869,5 +977,7 @@ func (r *WatcherReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&rbacv1.RoleBinding{}).
 		Owns(&batchv1.Job{}).
 		Owns(&corev1.Secret{}).
+		Watches(&telemetryv1.MetricStorage{},
+			handler.EnqueueRequestsFromMapFunc(metricstorageFn)).
 		Complete(r)
 }

@@ -33,6 +33,7 @@ import (
 	keystonev1 "github.com/openstack-k8s-operators/keystone-operator/api/v1beta1"
 	test "github.com/openstack-k8s-operators/lib-common/modules/test"
 	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
+	telemetryv1 "github.com/openstack-k8s-operators/telemetry-operator/api/v1beta1"
 	watcherv1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
 	"github.com/openstack-k8s-operators/watcher-operator/controllers"
 	corev1 "k8s.io/api/core/v1"
@@ -98,6 +99,10 @@ var _ = BeforeSuite(func() {
 		"github.com/openstack-k8s-operators/keystone-operator/api", "../../go.mod", "bases")
 	Expect(err).ShouldNot(HaveOccurred())
 
+	telemetryCRDs, err := test.GetCRDDirFromModule(
+		"github.com/openstack-k8s-operators/telemetry-operator/api", "../../go.mod", "bases")
+	Expect(err).ShouldNot(HaveOccurred())
+
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
@@ -105,6 +110,7 @@ var _ = BeforeSuite(func() {
 			mariaDBCRDs,
 			rabbitmqCRDs,
 			keystoneCRDs,
+			telemetryCRDs,
 		},
 
 		ErrorIfCRDPathMissing: true,
@@ -135,6 +141,8 @@ var _ = BeforeSuite(func() {
 	err = keystonev1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 	err = memcachedv1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+	err = telemetryv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	logger = ctrl.Log.WithName("---Test---")

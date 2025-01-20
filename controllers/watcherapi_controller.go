@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -41,9 +42,12 @@ import (
 	"github.com/openstack-k8s-operators/lib-common/modules/common/helper"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/labels"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/service"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/tls"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/util"
 
+	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
+
 	"github.com/openstack-k8s-operators/watcher-operator/pkg/watcher"
 	"github.com/openstack-k8s-operators/watcher-operator/pkg/watcherapi"
 
@@ -155,6 +159,10 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		[]string{
 			instance.Spec.PasswordSelectors.Service,
 			TransportURLSelector,
+			PrometheusHostKey,
+			PrometheusPortKey,
+			PrometheusTLSKey,
+			DatabaseAccount,
 		},
 		helper.GetClient(),
 		&instance.Status.Conditions,
@@ -260,28 +268,54 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 	if err != nil {
 		return err
 	}
+
+	databaseAccount := string(secret.Data[DatabaseAccount])
+	db, err := mariadbv1.GetDatabaseByNameAndAccount(ctx, helper, watcher.DatabaseCRName, databaseAccount, instance.Namespace)
+	if err != nil {
+		return err
+	}
 	// customData hold any customization for the service.
 	// NOTE jgilaber making an empty map for now, we'll probably want to
 	// implement CustomServiceConfig later
-	customData := map[string]string{}
+	var tlsCfg *tls.Service
+	if instance.Spec.TLS.Ca.CaBundleSecretName != "" {
+		tlsCfg = &tls.Service{}
+	}
+	// customData hold any customization for the service.
+	customData := map[string]string{
+		"my.cnf": db.GetDatabaseClientConfig(tlsCfg), //(mschuppert) for now just get the default my.cnf
+	}
 
 	databaseUsername := string(secret.Data[DatabaseUsername])
 	databaseHostname := string(secret.Data[DatabaseHostname])
 	databasePassword := string(secret.Data[DatabasePassword])
+	prometheusTLS, _ := strconv.ParseBool(string(secret.Data[PrometheusTLSKey]))
+
+	var CaFilePath string
+	if instance.Spec.TLS.CaBundleSecretName != "" {
+		CaFilePath = tls.DownstreamTLSCABundlePath
+	}
 	templateParameters := map[string]interface{}{
-		"DatabaseConnection": fmt.Sprintf("mysql+pymysql://%s:%s@%s/%s?charset=utf8",
+		"DatabaseConnection": fmt.Sprintf("mysql+pymysql://%s:%s@%s/%s?read_default_file=/etc/my.cnf",
 			databaseUsername,
 			databasePassword,
 			databaseHostname,
 			watcher.DatabaseName,
 		),
-		"KeystoneAuthURL":  keystoneInternalURL,
-		"ServicePassword":  string(secret.Data[instance.Spec.PasswordSelectors.Service]),
-		"ServiceUser":      instance.Spec.ServiceUser,
-		"TransportURL":     string(secret.Data[TransportURLSelector]),
-		"MemcachedServers": memcachedInstance.GetMemcachedServerListString(),
-		"LogFile":          fmt.Sprintf("%s%s.log", watcher.WatcherLogPath, instance.Name),
-		"APIPublicPort":    fmt.Sprintf("%d", watcher.WatcherPublicPort),
+		"KeystoneAuthURL":          keystoneInternalURL,
+		"ServicePassword":          string(secret.Data[instance.Spec.PasswordSelectors.Service]),
+		"ServiceUser":              instance.Spec.ServiceUser,
+		"TransportURL":             string(secret.Data[TransportURLSelector]),
+		"MemcachedServers":         memcachedInstance.GetMemcachedServerListString(),
+		"MemcachedServersWithInet": memcachedInstance.GetMemcachedServerListWithInetString(),
+		"MemcachedTLS":             memcachedInstance.GetMemcachedTLSSupport(),
+		"LogFile":                  fmt.Sprintf("%s%s.log", watcher.WatcherLogPath, instance.Name),
+		"APIPublicPort":            fmt.Sprintf("%d", watcher.WatcherPublicPort),
+		"PrometheusHost":           string(secret.Data[PrometheusHostKey]),
+		"PrometheusPort":           string(secret.Data[PrometheusPortKey]),
+		"PrometheusTLS":            prometheusTLS,
+		"PrometheusCaCert":         string(secret.Data[PrometheusCaCertKey]),
+		"CaFilePath":               CaFilePath,
 	}
 
 	// create httpd  vhost template parameters

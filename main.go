@@ -41,6 +41,7 @@ import (
 	rabbitmqv1 "github.com/openstack-k8s-operators/infra-operator/apis/rabbitmq/v1beta1"
 	keystonev1 "github.com/openstack-k8s-operators/keystone-operator/api/v1beta1"
 	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
+	telemetryv1 "github.com/openstack-k8s-operators/telemetry-operator/api/v1beta1"
 
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
 	"github.com/openstack-k8s-operators/watcher-operator/controllers"
@@ -60,6 +61,7 @@ func init() {
 	utilruntime.Must(rabbitmqv1.AddToScheme(scheme))
 	utilruntime.Must(keystonev1.AddToScheme(scheme))
 	utilruntime.Must(memcachedv1.AddToScheme(scheme))
+	utilruntime.Must(telemetryv1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 

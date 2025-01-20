@@ -65,6 +65,18 @@ func Deployment(
 	}
 	apiVolumeMounts = append(apiVolumeMounts, watcher.GetLogVolumeMount()...)
 
+	// Create mount for bundle CA if defined in TLS.CaBundleSecretName
+	if instance.Spec.TLS.CaBundleSecretName != "" {
+		apiVolumes = append(apiVolumes, instance.Spec.TLS.CreateVolume())
+		apiVolumeMounts = append(apiVolumeMounts, instance.Spec.TLS.CreateVolumeMounts(nil)...)
+	}
+
+	// add prometheus CA cert if defined
+	if instance.Spec.PrometheusTLSCaCertSecret != nil {
+		apiVolumes = append(apiVolumes, watcher.GetCustomPrometheusCaVolume(instance.Spec.PrometheusTLSCaCertSecret.Name))
+		apiVolumeMounts = append(apiVolumeMounts, watcher.GetCustomPrometheusCaVolumeMount(instance.Spec.PrometheusTLSCaCertSecret.Key))
+	}
+
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      instance.Name,
