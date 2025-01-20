@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -155,6 +156,9 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		[]string{
 			instance.Spec.PasswordSelectors.Service,
 			TransportURLSelector,
+			PrometheusHostKey,
+			PrometheusPortKey,
+			PrometheusTLSKey,
 		},
 		helper.GetClient(),
 		&instance.Status.Conditions,
@@ -268,6 +272,7 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 	databaseUsername := string(secret.Data[DatabaseUsername])
 	databaseHostname := string(secret.Data[DatabaseHostname])
 	databasePassword := string(secret.Data[DatabasePassword])
+	prometheusTLS, _ := strconv.ParseBool(string(secret.Data[PrometheusTLSKey]))
 	templateParameters := map[string]interface{}{
 		"DatabaseConnection": fmt.Sprintf("mysql+pymysql://%s:%s@%s/%s?charset=utf8",
 			databaseUsername,
@@ -282,6 +287,10 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 		"MemcachedServers": memcachedInstance.GetMemcachedServerListString(),
 		"LogFile":          fmt.Sprintf("%s%s.log", watcher.WatcherLogPath, instance.Name),
 		"APIPublicPort":    fmt.Sprintf("%d", watcher.WatcherPublicPort),
+		"PrometheusHost":   string(secret.Data[PrometheusHostKey]),
+		"PrometheusPort":   string(secret.Data[PrometheusPortKey]),
+		"PrometheusTLS":    prometheusTLS,
+		"PrometheusCaCert": string(secret.Data[PrometheusCaCertKey]),
 	}
 
 	// create httpd  vhost template parameters

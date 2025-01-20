@@ -10,3 +10,8 @@ metadata:
   name: watcher
 spec:
   databaseInstance: "openstack"
+  apiContainerImageURL: "quay.io/podified-master-centos9/openstack-watcher-api:current-podified"
+  decisionengineContainerImageURL: "quay.io/podified-master-centos9/openstack-watcher-decision-engine:current-podified"
+  applierContainerImageURL: "quay.io/podified-master-centos9/openstack-watcher-applier:current-podified"
+  tls:
+    caBundleSecretName: "combined-ca-bundle"

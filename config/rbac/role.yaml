@@ -197,6 +197,14 @@ rules:
   verbs:
   - use
 - apiGroups:
+  - telemetry.openstack.org
+  resources:
+  - metricstorages
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - watcher.openstack.org
   resources:
   - watcherapis

@@ -110,3 +110,25 @@ func GetKollaConfigVolumeMount(serviceName string) corev1.VolumeMount {
 		ReadOnly:  true,
 	}
 }
+
+// getCustomPrometheusCaVolume - Volume for CA certificate of user deployed Prometheus
+func GetCustomPrometheusCaVolume(secretName string) corev1.Volume {
+	return corev1.Volume{
+		Name: "custom-prometheus-ca",
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: secretName,
+			},
+		},
+	}
+}
+
+// getCustomPrometheusCaVolumeMount - VolumeMount for CA certificate of user deployed Prometheus
+func GetCustomPrometheusCaVolumeMount(fileName string) corev1.VolumeMount {
+	return corev1.VolumeMount{
+		Name:      "custom-prometheus-ca",
+		MountPath: CustomPrometheusCaCertFolderPath + fileName,
+		SubPath:   fileName,
+		ReadOnly:  true,
+	}
+}

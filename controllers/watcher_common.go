@@ -47,6 +47,18 @@ const (
 	// WatcherAPILabelPrefix - a unique, service binary specific prefix for the
 	// labels the WatcherAPI controller uses on children objects
 	WatcherAPILabelPrefix = "watcher-api"
+
+	// PrometheusHostKey is the name of the key for the Prometheus hostname in the secret
+	PrometheusHostKey = "prometheus_host"
+
+	// PrometheusPortKey is the name of the key for the Prometheus port in the secret
+	PrometheusPortKey = "prometheus_port"
+
+	// PrometheusTLSKey is the name of the key for the variable defining if TLS is enabled in Prometheus
+	PrometheusTLSKey = "prometheus_tls"
+
+	// PrometheusCaCertKey is the name of the key for the variable defining if TLS is enabled in Prometheus
+	PrometheusCaCertKey = "prometheus_cacert"
 )
 
 // GetLogger returns a logger object with a prefix of "controller.name" and additional controller context fields

@@ -31,4 +31,4 @@ spec:
   cinder:
     enabled: false
   telemetry:
-    enabled: false
+    enabled: true

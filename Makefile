@@ -404,7 +404,7 @@ KUTTL_SUITE_DIR ?= tests/kuttl/test-suites/$(KUTTL_SUITE)
 .PHONY: kuttl-test-prep
 kuttl-test-prep:
 	oc apply -k $(KUTTL_SUITE_DIR)/deps/ --timeout=120s
-	oc wait -n $(KUTTL_NAMESPACE) openstackcontrolplane openstack --for condition=Ready --timeout=300s
+	oc wait -n $(KUTTL_NAMESPACE) openstackcontrolplane openstack --for condition=Ready --timeout=500s
 
 .PHONY: kuttl-test-run
 kuttl-test-run:
