@@ -29,6 +29,9 @@ const (
 	// WatcherPublicPort - public port of watcher containers
 	WatcherPublicPort int32 = 9322
 
+	// WatcherPublicPort - internal port of watcher containers
+	WatcherInternalPort int32 = 9322
+
 	// WatcherLogPath is the path used by WatcherAPI to stream/store its logs
 	WatcherLogPath = "/var/log/watcher/"
 

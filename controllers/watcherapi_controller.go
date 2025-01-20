@@ -19,6 +19,8 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -47,6 +49,7 @@ import (
 	"github.com/openstack-k8s-operators/watcher-operator/pkg/watcher"
 	"github.com/openstack-k8s-operators/watcher-operator/pkg/watcherapi"
 
+	routev1 "github.com/openshift/api/route/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
@@ -69,12 +72,14 @@ func (r *WatcherAPIReconciler) GetLogger(ctx context.Context) logr.Logger {
 //+kubebuilder:rbac:groups=watcher.openstack.org,resources=watcherapis/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=watcher.openstack.org,resources=watcherapis/finalizers,verbs=update
 //+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete;
+//+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete;
 //+kubebuilder:rbac:groups=keystone.openstack.org,resources=keystoneapis,verbs=get;list;watch;
 //+kubebuilder:rbac:groups=keystone.openstack.org,resources=keystoneservices,verbs=get;list;watch;create;update;patch;delete;
 //+kubebuilder:rbac:groups=keystone.openstack.org,resources=keystoneendpoints,verbs=get;list;watch;create;update;patch;delete;
 //+kubebuilder:rbac:groups=memcached.openstack.org,resources=memcacheds,verbs=get;list;watch;update;patch
 //+kubebuilder:rbac:groups=memcached.openstack.org,resources=memcacheds/finalizers,verbs=update;patch
 //+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete;
+//+kubebuilder:rbac:groups=route.openshift.io,resources=routes,verbs=get;list;watch;create;update;patch;delete;
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -221,6 +226,14 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return result, err
 	}
 
+	apiEndpoints, result, err := r.ensureServiceExposed(ctx, helper, instance)
+	if (err != nil || result != ctrl.Result{}) {
+		// We can ignore RequeueAfter as we are watching the Service resource
+		// but we have to return while waiting for the service to be exposed
+		return ctrl.Result{}, err
+	}
+	_ = apiEndpoints // we'll use the apiEndpoints later
+
 	// We reached the end of the Reconcile, update the Ready condition based on
 	// the sub conditions
 	if instance.Status.Conditions.AllSubConditionIsTrue() {
@@ -228,6 +241,7 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			condition.ReadyCondition, condition.ReadyMessage)
 	}
 
+	Log.Info(fmt.Sprintf("Successfully reconciled WatcherAPI instance '%s'", instance.Name))
 	return ctrl.Result{}, nil
 }
 
@@ -355,6 +369,80 @@ func (r *WatcherAPIReconciler) createDeployment(
 	return ctrl.Result{}, nil
 }
 
+func (r *WatcherAPIReconciler) ensureServiceExposed(
+	ctx context.Context,
+	helper *helper.Helper,
+	instance *watcherv1beta1.WatcherAPI,
+) (map[string]string, ctrl.Result, error) {
+	Log := r.GetLogger(ctx)
+	Log.Info(fmt.Sprintf("Defining WatcherAPI services '%s'", instance.Name))
+
+	ports := map[service.Endpoint]endpoint.Data{
+		service.EndpointPublic: {
+			Port: watcher.WatcherPublicPort,
+		},
+		service.EndpointInternal: {
+			Port: watcher.WatcherPublicPort,
+		},
+	}
+
+	for _, metallbcfg := range instance.Spec.ExternalEndpoints {
+		portCfg := ports[metallbcfg.Endpoint]
+		portCfg.MetalLB = &endpoint.MetalLBData{
+			IPAddressPool:   metallbcfg.IPAddressPool,
+			SharedIP:        metallbcfg.SharedIP,
+			SharedIPKey:     metallbcfg.SharedIPKey,
+			LoadBalancerIPs: metallbcfg.LoadBalancerIPs,
+		}
+
+		ports[metallbcfg.Endpoint] = portCfg
+	}
+
+	apiEndpoints, ctrlResult, err := endpoint.ExposeEndpoints(
+		ctx,
+		helper,
+		watcher.ServiceName,
+		getAPIServiceLabels(),
+		ports,
+		r.RequeueTimeout,
+	)
+	if err != nil {
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			condition.ExposeServiceReadyCondition,
+			condition.ErrorReason,
+			condition.SeverityWarning,
+			condition.ExposeServiceReadyErrorMessage,
+			err.Error(),
+		))
+		return nil, ctrlResult, err
+	} else if (ctrlResult != ctrl.Result{}) {
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			condition.ExposeServiceReadyCondition,
+			condition.RequestedReason,
+			condition.SeverityInfo,
+			condition.ExposeServiceReadyRunningMessage,
+		))
+		return nil, ctrlResult, nil
+	}
+
+	// fix wrongly formatted endpoint url gotten from the lib-common
+	// ExposeEndpoints function
+	for endpointType, endpointURL := range apiEndpoints {
+		// fix repeated '://' in endpoint url
+		endpointURL = strings.Replace(endpointURL, "://://", "://", 1)
+		if endpointType == string(service.EndpointPublic) {
+			// remove trailing port number
+			url, _ := url.Parse(endpointURL)
+			endpointURL = fmt.Sprintf("%s://%s", url.Scheme, url.Hostname())
+		}
+		apiEndpoints[endpointType] = endpointURL
+	}
+
+	instance.Status.Conditions.MarkTrue(condition.ExposeServiceReadyCondition, condition.ExposeServiceReadyMessage)
+
+	return apiEndpoints, ctrl.Result{}, nil
+}
+
 func (r *WatcherAPIReconciler) reconcileDelete(ctx context.Context, instance *watcherv1beta1.WatcherAPI, helper *helper.Helper) (ctrl.Result, error) {
 	Log := r.GetLogger(ctx)
 	Log.Info(fmt.Sprintf("Reconcile Service '%s' delete started", instance.Name))
@@ -387,9 +475,10 @@ func (r *WatcherAPIReconciler) initStatus(instance *watcherv1beta1.WatcherAPI) e
 		// failure/in-progress operation
 		condition.UnknownCondition(condition.ReadyCondition, condition.InitReason, condition.ReadyInitMessage),
 		condition.UnknownCondition(condition.InputReadyCondition, condition.InitReason, condition.InputReadyInitMessage),
-		condition.UnknownCondition(condition.ServiceConfigReadyCondition, condition.InitReason, condition.ServiceConfigReadyMessage),
+		condition.UnknownCondition(condition.ServiceConfigReadyCondition, condition.InitReason, condition.ServiceConfigReadyInitMessage),
 		condition.UnknownCondition(condition.MemcachedReadyCondition, condition.InitReason, condition.MemcachedReadyInitMessage),
-		condition.UnknownCondition(condition.DeploymentReadyCondition, condition.InitReason, condition.DeploymentReadyMessage),
+		condition.UnknownCondition(condition.DeploymentReadyCondition, condition.InitReason, condition.DeploymentReadyInitMessage),
+		condition.UnknownCondition(condition.ExposeServiceReadyCondition, condition.InitReason, condition.ExposeServiceReadyInitMessage),
 	)
 
 	instance.Status.Conditions.Init(&cl)
@@ -422,6 +511,8 @@ func (r *WatcherAPIReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&watcherv1beta1.WatcherAPI{}).
 		Owns(&corev1.Secret{}).
 		Owns(&appsv1.Deployment{}).
+		Owns(&corev1.Service{}).
+		Owns(&routev1.Route{}).
 		Watches(
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.findObjectsForSrc),

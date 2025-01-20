@@ -67,3 +67,27 @@ kind: Pod
 metadata:
   labels:
     service: watcher-api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    internal: "true"
+    service: watcher-api
+  name: watcher-internal
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    public: "true"
+    service: watcher-api
+  name: watcher-public
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  labels:
+    public: "true"
+    service: watcher-api
+  name: watcher-public

@@ -17,6 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
+	"github.com/openstack-k8s-operators/lib-common/modules/common/service"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/util"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -141,6 +142,35 @@ type WatcherSubCrsTemplate struct {
 	// NodeSelector to target subset of worker nodes running this component. Setting here overrides
 	// any global NodeSelector settings within the Watcher CR.
 	NodeSelector *map[string]string `json:"nodeSelector,omitempty"`
+}
+
+// MetalLBConfig to configure the MetalLB loadbalancer service
+type MetalLBConfig struct {
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum=internal;public
+	// Endpoint, OpenStack endpoint this service maps to
+	Endpoint service.Endpoint `json:"endpoint"`
+
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	// IPAddressPool expose VIP via MetalLB on the IPAddressPool
+	IPAddressPool string `json:"ipAddressPool"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=true
+	// SharedIP if true, VIP/VIPs get shared with multiple services
+	SharedIP bool `json:"sharedIP"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=""
+	// SharedIPKey specifies the sharing key which gets set as the annotation on the LoadBalancer service.
+	// Services which share the same VIP must have the same SharedIPKey. Defaults to the IPAddressPool if
+	// SharedIP is true, but no SharedIPKey specified.
+	SharedIPKey string `json:"sharedIPKey"`
+
+	// +kubebuilder:validation:Optional
+	// LoadBalancerIPs, request given IPs from the pool if available. Using a list to allow dual stack (IPv4/IPv6) support
+	LoadBalancerIPs []string `json:"loadBalancerIPs"`
 }
 
 type WatcherImages struct {
