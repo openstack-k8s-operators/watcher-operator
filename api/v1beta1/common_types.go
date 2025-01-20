@@ -17,7 +17,6 @@ limitations under the License.
 package v1beta1
 
 import (
-	"github.com/openstack-k8s-operators/lib-common/modules/common/service"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/util"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -146,11 +145,6 @@ type WatcherSubCrsTemplate struct {
 
 // MetalLBConfig to configure the MetalLB loadbalancer service
 type MetalLBConfig struct {
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Enum=internal;public
-	// Endpoint, OpenStack endpoint this service maps to
-	Endpoint service.Endpoint `json:"endpoint"`
-
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	// IPAddressPool expose VIP via MetalLB on the IPAddressPool

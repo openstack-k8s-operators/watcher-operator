@@ -43,47 +43,6 @@ spec:
                 description: The service specific Container Image URL (will be set
                   to environmental default if empty)
                 type: string
-              externalEndpoints:
-                description: ExternalEndpoints, expose a VIP via MetalLB on the pre-created
-                  address pool
-                items:
-                  description: MetalLBConfig to configure the MetalLB loadbalancer
-                    service
-                  properties:
-                    endpoint:
-                      description: Endpoint, OpenStack endpoint this service maps
-                        to
-                      enum:
-                      - internal
-                      - public
-                      type: string
-                    ipAddressPool:
-                      description: IPAddressPool expose VIP via MetalLB on the IPAddressPool
-                      minLength: 1
-                      type: string
-                    loadBalancerIPs:
-                      description: LoadBalancerIPs, request given IPs from the pool
-                        if available. Using a list to allow dual stack (IPv4/IPv6)
-                        support
-                      items:
-                        type: string
-                      type: array
-                    sharedIP:
-                      default: true
-                      description: SharedIP if true, VIP/VIPs get shared with multiple
-                        services
-                      type: boolean
-                    sharedIPKey:
-                      default: ""
-                      description: |-
-                        SharedIPKey specifies the sharing key which gets set as the annotation on the LoadBalancer service.
-                        Services which share the same VIP must have the same SharedIPKey. Defaults to the IPAddressPool if
-                        SharedIP is true, but no SharedIPKey specified.
-                      type: string
-                  required:
-                  - ipAddressPool
-                  type: object
-                type: array
               memcachedInstance:
                 default: memcached
                 description: MemcachedInstance is the name of the Memcached CR that
@@ -95,6 +54,51 @@ spec:
                 description: |-
                   NodeSelector to target subset of worker nodes running this component. Setting here overrides
                   any global NodeSelector settings within the Watcher CR.
+                type: object
+              override:
+                description: |-
+                  Override, provides the ability to override the generated manifest of
+                  several child resources.
+                properties:
+                  service:
+                    additionalProperties:
+                      description: MetalLBConfig to configure the MetalLB loadbalancer
+                        service
+                      properties:
+                        ipAddressPool:
+                          description: IPAddressPool expose VIP via MetalLB on the
+                            IPAddressPool
+                          minLength: 1
+                          type: string
+                        loadBalancerIPs:
+                          description: LoadBalancerIPs, request given IPs from the
+                            pool if available. Using a list to allow dual stack (IPv4/IPv6)
+                            support
+                          items:
+                            type: string
+                          type: array
+                        sharedIP:
+                          default: true
+                          description: SharedIP if true, VIP/VIPs get shared with
+                            multiple services
+                          type: boolean
+                        sharedIPKey:
+                          default: ""
+                          description: |-
+                            SharedIPKey specifies the sharing key which gets set as the annotation on the LoadBalancer service.
+                            Services which share the same VIP must have the same SharedIPKey. Defaults to the IPAddressPool if
+                            SharedIP is true, but no SharedIPKey specified.
+                          type: string
+                      required:
+                      - ipAddressPool
+                      type: object
+                    description: |-
+                      Override configuration for the Service created to serve traffic to
+                      the cluster.
+                      The key must be the endpoint type (public, internal)
+                      temporarily use MetalLBConfig struct, later we'll switch to
+                      service.RoutedOverrideSpec
+                    type: object
                 type: object
               passwordSelectors:
                 default:

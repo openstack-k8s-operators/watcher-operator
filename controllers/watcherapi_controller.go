@@ -386,16 +386,17 @@ func (r *WatcherAPIReconciler) ensureServiceExposed(
 		},
 	}
 
-	for _, metallbcfg := range instance.Spec.ExternalEndpoints {
-		portCfg := ports[metallbcfg.Endpoint]
+	for endpointType := range instance.Spec.Override.Service {
+		svcOverride := instance.Spec.Override.Service[endpointType]
+		portCfg := ports[endpointType]
 		portCfg.MetalLB = &endpoint.MetalLBData{
-			IPAddressPool:   metallbcfg.IPAddressPool,
-			SharedIP:        metallbcfg.SharedIP,
-			SharedIPKey:     metallbcfg.SharedIPKey,
-			LoadBalancerIPs: metallbcfg.LoadBalancerIPs,
+			IPAddressPool:   svcOverride.IPAddressPool,
+			SharedIP:        svcOverride.SharedIP,
+			SharedIPKey:     svcOverride.SharedIPKey,
+			LoadBalancerIPs: svcOverride.LoadBalancerIPs,
 		}
 
-		ports[metallbcfg.Endpoint] = portCfg
+		ports[endpointType] = portCfg
 	}
 
 	apiEndpoints, ctrlResult, err := endpoint.ExposeEndpoints(

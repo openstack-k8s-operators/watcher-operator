@@ -324,7 +324,7 @@ var _ = Describe("WatcherAPI controller", func() {
 			)
 		})
 	})
-	When("WatcherAPI is created with extrenalEndpoints", func() {
+	When("WatcherAPI is created with service overrides", func() {
 		BeforeEach(func() {
 			secret := th.CreateSecret(
 				watcherTest.InternalTopLevelSecretName,
@@ -335,15 +335,14 @@ var _ = Describe("WatcherAPI controller", func() {
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 			spec := GetDefaultWatcherAPISpec()
-			var externalEndpoints []interface{}
-			externalEndpoints = append(
-				externalEndpoints, map[string]interface{}{
-					"endpoint":        "internal",
-					"ipAddressPool":   "osp-internalapi",
-					"loadBalancerIPs": []string{"internal-lb-ip-1", "internal-lb-ip-2"},
-				},
-			)
-			spec["externalEndpoints"] = externalEndpoints
+			apiOverrideSpec := map[string]interface{}{}
+			endpoint := map[string]interface{}{}
+			internalEndpoint := map[string]interface{}{}
+			endpoint["ipAddressPool"] = "osp-internalapi"
+			endpoint["loadBalancerIPs"] = []string{"internal-lb-ip-1", "internal-lb-ip-2"}
+			internalEndpoint["internal"] = endpoint
+			apiOverrideSpec["service"] = internalEndpoint
+			spec["override"] = apiOverrideSpec
 			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, spec))
 			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
 			memcachedSpec := memcachedv1.MemcachedSpec{
@@ -358,7 +357,7 @@ var _ = Describe("WatcherAPI controller", func() {
 		It("creates MetalLB service", func() {
 			th.SimulateDeploymentReplicaReady(watcherTest.WatcherAPIDeployment)
 
-			// As the public endpoint is not mentioned in the ExternalEndpoints
+			// As the public endpoint is not mentioned in the service override
 			// a generic Service and a Route is created
 			public := th.GetService(watcherTest.WatcherPublicServiceName)
 			Expect(public.Annotations).NotTo(HaveKey("metallb.universe.tf/address-pool"))
@@ -366,7 +365,7 @@ var _ = Describe("WatcherAPI controller", func() {
 			Expect(public.Annotations).NotTo(HaveKey("metallb.universe.tf/loadBalancerIPs"))
 			th.AssertRouteExists(watcherTest.WatcherRouteName)
 
-			// As the internal endpoint is configure in ExternalEndpoints it
+			// As the internal endpoint is configure in the service override it
 			// does not get a Route but a Service with MetalLB annotations
 			// instead
 			internal := th.GetService(watcherTest.WatcherInternalServiceName)

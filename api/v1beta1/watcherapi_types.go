@@ -18,6 +18,7 @@ package v1beta1
 
 import (
 	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/service"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -35,8 +36,9 @@ type WatcherAPISpec struct {
 	WatcherSubCrsCommon `json:",inline"`
 
 	// +kubebuilder:validation:Optional
-	// ExternalEndpoints, expose a VIP via MetalLB on the pre-created address pool
-	ExternalEndpoints []MetalLBConfig `json:"externalEndpoints,omitempty"`
+	// Override, provides the ability to override the generated manifest of
+	// several child resources.
+	Override APIOverrideSpec `json:"override,omitempty"`
 }
 
 // WatcherAPIStatus defines the observed state of WatcherAPI
@@ -57,14 +59,26 @@ type WatcherAPIStatus struct {
 	Hash map[string]string `json:"hash,omitempty"`
 }
 
+// APIOverrideSpec to override the generated manifest of several child
+// resources.
+type APIOverrideSpec struct {
+	// Override configuration for the Service created to serve traffic to
+	// the cluster.
+	// The key must be the endpoint type (public, internal)
+	// temporarily use MetalLBConfig struct, later we'll switch to
+	// service.RoutedOverrideSpec
+	Service map[service.Endpoint]MetalLBConfig `json:"service,omitempty"`
+}
+
 // WatcherAPITemplate defines the input parameters specified by the user to
 // create a WatcherAPI via higher level CRDs.
 type WatcherAPITemplate struct {
 	WatcherSubCrsTemplate `json:",inline"`
 
 	// +kubebuilder:validation:Optional
-	// ExternalEndpoints, expose a VIP via MetalLB on the pre-created address pool
-	ExternalEndpoints []MetalLBConfig `json:"externalEndpoints,omitempty"`
+	// Override, provides the ability to override the generated manifest of
+	// several child resources.
+	Override APIOverrideSpec `json:"override,omitempty"`
 }
 
 //+kubebuilder:object:root=true
