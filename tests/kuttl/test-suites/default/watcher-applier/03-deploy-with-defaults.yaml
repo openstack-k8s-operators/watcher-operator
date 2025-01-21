@@ -1,0 +1,9 @@
+apiVersion: watcher.openstack.org/v1beta1
+kind: WatcherApplier
+metadata:
+  name: watcher-applier-kuttl
+  namespace: watcher-kuttl-default
+spec:
+  secret: "watcher-kuttl"
+  tls:
+    caBundleSecretName: "combined-ca-bundle"
