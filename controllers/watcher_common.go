@@ -31,6 +31,9 @@ var (
 	apiWatchFields = []string{
 		passwordSecretField,
 	}
+	applierWatchFields = []string{
+		passwordSecretField,
+	}
 )
 
 const (
@@ -49,6 +52,9 @@ const (
 	// WatcherAPILabelPrefix - a unique, service binary specific prefix for the
 	// labels the WatcherAPI controller uses on children objects
 	WatcherAPILabelPrefix = "watcher-api"
+	// WatcherApplierLabelPrefix - a unique, service binary specific prefix for the
+	// labels the WatcherApplier controller uses on children objects
+	WatcherApplierLabelPrefix = "watcher-applier"
 )
 
 // GetLogger returns a logger object with a prefix of "controller.name" and additional controller context fields

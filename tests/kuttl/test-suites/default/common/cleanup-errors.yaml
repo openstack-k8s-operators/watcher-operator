@@ -96,3 +96,10 @@ apiVersion: keystone.openstack.org/v1beta1
 kind: KeystoneEndpoint
 metadata:
   name: watcher
+---
+apiVersion: watcher.openstack.org/v1beta1
+kind: WatcherApplier
+metadata:
+  finalizers:
+  - openstack.org/watcherapplier
+  name: watcher-applier-kuttl

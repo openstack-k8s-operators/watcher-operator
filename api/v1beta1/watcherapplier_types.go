@@ -17,6 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
+	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -28,6 +29,12 @@ type WatcherApplierSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
+	WatcherCommon `json:",inline"`
+
+	// +kubebuilder:validation:Required
+	// Secret containing all passwords / keys needed
+	Secret string `json:"secret"`
+
 	WatcherSubCrsCommon `json:",inline"`
 }
 
@@ -35,6 +42,22 @@ type WatcherApplierSpec struct {
 type WatcherApplierStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+
+	// Conditions
+	Conditions condition.Conditions `json:"conditions,omitempty" optional:"true"`
+
+	// ObservedGeneration - the most recent generation observed for this
+	// service. If the observed generation is less than the spec generation,
+	// then the controller has not processed the latest changes injected by
+	// the openstack-operator in the top-level CR (e.g. the ContainerImage)
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// TODO(dviroel): Add ReadyCount once Deployment is implemented
+	// ReadyCount of watcher Applier instances
+	// ReadyCount int32 `json:"readyCount,omitempty"`
+
+	// Map of hashes to track e.g. job status
+	Hash map[string]string `json:"hash,omitempty"`
 }
 
 //+kubebuilder:object:root=true

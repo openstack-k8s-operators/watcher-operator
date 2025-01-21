@@ -55,6 +55,13 @@ func CreateWatcherAPIFromSample(sampleFileName string, name types.NamespacedName
 	return types.NamespacedName{Name: instance.GetName(), Namespace: instance.GetNamespace()}
 }
 
+func CreateWatcherApplierFromSample(sampleFileName string, name types.NamespacedName) types.NamespacedName {
+	raw := ReadSample(sampleFileName)
+	instance := CreateWatcherApplier(name, raw["spec"].(map[string]interface{}))
+	DeferCleanup(th.DeleteInstance, instance)
+	return types.NamespacedName{Name: instance.GetName(), Namespace: instance.GetNamespace()}
+}
+
 // This is a set of test for our samples. It only validates that the sample
 // file has all the required field with proper types. But it does not
 // validate that using a sample file will result in a working deployment.
@@ -74,6 +81,13 @@ var _ = Describe("Samples", func() {
 		It("WatcherAPI is created", func() {
 			name := CreateWatcherAPIFromSample("watcher_v1beta1_watcherapi.yaml", watcherTest.WatcherAPI)
 			GetWatcherAPI(name)
+		})
+	})
+
+	When("watcher_v1beta1_watcherapplier.yaml sample is applied", func() {
+		It("WatcherApplier is created", func() {
+			name := CreateWatcherApplierFromSample("watcher_v1beta1_watcherapplier.yaml", watcherTest.WatcherApplier)
+			GetWatcherApplier(name)
 		})
 	})
 })
