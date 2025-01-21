@@ -10,10 +10,14 @@ spec:
   databaseInstance: openstack
   passwordSelectors:
     service: WatcherPassword
+  customServiceConfig: |
+    # Global config
   secret: osp-secret
   apiServiceTemplate:
     replicas: 2
     resources: {}
+    customServiceConfig: |
+      # Service config
 status:
   apiServiceReadyCount: 2
   conditions:
@@ -227,3 +231,18 @@ spec:
 status:
   readyReplicas: 2
   replicas: 2
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+namespaced: true
+commands:
+  - script: |
+      set -euxo pipefail
+      oc project watcher-kuttl-default
+      APIPOD=$(oc get pods -n watcher-kuttl-default -l "service=watcher-api" -ocustom-columns=:metadata.name|grep -v ^$|head -1)
+      if [ -n "${APIPOD}" ]; then
+        [ $(echo $(oc rsh -c watcher-api ${APIPOD} cat /etc/watcher/watcher.conf.d/01-global-custom.conf) |grep -c "^# Global config") == 1 ]
+        [ $(echo $(oc rsh -c watcher-api ${APIPOD} cat /etc/watcher/watcher.conf.d/02-service-custom.conf) |grep -c "^# Service config") == 1 ]
+      else
+        exit 1
+      fi

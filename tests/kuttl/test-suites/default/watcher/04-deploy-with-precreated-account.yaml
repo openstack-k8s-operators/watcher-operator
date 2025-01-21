@@ -6,7 +6,11 @@ metadata:
 spec:
   databaseInstance: "openstack"
   databaseAccount: watcher-precreated
-  apiServiceTemplate:
-    replicas: 2
   tls:
     caBundleSecretName: "combined-ca-bundle"
+  customServiceConfig: |
+    # Global config
+  apiServiceTemplate:
+    replicas: 2
+    customServiceConfig: |
+      # Service config
