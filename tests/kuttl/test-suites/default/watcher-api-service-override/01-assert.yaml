@@ -293,10 +293,6 @@ spec:
   selector:
     service: watcher-api
   type: LoadBalancer
-status:
-  loadBalancer:
-    ingress:
-    - ip: 172.17.0.82
 ---
 apiVersion: route.openshift.io/v1
 kind: Route

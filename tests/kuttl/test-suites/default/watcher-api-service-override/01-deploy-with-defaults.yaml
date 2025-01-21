@@ -10,5 +10,4 @@ spec:
       service:
         internal:
           ipAddressPool: "internalapi"
-          loadBalancerIPs:
-            - 172.17.0.82
+          loadBalancerIPs: []
