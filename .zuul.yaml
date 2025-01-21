@@ -40,6 +40,11 @@
       A zuul job to validate the watcher operator and its service deployment.
     vars:
       run_tempest: false
+      # Based on current testing, https://github.com/openstack-k8s-operators/watcher-operator/pull/47#issuecomment-2607474033
+      # We need decision engine and applier CRD to ready to run
+      # whole test suite
+      cifmw_test_operator_tempest_include_list: |
+        watcher_tempest_plugin.tests.api.admin.test_api_discovery.TestApiDiscovery
 
 - job:
     name: watcher-operator-kuttl
