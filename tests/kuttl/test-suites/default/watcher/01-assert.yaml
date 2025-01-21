@@ -324,6 +324,8 @@ commands:
       SERVICEID=$(oc exec -n watcher-kuttl-default openstackclient -- openstack service list -f value -c Name -c Type -c ID | grep watcher| awk '{print $1}')
       [ $(oc get -n watcher-kuttl-default keystoneservice watcher -o jsonpath={.status.serviceID}) == ${SERVICEID} ]
       [ -n "$(oc get -n watcher-kuttl-default watcher watcher-kuttl -o jsonpath={.status.hash.dbsync})" ]
+      [ "$(oc get -n watcher-kuttl-default secret watcher-kuttl-api-config-data -o jsonpath='{.data.my\.cnf}'|base64 -d|grep -c 'ssl=1')" == 1 ]
+      [ "$(oc get -n watcher-kuttl-default secret watcher-kuttl-api-config-data -o jsonpath='{.data.00-default\.conf}'|base64 -d|grep -c 'cafile = /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem')" == 2 ]
       # If we are running the container locally, skip following test
       if [ "$(oc get pods -n openstack-operators -o name -l openstack.org/operator-name=watcher)" == "" ]; then
           exit 0

@@ -8,3 +8,5 @@ spec:
   databaseAccount: watcher-precreated
   apiServiceTemplate:
     replicas: 2
+  tls:
+    caBundleSecretName: "combined-ca-bundle"
