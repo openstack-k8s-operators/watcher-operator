@@ -774,6 +774,9 @@ func (r *WatcherReconciler) ensureAPI(
 		watcherAPISpec.NodeSelector = instance.Spec.NodeSelector
 	}
 
+	// We need to have TLS defined in SubCRs to have some values available
+	watcherAPISpec.TLS = instance.Spec.TLS
+
 	apiDeployment := &watcherv1beta1.WatcherAPI{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("%s-api", instance.Name),

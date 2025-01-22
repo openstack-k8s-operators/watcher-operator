@@ -23,6 +23,10 @@ spec:
       displayName: Watcher API
       kind: WatcherAPI
       name: watcherapis.watcher.openstack.org
+      specDescriptors:
+      - description: TLS - Parameters related to the TLS
+        displayName: TLS
+        path: tls
       version: v1beta1
     - description: WatcherApplier is the Schema for the watcherappliers API
       displayName: Watcher Applier
@@ -39,6 +43,10 @@ spec:
       displayName: Watcher
       kind: Watcher
       name: watchers.watcher.openstack.org
+      specDescriptors:
+      - description: TLS - Parameters related to the TLS
+        displayName: TLS
+        path: tls
       version: v1beta1
   description: The Watcher Operator project
   displayName: Watcher Operator

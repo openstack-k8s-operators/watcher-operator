@@ -17,7 +17,9 @@ limitations under the License.
 package v1beta1
 
 import (
+	"github.com/openstack-k8s-operators/lib-common/modules/common/tls"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/util"
+
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -55,6 +57,11 @@ type WatcherCommon struct {
 	// NodeSelector to target subset of worker nodes running this component. Setting here overrides
 	// any global NodeSelector settings within the Watcher CR.
 	NodeSelector *map[string]string `json:"nodeSelector,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
+	// TLS - Parameters related to the TLS
+	TLS tls.API `json:"tls,omitempty"`
 }
 
 // WatcherTemplate defines the fields used in the top level CR

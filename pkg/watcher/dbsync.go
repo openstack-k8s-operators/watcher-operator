@@ -56,6 +56,12 @@ func DbSyncJob(instance *watcherv1beta1.Watcher, labels map[string]string, annot
 		},
 	}
 
+	// Create mount for bundle CA if defined in TLS.CaBundleSecretName
+	if instance.Spec.TLS.CaBundleSecretName != "" {
+		dbSyncVolume = append(dbSyncVolume, instance.Spec.TLS.CreateVolume())
+		dbSyncMounts = append(dbSyncMounts, instance.Spec.TLS.CreateVolumeMounts(nil)...)
+	}
+
 	args := []string{"-c", DBSyncCommand}
 
 	runAsUser := int64(0)

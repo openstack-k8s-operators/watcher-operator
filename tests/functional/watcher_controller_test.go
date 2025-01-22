@@ -51,6 +51,7 @@ var _ = Describe("Watcher controller with minimal spec values", func() {
 			Expect(*(Watcher.Spec.RabbitMqClusterName)).Should(Equal("rabbitmq"))
 			Expect(Watcher.Spec.ServiceUser).Should(Equal("watcher"))
 			Expect(Watcher.Spec.PreserveJobs).Should(BeFalse())
+			Expect(Watcher.Spec.TLS.CaBundleSecretName).Should(Equal(""))
 		})
 
 		It("should have the Status fields initialized", func() {
@@ -623,6 +624,7 @@ var _ = Describe("Watcher controller", func() {
 			Expect(Watcher.Spec.Secret).Should(Equal("test-osp-secret"))
 			Expect(Watcher.Spec.PreserveJobs).Should(BeTrue())
 			Expect(*(Watcher.Spec.RabbitMqClusterName)).Should(Equal("rabbitmq"))
+			Expect(Watcher.Spec.TLS.CaBundleSecretName).Should(Equal("combined-ca-bundle"))
 		})
 
 		It("Should create watcher service with custom values", func() {
@@ -751,12 +753,13 @@ var _ = Describe("Watcher controller", func() {
 			Expect(WatcherAPI.Spec.ServiceAccount).To(Equal("watcher-watcher"))
 			Expect(int(*WatcherAPI.Spec.Replicas)).To(Equal(2))
 			Expect(*WatcherAPI.Spec.NodeSelector).To(Equal(map[string]string{"foo": "bar"}))
+			Expect(WatcherAPI.Spec.TLS.CaBundleSecretName).Should(Equal("combined-ca-bundle"))
 
 			// Assert that the watcher deployment is created
 			deployment := th.GetDeployment(watcherTest.WatcherAPIDeployment)
 			Expect(deployment.Spec.Template.Spec.ServiceAccountName).To(Equal("watcher-watcher"))
 			Expect(int(*deployment.Spec.Replicas)).To(Equal(2))
-			Expect(deployment.Spec.Template.Spec.Volumes).To(HaveLen(3))
+			Expect(deployment.Spec.Template.Spec.Volumes).To(HaveLen(4))
 			Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(2))
 			Expect(deployment.Spec.Selector.MatchLabels).To(Equal(map[string]string{"service": "watcher-api"}))
 

@@ -48,6 +48,9 @@ func GetNonDefaultWatcherSpec() map[string]interface{} {
 			"replicas":     2,
 			"nodeSelector": map[string]string{"foo": "bar"},
 		},
+		"tls": map[string]interface{}{
+			"caBundleSecretName": "combined-ca-bundle",
+		},
 	}
 }
 
