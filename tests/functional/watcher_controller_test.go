@@ -53,7 +53,9 @@ var _ = Describe("Watcher controller with minimal spec values", func() {
 			Expect(Watcher.Spec.PreserveJobs).Should(BeFalse())
 			Expect(Watcher.Spec.TLS.CaBundleSecretName).Should(Equal(""))
 			Expect(Watcher.Spec.CustomServiceConfig).Should(Equal(""))
+			Expect(Watcher.Spec.PrometheusSecret).Should(Equal("metric-storage-prometheus-config"))
 			Expect(Watcher.Spec.APIServiceTemplate.CustomServiceConfig).Should(Equal(""))
+
 		})
 
 		It("should have the Status fields initialized", func() {
@@ -210,6 +212,15 @@ var _ = Describe("Watcher controller", func() {
 				),
 			)
 			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: "metric-storage-prometheus-config"},
+					map[string][]byte{
+						"host":              []byte("prometheus.example.com"),
+						"port":              []byte("9090"),
+						"prometheus_ca.crt": []byte(""),
+					},
+				))
 		})
 
 		It("Should set DBReady Condition Status when DB is Created", func() {
@@ -360,6 +371,7 @@ var _ = Describe("Watcher controller", func() {
 			Expect(int(*WatcherAPI.Spec.Replicas)).To(Equal(1))
 			Expect(WatcherAPI.Spec.NodeSelector).To(BeNil())
 			Expect(WatcherAPI.Spec.CustomServiceConfig).To(Equal(""))
+			Expect(WatcherAPI.Spec.PrometheusSecret).Should(Equal("metric-storage-prometheus-config"))
 
 			// Assert that the watcher deployment is created
 			deployment := th.GetDeployment(watcherTest.WatcherAPIDeployment)
@@ -620,6 +632,15 @@ var _ = Describe("Watcher controller", func() {
 				),
 			)
 			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: "custom-prometheus-config"},
+					map[string][]byte{
+						"host":              []byte("customprometheus.example.com"),
+						"port":              []byte("9092"),
+						"prometheus_ca.crt": []byte("# prometheus cacert content"),
+					},
+				))
 		})
 
 		It("should have the Spec fields with the expected values", func() {
@@ -632,6 +653,7 @@ var _ = Describe("Watcher controller", func() {
 			Expect(*(Watcher.Spec.RabbitMqClusterName)).Should(Equal("rabbitmq"))
 			Expect(Watcher.Spec.TLS.CaBundleSecretName).Should(Equal("combined-ca-bundle"))
 			Expect(Watcher.Spec.CustomServiceConfig).Should(Equal("# Global config"))
+			Expect(Watcher.Spec.PrometheusSecret).Should(Equal("custom-prometheus-config"))
 			Expect(Watcher.Spec.APIServiceTemplate.CustomServiceConfig).Should(Equal("# Service config"))
 		})
 
@@ -785,6 +807,7 @@ var _ = Describe("Watcher controller", func() {
 			Expect(*WatcherAPI.Spec.NodeSelector).To(Equal(map[string]string{"foo": "bar"}))
 			Expect(WatcherAPI.Spec.TLS.CaBundleSecretName).Should(Equal("combined-ca-bundle"))
 			Expect(WatcherAPI.Spec.CustomServiceConfig).Should(Equal("# Service config"))
+			Expect(WatcherAPI.Spec.PrometheusSecret).Should(Equal("custom-prometheus-config"))
 
 			// Assert that the watcher deployment is created
 			deployment := th.GetDeployment(watcherTest.WatcherAPIDeployment)

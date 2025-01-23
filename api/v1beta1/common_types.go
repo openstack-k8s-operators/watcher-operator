@@ -64,6 +64,11 @@ type WatcherCommon struct {
 	// to /etc/<service>/<service>.conf.d directory as a custom config file.
 	CustomServiceConfig string `json:"customServiceConfig,omitempty"`
 
+	// +kubebuilder:validation:Required
+	// +kubebuilder:default=metric-storage-prometheus-config
+	// Secret containing all passwords / keys needed
+	PrometheusSecret string `json:"prometheusSecret"`
+
 	// +kubebuilder:validation:Optional
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	// TLS - Parameters related to the TLS

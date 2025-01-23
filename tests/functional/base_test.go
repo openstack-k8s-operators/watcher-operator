@@ -53,6 +53,7 @@ func GetNonDefaultWatcherSpec() map[string]interface{} {
 		"tls": map[string]interface{}{
 			"caBundleSecretName": "combined-ca-bundle",
 		},
+		"prometheusSecret": "custom-prometheus-config",
 	}
 }
 
