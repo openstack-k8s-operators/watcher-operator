@@ -78,6 +78,10 @@ spec:
                 description: PreserveJobs - do not delete jobs after they finished
                   e.g. to check logs
                 type: boolean
+              prometheusSecret:
+                default: metric-storage-prometheus-config
+                description: Secret containing prometheus connection parameters
+                type: string
               replicas:
                 default: 1
                 description: Replicas of Watcher service to run

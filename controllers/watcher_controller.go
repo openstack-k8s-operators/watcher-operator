@@ -26,10 +26,16 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	rabbitmqv1 "github.com/openstack-k8s-operators/infra-operator/apis/rabbitmq/v1beta1"
 	keystonev1 "github.com/openstack-k8s-operators/keystone-operator/api/v1beta1"
@@ -215,6 +221,7 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	// end of TransportURL creation
 
 	// Check we have the required inputs
+	// Top level secret
 	hash, _, inputSecret, err := ensureSecret(
 		ctx,
 		types.NamespacedName{Namespace: instance.Namespace, Name: instance.Spec.Secret},
@@ -230,6 +237,7 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		return ctrl.Result{}, errors.New("error retrieving required data from secret")
 	}
 
+	// TransportURL Secret
 	hashTransporturl, _, transporturlSecret, err := ensureSecret(
 		ctx,
 		types.NamespacedName{Namespace: instance.Namespace, Name: transportURL.Status.SecretName},
@@ -244,6 +252,44 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		// Empty hash means that there is some problem retrieving the key from the secret
 		return ctrl.Result{}, errors.New("error retrieving required data from transporturl secret")
 	}
+
+	// Prometheus config secret
+
+	hashPrometheus, _, prometheusSecret, err := ensureSecret(
+		ctx,
+		types.NamespacedName{Namespace: instance.Namespace, Name: instance.Spec.PrometheusSecret},
+		[]string{
+			PrometheusHost,
+			PrometheusPort,
+		},
+		helper.GetClient(),
+		&instance.Status.Conditions,
+		r.RequeueTimeout,
+	)
+	if err != nil || hashPrometheus == "" {
+		// Empty hash means that there is some problem retrieving the key from the secret
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			condition.InputReadyCondition,
+			condition.RequestedReason,
+			condition.SeverityWarning,
+			watcherv1beta1.WatcherPrometheusSecretErrorMessage))
+		return ctrl.Result{}, errors.New("error retrieving required data from prometheus secret")
+	}
+
+	// Add finalizer to prometheus config secret to prevent it from being deleted now that we're using it
+	if controllerutil.AddFinalizer(&prometheusSecret, helper.GetFinalizer()) {
+		err := helper.GetClient().Update(ctx, &prometheusSecret)
+		if err != nil {
+			instance.Status.Conditions.Set(condition.FalseCondition(
+				condition.InputReadyCondition,
+				condition.RequestedReason,
+				condition.SeverityWarning,
+				watcherv1beta1.WatcherPrometheusSecretErrorMessage))
+			return ctrl.Result{}, err
+		}
+	}
+
+	// End of Prometheus config secret
 
 	subLevelSecretName, err := r.createSubLevelSecret(ctx, helper, instance, transporturlSecret, inputSecret, db)
 	if err != nil {
@@ -787,6 +833,9 @@ func (r *WatcherReconciler) ensureAPI(
 	// We need to have TLS defined in SubCRs to have some values available
 	watcherAPISpec.TLS = instance.Spec.TLS
 
+	// We need to have the PrometheusSecret in watcherapi
+	watcherAPISpec.PrometheusSecret = instance.Spec.PrometheusSecret
+
 	apiDeployment := &watcherv1beta1.WatcherAPI{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("%s-api", instance.Name),
@@ -862,6 +911,24 @@ func (r *WatcherReconciler) reconcileDelete(ctx context.Context, instance *watch
 		}
 	}
 
+	// Remove the finalizer from our Prometheus Secret
+	prometheusSecret := &corev1.Secret{}
+	reader := helper.GetClient()
+	err = reader.Get(ctx,
+		types.NamespacedName{Namespace: instance.Namespace, Name: instance.Spec.PrometheusSecret},
+		prometheusSecret)
+
+	if err == nil {
+		if controllerutil.RemoveFinalizer(prometheusSecret, helper.GetFinalizer()) {
+			err = helper.GetClient().Update(ctx, prometheusSecret)
+			if err != nil && !k8s_errors.IsNotFound(err) {
+				return ctrl.Result{}, err
+			}
+			util.LogForObject(helper, "Removed finalizer from prometheus config secret", instance)
+		}
+	}
+	//
+
 	controllerutil.RemoveFinalizer(instance, helper.GetFinalizer())
 	Log.Info(fmt.Sprintf("Reconciled Service '%s' delete successfully", instance.Name))
 	return ctrl.Result{}, nil
@@ -869,6 +936,31 @@ func (r *WatcherReconciler) reconcileDelete(ctx context.Context, instance *watch
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *WatcherReconciler) SetupWithManager(mgr ctrl.Manager) error {
+
+	// index passwordSecretField
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &watcherv1beta1.Watcher{}, passwordSecretField, func(rawObj client.Object) []string {
+		// Extract the secret name from the spec, if one is provided
+		cr := rawObj.(*watcherv1beta1.Watcher)
+		if cr.Spec.Secret == "" {
+			return nil
+		}
+		return []string{cr.Spec.Secret}
+	}); err != nil {
+		return err
+	}
+
+	// index prometheusSecretField
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &watcherv1beta1.Watcher{}, prometheusSecretField, func(rawObj client.Object) []string {
+		// Extract the secret name from the spec, if one is provided
+		cr := rawObj.(*watcherv1beta1.Watcher)
+		if cr.Spec.PrometheusSecret == "" {
+			return nil
+		}
+		return []string{cr.Spec.PrometheusSecret}
+	}); err != nil {
+		return err
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&watcherv1beta1.Watcher{}).
 		Owns(&watcherv1beta1.WatcherAPI{}).
@@ -883,5 +975,44 @@ func (r *WatcherReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&rbacv1.RoleBinding{}).
 		Owns(&batchv1.Job{}).
 		Owns(&corev1.Secret{}).
+		Watches(
+			&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.findObjectsForSrc),
+			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
+		).
 		Complete(r)
+}
+
+func (r *WatcherReconciler) findObjectsForSrc(ctx context.Context, src client.Object) []reconcile.Request {
+	requests := []reconcile.Request{}
+
+	l := log.FromContext(ctx).WithName("Controllers").WithName("Watcher")
+
+	for _, field := range watcherWatchFields {
+		crList := &watcherv1beta1.WatcherList{}
+		listOps := &client.ListOptions{
+			FieldSelector: fields.OneTermEqualSelector(field, src.GetName()),
+			Namespace:     src.GetNamespace(),
+		}
+		err := r.Client.List(ctx, crList, listOps)
+		if err != nil {
+			l.Error(err, fmt.Sprintf("listing %s for field: %s - %s", crList.GroupVersionKind().Kind, field, src.GetNamespace()))
+			return requests
+		}
+
+		for _, item := range crList.Items {
+			l.Info(fmt.Sprintf("input source %s changed, reconcile: %s - %s", src.GetName(), item.GetName(), item.GetNamespace()))
+
+			requests = append(requests,
+				reconcile.Request{
+					NamespacedName: types.NamespacedName{
+						Name:      item.GetName(),
+						Namespace: item.GetNamespace(),
+					},
+				},
+			)
+		}
+	}
+
+	return requests
 }

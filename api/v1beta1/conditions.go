@@ -24,4 +24,6 @@ const (
 	WatcherAPIReadyMessage = "WatcherAPI successfully created"
 	// WatcherAPIReadyErrorMessage -
 	WatcherAPIReadyErrorMessage = "WatcherAPI error occured %s"
+	// WatcherPrometheusSecretErrorMessage -
+	WatcherPrometheusSecretErrorMessage = "Error with prometheus config secret"
 )

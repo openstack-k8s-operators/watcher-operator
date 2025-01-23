@@ -65,6 +65,11 @@ type WatcherCommon struct {
 	CustomServiceConfig string `json:"customServiceConfig,omitempty"`
 
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=metric-storage-prometheus-config
+	// Secret containing prometheus connection parameters
+	PrometheusSecret string `json:"prometheusSecret"`
+
+	// +kubebuilder:validation:Optional
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	// TLS - Parameters related to the TLS
 	TLS tls.API `json:"tls,omitempty"`
