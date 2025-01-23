@@ -18,8 +18,10 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -174,6 +176,25 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return result, err
 	}
 
+	// Prometheus config secret
+
+	hashPrometheus, _, prometheusSecret, err := ensureSecret(
+		ctx,
+		types.NamespacedName{Namespace: instance.Namespace, Name: instance.Spec.PrometheusSecret},
+		[]string{
+			PrometheusHost,
+			PrometheusPort,
+			PrometheusCaCert,
+		},
+		helper.GetClient(),
+		&instance.Status.Conditions,
+		r.RequeueTimeout,
+	)
+	if err != nil || hashPrometheus == "" {
+		// Empty hash means that there is some problem retrieving the key from the secret
+		return ctrl.Result{}, errors.New("error retrieving required data from prometheus secret")
+	}
+
 	configVars[instance.Spec.Secret] = env.SetValue(secretHash)
 
 	// all our input checks out so report InputReady
@@ -198,7 +219,7 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 	}
 
-	err = r.generateServiceConfigs(ctx, instance, secret, memcached, helper, &configVars)
+	err = r.generateServiceConfigs(ctx, instance, secret, prometheusSecret, memcached, helper, &configVars)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -226,7 +247,7 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	instance.Status.Conditions.MarkTrue(condition.ServiceConfigReadyCondition, condition.ServiceConfigReadyMessage)
 
-	result, err = r.createDeployment(ctx, helper, instance, inputHash)
+	result, err = r.createDeployment(ctx, helper, instance, prometheusSecret, inputHash)
 	if err != nil {
 		return result, err
 	}
@@ -260,6 +281,7 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 func (r *WatcherAPIReconciler) generateServiceConfigs(
 	ctx context.Context, instance *watcherv1beta1.WatcherAPI,
 	secret corev1.Secret,
+	prometheusSecret corev1.Secret,
 	memcachedInstance *memcachedv1.Memcached,
 	helper *helper.Helper, envVars *map[string]env.Setter,
 ) error {
@@ -309,6 +331,13 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 	databaseHostname := string(secret.Data[DatabaseHostname])
 	databasePassword := string(secret.Data[DatabasePassword])
 
+	prometheusHost := string(prometheusSecret.Data[PrometheusHost])
+	prometheusPort := string(prometheusSecret.Data[PrometheusPort])
+	var prometheusCaCertPath string
+	if string(prometheusSecret.Data[PrometheusCaCert]) != "" {
+		prometheusCaCertPath = filepath.Join(watcher.PrometheusCaCertFolderPath, PrometheusCaCert)
+	}
+
 	var CaFilePath string
 	if instance.Spec.TLS.CaBundleSecretName != "" {
 		CaFilePath = tls.DownstreamTLSCABundlePath
@@ -330,6 +359,9 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 		"LogFile":                  fmt.Sprintf("%s%s.log", watcher.WatcherLogPath, instance.Name),
 		"APIPublicPort":            fmt.Sprintf("%d", watcher.WatcherPublicPort),
 		"CaFilePath":               CaFilePath,
+		"PrometheusHost":           prometheusHost,
+		"PrometheusPort":           prometheusPort,
+		"PrometheusCaCertPath":     prometheusCaCertPath,
 	}
 
 	// create httpd  vhost template parameters
@@ -350,13 +382,20 @@ func (r *WatcherAPIReconciler) createDeployment(
 	ctx context.Context,
 	helper *helper.Helper,
 	instance *watcherv1beta1.WatcherAPI,
+	prometheusSecret corev1.Secret,
 	configHash string,
 ) (ctrl.Result, error) {
 	Log := r.GetLogger(ctx)
 	Log.Info(fmt.Sprintf("Defining WatcherAPI deployment '%s'", instance.Name))
 
+	// If there prometheus config is providing CA cert a volume must be mounted
+	var prometheusCaCertVolume = false
+	if string(prometheusSecret.Data[PrometheusCaCert]) != "" {
+		prometheusCaCertVolume = true
+	}
+
 	// define a new Deployment object
-	deploymentDef, err := watcherapi.Deployment(instance, configHash, getAPIServiceLabels())
+	deploymentDef, err := watcherapi.Deployment(instance, configHash, prometheusCaCertVolume, getAPIServiceLabels())
 	if err != nil {
 		instance.Status.Conditions.Set(condition.FalseCondition(
 			condition.DeploymentReadyCondition,
@@ -366,6 +405,7 @@ func (r *WatcherAPIReconciler) createDeployment(
 			err.Error()))
 		return ctrl.Result{}, err
 	}
+
 	Log.Info(fmt.Sprintf("Getting deployment '%s'", instance.Name))
 	deploymentObject := deployment.NewDeployment(deploymentDef, time.Duration(5)*time.Second)
 	Log.Info(fmt.Sprintf("Got deployment '%s'", instance.Name))
@@ -611,6 +651,18 @@ func (r *WatcherAPIReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			return nil
 		}
 		return []string{cr.Spec.Secret}
+	}); err != nil {
+		return err
+	}
+
+	// index prometheusSecretField
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &watcherv1beta1.WatcherAPI{}, prometheusSecretField, func(rawObj client.Object) []string {
+		// Extract the secret name from the spec, if one is provided
+		cr := rawObj.(*watcherv1beta1.WatcherAPI)
+		if cr.Spec.PrometheusSecret == "" {
+			return nil
+		}
+		return []string{cr.Spec.PrometheusSecret}
 	}); err != nil {
 		return err
 	}

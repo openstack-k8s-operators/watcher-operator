@@ -31,6 +31,7 @@ const (
 var (
 	apiWatchFields = []string{
 		passwordSecretField,
+		prometheusSecretField,
 	}
 	watcherWatchFields = []string{
 		passwordSecretField,

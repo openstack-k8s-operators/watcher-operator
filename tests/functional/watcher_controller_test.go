@@ -813,7 +813,7 @@ var _ = Describe("Watcher controller", func() {
 			deployment := th.GetDeployment(watcherTest.WatcherAPIDeployment)
 			Expect(deployment.Spec.Template.Spec.ServiceAccountName).To(Equal("watcher-watcher"))
 			Expect(int(*deployment.Spec.Replicas)).To(Equal(2))
-			Expect(deployment.Spec.Template.Spec.Volumes).To(HaveLen(4))
+			Expect(deployment.Spec.Template.Spec.Volumes).To(HaveLen(5))
 			Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(2))
 			Expect(deployment.Spec.Selector.MatchLabels).To(Equal(map[string]string{"service": "watcher-api"}))
 
@@ -823,6 +823,7 @@ var _ = Describe("Watcher controller", func() {
 			Expect(createdConfigSecret).ShouldNot(BeNil())
 			Expect(createdConfigSecret.Data["01-global-custom.conf"]).Should(Equal([]byte("# Global config")))
 			Expect(createdConfigSecret.Data["02-service-custom.conf"]).Should(Equal([]byte("# Service config")))
+
 		})
 
 	})
