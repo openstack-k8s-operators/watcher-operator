@@ -8,6 +8,20 @@
       "perm": "0600"
     },
     {
+      "source": "/var/lib/config-data/default/01-global-custom.conf",
+      "dest": "/etc/watcher/watcher.conf.d/01-global-custom.conf",
+      "owner": "watcher",
+      "perm": "0600",
+      "optional": true
+    },
+    {
+      "source": "/var/lib/config-data/default/02-service-custom.conf",
+      "dest": "/etc/watcher/watcher.conf.d/02-service-custom.conf",
+      "owner": "watcher",
+      "perm": "0600",
+      "optional": true
+    },
+    {
       "source": "/var/lib/config-data/default/10-watcher-wsgi-main.conf",
       "dest": "/etc/httpd/conf.d/10-watcher-wsgi-main.conf",
       "owner": "root",

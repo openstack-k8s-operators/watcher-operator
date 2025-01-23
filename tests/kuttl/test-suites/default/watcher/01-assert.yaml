@@ -20,6 +20,7 @@ spec:
   apiServiceTemplate:
     replicas: 1
     resources: {}
+  prometheusSecret: metric-storage-prometheus-config
 status:
   apiServiceReadyCount: 1
   conditions:

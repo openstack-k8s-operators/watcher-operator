@@ -59,6 +59,17 @@ type WatcherCommon struct {
 	NodeSelector *map[string]string `json:"nodeSelector,omitempty"`
 
 	// +kubebuilder:validation:Optional
+	// CustomServiceConfig - customize the service config using this parameter to change service defaults,
+	// or overwrite rendered information using raw OpenStack config format. The content gets added to
+	// to /etc/<service>/<service>.conf.d directory as a custom config file.
+	CustomServiceConfig string `json:"customServiceConfig,omitempty"`
+
+	// +kubebuilder:validation:Required
+	// +kubebuilder:default=metric-storage-prometheus-config
+	// Secret containing all passwords / keys needed
+	PrometheusSecret string `json:"prometheusSecret"`
+
+	// +kubebuilder:validation:Optional
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	// TLS - Parameters related to the TLS
 	TLS tls.API `json:"tls,omitempty"`
@@ -148,6 +159,12 @@ type WatcherSubCrsTemplate struct {
 	// NodeSelector to target subset of worker nodes running this component. Setting here overrides
 	// any global NodeSelector settings within the Watcher CR.
 	NodeSelector *map[string]string `json:"nodeSelector,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// CustomServiceConfig - customize the service config using this parameter to change service defaults,
+	// or overwrite rendered information using raw OpenStack config format. The content gets added to
+	// to /etc/<service>/<service>.conf.d directory as a custom config file.
+	CustomServiceConfig string `json:"customServiceConfig,omitempty"`
 }
 
 // MetalLBConfig to configure the MetalLB loadbalancer service

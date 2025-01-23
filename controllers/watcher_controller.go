@@ -26,10 +26,16 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	rabbitmqv1 "github.com/openstack-k8s-operators/infra-operator/apis/rabbitmq/v1beta1"
 	keystonev1 "github.com/openstack-k8s-operators/keystone-operator/api/v1beta1"
@@ -215,6 +221,7 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	// end of TransportURL creation
 
 	// Check we have the required inputs
+	// Top level secret
 	hash, _, inputSecret, err := ensureSecret(
 		ctx,
 		types.NamespacedName{Namespace: instance.Namespace, Name: instance.Spec.Secret},
@@ -230,6 +237,7 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		return ctrl.Result{}, errors.New("error retrieving required data from secret")
 	}
 
+	// TransportURL Secret
 	hashTransporturl, _, transporturlSecret, err := ensureSecret(
 		ctx,
 		types.NamespacedName{Namespace: instance.Namespace, Name: transportURL.Status.SecretName},
@@ -243,6 +251,25 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	if err != nil || hashTransporturl == "" {
 		// Empty hash means that there is some problem retrieving the key from the secret
 		return ctrl.Result{}, errors.New("error retrieving required data from transporturl secret")
+	}
+
+	// Prometheus config secret
+
+	hashPrometheus, _, _, err := ensureSecret(
+		ctx,
+		types.NamespacedName{Namespace: instance.Namespace, Name: instance.Spec.PrometheusSecret},
+		[]string{
+			PrometheusHost,
+			PrometheusPort,
+			PrometheusCaCert,
+		},
+		helper.GetClient(),
+		&instance.Status.Conditions,
+		r.RequeueTimeout,
+	)
+	if err != nil || hashPrometheus == "" {
+		// Empty hash means that there is some problem retrieving the key from the secret
+		return ctrl.Result{}, errors.New("error retrieving required data from prometheus secret")
 	}
 
 	subLevelSecretName, err := r.createSubLevelSecret(ctx, helper, instance, transporturlSecret, inputSecret, db)
@@ -641,7 +668,8 @@ func (r *WatcherReconciler) generateServiceConfigDBSync(
 	}
 	// customData hold any customization for the service.
 	customData := map[string]string{
-		"my.cnf": db.GetDatabaseClientConfig(tlsCfg), //(mschuppert) for now just get the default my.cnf
+		watcher.GlobalCustomConfigFileName: instance.Spec.CustomServiceConfig,
+		"my.cnf":                           db.GetDatabaseClientConfig(tlsCfg), //(mschuppert) for now just get the default my.cnf
 	}
 
 	labels := labels.GetLabels(instance, labels.GetGroupLabel(watcher.ServiceName), map[string]string{})
@@ -733,6 +761,7 @@ func (r *WatcherReconciler) createSubLevelSecret(
 		DatabaseUsername:                        databaseAccount.Spec.UserName,
 		DatabasePassword:                        string(databaseSecret.Data[mariadbv1.DatabasePasswordSelector]),
 		DatabaseHostname:                        db.GetDatabaseHostname(),
+		watcher.GlobalCustomConfigFileName:      instance.Spec.CustomServiceConfig,
 	}
 	secretName := instance.Name
 
@@ -762,11 +791,12 @@ func (r *WatcherReconciler) ensureAPI(
 	watcherAPISpec := watcherv1beta1.WatcherAPISpec{
 		Secret: instance.Name,
 		WatcherCommon: watcherv1beta1.WatcherCommon{
-			ServiceUser:       instance.Spec.ServiceUser,
-			PasswordSelectors: instance.Spec.PasswordSelectors,
-			MemcachedInstance: instance.Spec.MemcachedInstance,
-			NodeSelector:      instance.Spec.APIServiceTemplate.NodeSelector,
-			PreserveJobs:      instance.Spec.PreserveJobs,
+			ServiceUser:         instance.Spec.ServiceUser,
+			PasswordSelectors:   instance.Spec.PasswordSelectors,
+			MemcachedInstance:   instance.Spec.MemcachedInstance,
+			NodeSelector:        instance.Spec.APIServiceTemplate.NodeSelector,
+			PreserveJobs:        instance.Spec.PreserveJobs,
+			CustomServiceConfig: instance.Spec.APIServiceTemplate.CustomServiceConfig,
 		},
 		WatcherSubCrsCommon: watcherv1beta1.WatcherSubCrsCommon{
 			ContainerImage: instance.Spec.APIContainerImageURL,
@@ -785,6 +815,9 @@ func (r *WatcherReconciler) ensureAPI(
 
 	// We need to have TLS defined in SubCRs to have some values available
 	watcherAPISpec.TLS = instance.Spec.TLS
+
+	// We need to have the PrometheusSecret in watcherapi
+	watcherAPISpec.PrometheusSecret = instance.Spec.PrometheusSecret
 
 	apiDeployment := &watcherv1beta1.WatcherAPI{
 		ObjectMeta: metav1.ObjectMeta{
@@ -868,6 +901,31 @@ func (r *WatcherReconciler) reconcileDelete(ctx context.Context, instance *watch
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *WatcherReconciler) SetupWithManager(mgr ctrl.Manager) error {
+
+	// index passwordSecretField
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &watcherv1beta1.Watcher{}, passwordSecretField, func(rawObj client.Object) []string {
+		// Extract the secret name from the spec, if one is provided
+		cr := rawObj.(*watcherv1beta1.Watcher)
+		if cr.Spec.Secret == "" {
+			return nil
+		}
+		return []string{cr.Spec.Secret}
+	}); err != nil {
+		return err
+	}
+
+	// index prometheusSecretField
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &watcherv1beta1.Watcher{}, prometheusSecretField, func(rawObj client.Object) []string {
+		// Extract the secret name from the spec, if one is provided
+		cr := rawObj.(*watcherv1beta1.Watcher)
+		if cr.Spec.PrometheusSecret == "" {
+			return nil
+		}
+		return []string{cr.Spec.PrometheusSecret}
+	}); err != nil {
+		return err
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&watcherv1beta1.Watcher{}).
 		Owns(&watcherv1beta1.WatcherAPI{}).
@@ -882,5 +940,44 @@ func (r *WatcherReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&rbacv1.RoleBinding{}).
 		Owns(&batchv1.Job{}).
 		Owns(&corev1.Secret{}).
+		Watches(
+			&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.findObjectsForSrc),
+			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
+		).
 		Complete(r)
+}
+
+func (r *WatcherReconciler) findObjectsForSrc(ctx context.Context, src client.Object) []reconcile.Request {
+	requests := []reconcile.Request{}
+
+	l := log.FromContext(ctx).WithName("Controllers").WithName("Watcher")
+
+	for _, field := range watcherWatchFields {
+		crList := &watcherv1beta1.WatcherList{}
+		listOps := &client.ListOptions{
+			FieldSelector: fields.OneTermEqualSelector(field, src.GetName()),
+			Namespace:     src.GetNamespace(),
+		}
+		err := r.Client.List(ctx, crList, listOps)
+		if err != nil {
+			l.Error(err, fmt.Sprintf("listing %s for field: %s - %s", crList.GroupVersionKind().Kind, field, src.GetNamespace()))
+			return requests
+		}
+
+		for _, item := range crList.Items {
+			l.Info(fmt.Sprintf("input source %s changed, reconcile: %s - %s", src.GetName(), item.GetName(), item.GetNamespace()))
+
+			requests = append(requests,
+				reconcile.Request{
+					NamespacedName: types.NamespacedName{
+						Name:      item.GetName(),
+						Namespace: item.GetNamespace(),
+					},
+				},
+			)
+		}
+	}
+
+	return requests
 }

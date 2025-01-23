@@ -1,6 +1,8 @@
 package watcherapi
 
 import (
+	"path/filepath"
+
 	"github.com/openstack-k8s-operators/lib-common/modules/common/env"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -20,6 +22,7 @@ const (
 func Deployment(
 	instance *watcherv1beta1.WatcherAPI,
 	configHash string,
+	prometheusCaCertVolume bool,
 	labels map[string]string,
 ) (*appsv1.Deployment, error) {
 
@@ -69,6 +72,27 @@ func Deployment(
 	if instance.Spec.TLS.CaBundleSecretName != "" {
 		apiVolumes = append(apiVolumes, instance.Spec.TLS.CreateVolume())
 		apiVolumeMounts = append(apiVolumeMounts, instance.Spec.TLS.CreateVolumeMounts(nil)...)
+	}
+
+	if prometheusCaCertVolume {
+		apiVolumes = append(apiVolumes,
+			corev1.Volume{
+				Name: "custom-prometheus-ca",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: instance.Spec.PrometheusSecret,
+					},
+				},
+			},
+		)
+		apiVolumeMounts = append(apiVolumeMounts,
+			corev1.VolumeMount{
+				Name:      "custom-prometheus-ca",
+				MountPath: filepath.Join(watcher.PrometheusCaCertFolderPath, watcher.PrometheusCaCert),
+				SubPath:   watcher.PrometheusCaCert,
+				ReadOnly:  true,
+			},
+		)
 	}
 
 	deployment := &appsv1.Deployment{

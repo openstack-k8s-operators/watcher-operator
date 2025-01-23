@@ -47,6 +47,12 @@ spec:
                   replicas: 1
                 description: APIServiceTemplate - define the watcher-api service
                 properties:
+                  customServiceConfig:
+                    description: |-
+                      CustomServiceConfig - customize the service config using this parameter to change service defaults,
+                      or overwrite rendered information using raw OpenStack config format. The content gets added to
+                      to /etc/<service>/<service>.conf.d directory as a custom config file.
+                    type: string
                   nodeSelector:
                     additionalProperties:
                       type: string
@@ -167,6 +173,12 @@ spec:
               applierContainerImageURL:
                 description: ApplierContainerImageURL
                 type: string
+              customServiceConfig:
+                description: |-
+                  CustomServiceConfig - customize the service config using this parameter to change service defaults,
+                  or overwrite rendered information using raw OpenStack config format. The content gets added to
+                  to /etc/<service>/<service>.conf.d directory as a custom config file.
+                type: string
               databaseAccount:
                 default: watcher
                 description: DatabaseAccount - MariaDBAccount CR name used for watcher
@@ -209,6 +221,10 @@ spec:
                 description: PreserveJobs - do not delete jobs after they finished
                   e.g. to check logs
                 type: boolean
+              prometheusSecret:
+                default: metric-storage-prometheus-config
+                description: Secret containing all passwords / keys needed
+                type: string
               rabbitMqClusterName:
                 default: rabbitmq
                 description: |-
@@ -260,6 +276,7 @@ spec:
             - applierContainerImageURL
             - databaseInstance
             - decisionengineContainerImageURL
+            - prometheusSecret
             - rabbitMqClusterName
             type: object
           status:
