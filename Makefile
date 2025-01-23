@@ -381,15 +381,20 @@ watcher: export CATALOG_IMG=${CATALOG_IMAGE}
 watcher: ## Install watcher operator via olm
 	bash ci/olm.sh
 	oc apply -f ci/olm.yaml
+	timeout 300s bash -c "while ! (oc get csv -n  openshift-operators -l  operators.coreos.com/cluster-observability-operator.openshift-operators -o jsonpath='{.items[*].status.phase}' | grep Succeeded); do sleep 10; done"
 	timeout 300s bash -c "while ! (oc get csv -n openstack-operators -l operators.coreos.com/watcher-operator.openstack-operators -o jsonpath='{.items[*].status.phase}' | grep Succeeded); do sleep 1; done"
 
 .PHONY: watcher_deploy
 watcher_deploy: ## Deploy watcher service
+	oc apply -f config/samples/watcher_requirements.yaml
 	oc apply -f config/samples/watcher_v1beta1_watcher.yaml
+	oc wait watcher watcher --for condition=Ready --timeout=600s
 
 .PHONY: watcher_deploy_cleanup
 watcher_deploy_cleanup: ## Undeploy watcher service
 	oc delete -f config/samples/watcher_v1beta1_watcher.yaml
+	oc delete -f config/samples/watcher_requirements.yaml
+	timeout 300s bash -c "while (oc get watcher watcher); do sleep 10; done"
 
 .PHONY: watcher_cleanup
 watcher_cleanup: export CATALOG_IMG=${CATALOG_IMAGE}

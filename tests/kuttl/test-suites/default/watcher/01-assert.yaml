@@ -20,6 +20,7 @@ spec:
   apiServiceTemplate:
     replicas: 1
     resources: {}
+  prometheusSecret: metric-storage-prometheus-config
 status:
   apiServiceReadyCount: 1
   conditions:
@@ -76,6 +77,14 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: watcher-db-secret
+  namespace: watcher-kuttl-default
+  finalizers:
+  - openstack.org/watcher
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: metric-storage-prometheus-config
   namespace: watcher-kuttl-default
   finalizers:
   - openstack.org/watcher

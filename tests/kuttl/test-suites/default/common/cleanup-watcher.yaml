@@ -4,3 +4,9 @@ delete:
 - apiVersion: watcher.openstack.org/v1beta1
   kind: Watcher
   name: watcher-kuttl
+- apiVersion: v1
+  kind: Secret
+  name: metric-storage-prometheus-config
+- apiVersion: v1
+  kind: Secret
+  name: custom-prometheus-config

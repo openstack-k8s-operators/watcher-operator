@@ -110,3 +110,13 @@ metadata:
   finalizers:
   - openstack.org/watcherdecisionengine
   name: watcherdecisionengine-kuttl
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: metric-storage-prometheus-config
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: custom-prometheus-config

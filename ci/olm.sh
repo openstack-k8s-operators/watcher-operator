@@ -1,5 +1,17 @@
 cat > ci/olm.yaml <<EOF_CAT
 ---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: cluster-observability-operator
+  namespace: openshift-operators
+spec:
+  channel: development
+  installPlanApproval: Automatic
+  name: cluster-observability-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+---
 apiVersion: v1
 kind: Namespace
 metadata:

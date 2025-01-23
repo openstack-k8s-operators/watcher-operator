@@ -1,0 +1,35 @@
+apiVersion: core.openstack.org/v1beta1
+kind: OpenStackControlPlane
+metadata:
+  name: openstack
+spec:
+  telemetry:
+    template:
+      metricStorage:
+        enabled: true
+        dashboardsEnabled: true
+        monitoringStack:
+          alertingEnabled: true
+          scrapeInterval: 30s
+          storage:
+            strategy: persistent
+            retention: 24h
+            persistent:
+              pvcStorageRequest: 1G
+      autoscaling:
+        enabled: false
+        aodh:
+          passwordSelectors:
+          databaseAccount: aodh
+          databaseInstance: openstack
+          secret: osp-secret
+        heatInstance: heat
+      ceilometer:
+        enabled: true
+        secret: osp-secret
+        passwordSelector:
+          aodhService: AodhPassword
+          ceilometerService: CeilometerPassword
+        serviceUser: ceilometer
+      logging:
+        enabled: false
