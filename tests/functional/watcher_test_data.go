@@ -38,6 +38,7 @@ type WatcherTestData struct {
 	WatcherDatabaseAccount       types.NamespacedName
 	WatcherDatabaseAccountSecret types.NamespacedName
 	InternalTopLevelSecretName   types.NamespacedName
+	PrometheusSecretName         types.NamespacedName
 	WatcherTransportURL          types.NamespacedName
 	KeystoneServiceName          types.NamespacedName
 	WatcherAPI                   types.NamespacedName
@@ -84,6 +85,10 @@ func GetWatcherTestData(watcherName types.NamespacedName) WatcherTestData {
 		InternalTopLevelSecretName: types.NamespacedName{
 			Namespace: watcherName.Namespace,
 			Name:      "test-osp-secret",
+		},
+		PrometheusSecretName: types.NamespacedName{
+			Namespace: watcherName.Namespace,
+			Name:      "metric-storage-prometheus-config",
 		},
 		RabbitMqClusterName: "rabbitmq",
 		WatcherTransportURL: types.NamespacedName{

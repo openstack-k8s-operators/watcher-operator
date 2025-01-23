@@ -40,4 +40,7 @@ const (
 
 	// ConfigVolume is the default volume name used to mount service config
 	ConfigVolume = "config-data"
+
+	// Path to deploy the Prometheus CaCert if needed
+	PrometheusCaCertFolderPath = "/etc/pki/ca-trust/extracted/pem/prometheus/"
 )

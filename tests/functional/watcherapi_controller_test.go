@@ -34,6 +34,7 @@ var _ = Describe("WatcherAPI controller with minimal spec values", func() {
 			Expect(WatcherAPI.Spec.Secret).Should(Equal("osp-secret"))
 			Expect(WatcherAPI.Spec.MemcachedInstance).Should(Equal("memcached"))
 			Expect(WatcherAPI.Spec.PasswordSelectors).Should(Equal(watcherv1beta1.PasswordSelector{Service: "WatcherPassword"}))
+			Expect(WatcherAPI.Spec.PrometheusSecret).Should(Equal("metric-storage-prometheus-config"))
 		})
 
 		It("should have the Status fields initialized", func() {
@@ -62,6 +63,7 @@ var _ = Describe("WatcherAPI controller", func() {
 			WatcherAPI := GetWatcherAPI(watcherTest.WatcherAPI)
 			Expect(WatcherAPI.Spec.Secret).Should(Equal("test-osp-secret"))
 			Expect(WatcherAPI.Spec.MemcachedInstance).Should(Equal("memcached"))
+			Expect(WatcherAPI.Spec.PrometheusSecret).Should(Equal("metric-storage-prometheus-config"))
 		})
 
 		It("should have the Status fields initialized", func() {
@@ -119,6 +121,14 @@ var _ = Describe("WatcherAPI controller", func() {
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
+			prometheusSecret := th.CreateSecret(
+				watcherTest.PrometheusSecretName,
+				map[string][]byte{
+					"host": []byte("prometheus.example.com"),
+					"port": []byte("9090"),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, prometheusSecret)
 			DeferCleanup(
 				mariadb.DeleteDBService,
 				mariadb.CreateDBService(
@@ -301,6 +311,14 @@ var _ = Describe("WatcherAPI controller", func() {
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
+			prometheusSecret := th.CreateSecret(
+				watcherTest.PrometheusSecretName,
+				map[string][]byte{
+					"host": []byte("prometheus.example.com"),
+					"port": []byte("9090"),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, prometheusSecret)
 
 			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, GetDefaultWatcherAPISpec()))
 		})
@@ -323,6 +341,37 @@ var _ = Describe("WatcherAPI controller", func() {
 			)
 		})
 	})
+	When("prometheus config secret is not created", func() {
+		BeforeEach(func() {
+			secret := th.CreateSecret(
+				watcherTest.InternalTopLevelSecretName,
+				map[string][]byte{
+					"WatcherPassword":       []byte("service-password"),
+					"transport_url":         []byte("url"),
+					"database_username":     []byte("username"),
+					"database_password":     []byte("password"),
+					"database_hostname":     []byte("hostname"),
+					"database_account":      []byte("watcher"),
+					"01-global-custom.conf": []byte(""),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, secret)
+
+			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, GetDefaultWatcherAPISpec()))
+		})
+
+		It("should have input ready false", func() {
+			th.ExpectConditionWithDetails(
+				watcherTest.WatcherAPI,
+				ConditionGetterFunc(WatcherAPIConditionGetter),
+				condition.InputReadyCondition,
+				corev1.ConditionFalse,
+				condition.RequestedReason,
+				watcherv1beta1.WatcherPrometheusSecretErrorMessage,
+			)
+		})
+	})
+
 	When("secret, db and memcached are created, but there is no keystoneapi", func() {
 		BeforeEach(func() {
 			secret := th.CreateSecret(
@@ -338,6 +387,14 @@ var _ = Describe("WatcherAPI controller", func() {
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
+			prometheusSecret := th.CreateSecret(
+				watcherTest.PrometheusSecretName,
+				map[string][]byte{
+					"host": []byte("prometheus.example.com"),
+					"port": []byte("9090"),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, prometheusSecret)
 			memcachedSpec := memcachedv1.MemcachedSpec{
 				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
 					Replicas: ptr.To(int32(1)),
@@ -391,6 +448,14 @@ var _ = Describe("WatcherAPI controller", func() {
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
+			prometheusSecret := th.CreateSecret(
+				watcherTest.PrometheusSecretName,
+				map[string][]byte{
+					"host": []byte("prometheus.example.com"),
+					"port": []byte("9090"),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, prometheusSecret)
 			spec := GetDefaultWatcherAPISpec()
 			apiOverrideSpec := map[string]interface{}{}
 			endpoint := map[string]interface{}{}

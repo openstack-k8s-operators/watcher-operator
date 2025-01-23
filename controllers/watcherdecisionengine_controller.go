@@ -231,6 +231,18 @@ func (r *WatcherDecisionEngineReconciler) SetupWithManager(mgr ctrl.Manager) err
 		return err
 	}
 
+	// index prometheusSecretField
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &watcherv1beta1.WatcherDecisionEngine{}, prometheusSecretField, func(rawObj client.Object) []string {
+		// Extract the secret name from the spec, if one is provided
+		cr := rawObj.(*watcherv1beta1.WatcherDecisionEngine)
+		if cr.Spec.PrometheusSecret == "" {
+			return nil
+		}
+		return []string{cr.Spec.PrometheusSecret}
+	}); err != nil {
+		return err
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&watcherv1beta1.WatcherDecisionEngine{}).
 		Owns(&corev1.Secret{}).
