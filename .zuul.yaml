@@ -22,10 +22,37 @@
     vars:
       watcher_repo: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator"
       watcher_hook: "{{ watcher_repo }}/ci/playbooks/deploy_watcher_service.yaml"
+      watcher_coo_hook: "{{ watcher_repo }}/ci/playbooks/deploy_cluster_observability_operator.yaml"
+      # controlplane customization to deploy telemetry service
+      cifmw_edpm_prepare_timeout: 60
+      cifmw_edpm_prepare_kustomizations:
+        - apiVersion: kustomize.config.k8s.io/v1beta1
+          kind: Kustomization
+          namespace: openstack
+          patches:
+          - patch: |-
+              apiVersion: core.openstack.org/v1beta1
+              kind: OpenStackControlPlane
+              metadata:
+                name: unused
+              spec:
+                telemetry:
+                  enabled: true
+                  template:
+                    metricStorage:
+                      enabled: true
+                      monitoringStack:
+                        alertingEnabled: false
+            target:
+              kind: OpenStackControlPlane
       cifmw_install_yamls_whitelisted_vars: &install_yamls_whitelist
         - 'WATCHER_REPO'
         - 'WATCHER_BRANCH'
         - 'OUTPUT_DIR'
+      pre_deploy_create_coo_subscription:
+        - name: Deploy cluster-observability-operator
+          type: playbook
+          source: "{{ watcher_coo_hook }}"
       post_deploy:
         - name: Deploy watcher service
           type: playbook
