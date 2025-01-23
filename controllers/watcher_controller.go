@@ -249,9 +249,6 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	if err != nil {
 		return ctrl.Result{}, nil
 	}
-	// the subLevelSecretName will be the value for the Secret field in the
-	// subCrs spec, once they are created by Watcher
-	_ = subLevelSecretName
 
 	instance.Status.Conditions.MarkTrue(condition.InputReadyCondition, condition.InputReadyMessage)
 	// End of Input Ready check
@@ -291,7 +288,7 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	}
 
 	// Create Watcher API
-	_, _, err = r.ensureAPI(ctx, instance)
+	_, _, err = r.ensureAPI(ctx, instance, subLevelSecretName)
 
 	if err != nil {
 		return ctrl.Result{}, err
@@ -757,12 +754,13 @@ func (r *WatcherReconciler) createSubLevelSecret(
 func (r *WatcherReconciler) ensureAPI(
 	ctx context.Context,
 	instance *watcherv1beta1.Watcher,
+	secretName string,
 ) (*watcherv1beta1.WatcherAPI, controllerutil.OperationResult, error) {
 	Log := r.GetLogger(ctx)
 	Log.Info(fmt.Sprintf("Creating WatcherAPI '%s'", instance.Name))
 
 	watcherAPISpec := watcherv1beta1.WatcherAPISpec{
-		Secret: instance.Name,
+		Secret: secretName,
 		WatcherCommon: watcherv1beta1.WatcherCommon{
 			ServiceUser:         instance.Spec.ServiceUser,
 			PasswordSelectors:   instance.Spec.PasswordSelectors,
