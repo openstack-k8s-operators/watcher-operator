@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: metric-storage-prometheus-config
+  namespace: openstack
+stringData:
+  host: metric-storage-prometheus.openstack.svc
+  port: "9090"
+  prometheus_ca.crt: ""

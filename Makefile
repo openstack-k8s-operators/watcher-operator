@@ -385,11 +385,13 @@ watcher: ## Install watcher operator via olm
 
 .PHONY: watcher_deploy
 watcher_deploy: ## Deploy watcher service
+	oc apply -f config/samples/watcher_requirements.yaml
 	oc apply -f config/samples/watcher_v1beta1_watcher.yaml
 
 .PHONY: watcher_deploy_cleanup
 watcher_deploy_cleanup: ## Undeploy watcher service
 	oc delete -f config/samples/watcher_v1beta1_watcher.yaml
+	oc delete -f config/samples/watcher_requirements.yaml
 
 .PHONY: watcher_cleanup
 watcher_cleanup: export CATALOG_IMG=${CATALOG_IMAGE}

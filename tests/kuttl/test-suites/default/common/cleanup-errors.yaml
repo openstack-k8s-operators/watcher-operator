@@ -96,3 +96,13 @@ apiVersion: keystone.openstack.org/v1beta1
 kind: KeystoneEndpoint
 metadata:
   name: watcher
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: metric-storage-prometheus-config
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: custom-prometheus-config

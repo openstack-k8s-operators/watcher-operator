@@ -243,6 +243,7 @@ commands:
       if [ -n "${APIPOD}" ]; then
         [ $(echo $(oc rsh -c watcher-api ${APIPOD} cat /etc/watcher/watcher.conf.d/01-global-custom.conf) |grep -c "^# Global config") == 1 ]
         [ $(echo $(oc rsh -c watcher-api ${APIPOD} cat /etc/watcher/watcher.conf.d/02-service-custom.conf) |grep -c "^# Service config") == 1 ]
+        [ $(echo $(oc rsh -c watcher-api ${APIPOD} cat /etc/watcher/watcher.conf.d/00-default.conf) |grep -czPo '\[prometheus_client\]\s+host\s+=\s+metric-storage-prometheus.watcher-kuttl-default.svc\s+port\s+=\s+9090') == 1 ]
       else
         exit 1
       fi
