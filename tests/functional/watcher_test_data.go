@@ -52,6 +52,7 @@ type WatcherTestData struct {
 	WatcherRouteName             types.NamespacedName
 	WatcherInternalRouteName     types.NamespacedName
 	WatcherKeystoneEndpointName  types.NamespacedName
+	WatcherApplier               types.NamespacedName
 }
 
 // GetWatcherTestData is a function that initialize the WatcherTestData
@@ -139,6 +140,10 @@ func GetWatcherTestData(watcherName types.NamespacedName) WatcherTestData {
 		WatcherKeystoneEndpointName: types.NamespacedName{
 			Namespace: watcherName.Namespace,
 			Name:      "watcher",
+		},
+		WatcherApplier: types.NamespacedName{
+			Namespace: watcherName.Namespace,
+			Name:      "watcher-applier",
 		},
 	}
 }

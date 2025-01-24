@@ -1,0 +1,40 @@
+apiVersion: watcher.openstack.org/v1beta1
+kind: WatcherApplier
+metadata:
+  finalizers:
+  - openstack.org/watcherapplier
+  name: watcher-applier-kuttl
+spec:
+  containerImage: ""
+  memcachedInstance: memcached
+  passwordSelectors:
+    service: WatcherPassword
+  preserveJobs: false
+  replicas: 1
+  resources: {}
+  secret: watcher-kuttl
+  serviceAccount: ""
+  serviceUser: watcher
+  tls:
+    api:
+      internal: {}
+      public: {}
+    caBundleSecretName: combined-ca-bundle
+status:
+  conditions:
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: Ready
+  - message: Input data complete
+    reason: Ready
+    status: "True"
+    type: InputReady
+  - message: " Memcached instance has been provisioned"
+    reason: Ready
+    status: "True"
+    type: MemcachedReady
+  - message: Service config create completed
+    reason: Ready
+    status: "True"
+    type: ServiceConfigReady
