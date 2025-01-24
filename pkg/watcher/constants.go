@@ -20,10 +20,10 @@ const (
 	// DefaultsConfigFileName - File name with default configuration
 	DefaultsConfigFileName = "00-default.conf"
 
-	// GlobalCustomConfigFileName - File name with custom configuration define in Watcher
+	// GlobalCustomConfigFileName - File name with custom configuration defined in Watcher
 	GlobalCustomConfigFileName = "01-global-custom.conf"
 
-	// ServiceCustomConfigFileName - File name with custom configuration define in SubCRs
+	// ServiceCustomConfigFileName - File name with custom configuration defined in SubCRs
 	ServiceCustomConfigFileName = "02-service-custom.conf"
 
 	// LogVolume is the default logVolume name used to mount logs

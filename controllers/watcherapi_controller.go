@@ -268,8 +268,6 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 
 	labels := labels.GetLabels(instance, labels.GetGroupLabel(WatcherAPILabelPrefix), map[string]string{})
 
-	// jgilaber this might be wrong? we should probably get keystonapi in the
-	// watcher controller and set the url in the spec eventually?
 	keystoneAPI, err := keystonev1.GetKeystoneAPI(ctx, helper, instance.Namespace, map[string]string{})
 	// KeystoneAPI not available we should not aggregate the error and continue
 	if err != nil {
@@ -292,8 +290,6 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 		return err
 	}
 	// customData hold any customization for the service.
-	// NOTE jgilaber making an empty map for now, we'll probably want to
-	// implement CustomServiceConfig later
 	var tlsCfg *tls.Service
 	if instance.Spec.TLS.Ca.CaBundleSecretName != "" {
 		tlsCfg = &tls.Service{}
