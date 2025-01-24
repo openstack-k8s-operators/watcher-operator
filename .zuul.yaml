@@ -2,20 +2,19 @@
 - project:
     name: openstack-k8s-operators/watcher-operator
     default-branch: main
+    templates:
+      - opendev-master-watcher-operator-pipeline
     github-check:
       jobs:
         - noop
         - watcher-operator-doc-preview
-        - openstack-meta-content-provider:
-            vars:
-              cifmw_operator_build_meta_build: false
         - watcher-operator-validation
         - watcher-operator-kuttl
 
 - job:
     name: watcher-operator-base
     parent: podified-multinode-edpm-deployment-crc-2comp
-    dependencies: ["openstack-meta-content-provider"]
+    dependencies: ["openstack-meta-content-provider-master"]
     description: |
       A multinode EDPM Zuul job which has one ansible controller, one
       extracted crc and two computes. It will be used for testing watcher-operator.
@@ -23,6 +22,15 @@
       watcher_repo: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator"
       watcher_hook: "{{ watcher_repo }}/ci/playbooks/deploy_watcher_service.yaml"
       watcher_coo_hook: "{{ watcher_repo }}/ci/playbooks/deploy_cluster_observability_operator.yaml"
+      run_tempest: false
+      # Based on current testing, https://github.com/openstack-k8s-operators/watcher-operator/pull/47#issuecomment-2607474033
+      # We need decision engine and applier CRD to ready to run
+      # whole test suite
+      cifmw_test_operator_tempest_include_list: |
+        watcher_tempest_plugin.tests.api.admin.test_api_discovery.TestApiDiscovery
+      # Donot use openstack services containers from meta content provider master
+      # job.
+      cifmw_update_containers_openstack: false
       # controlplane customization to deploy telemetry service
       cifmw_edpm_prepare_timeout: 60
       cifmw_edpm_prepare_kustomizations:
@@ -65,25 +73,37 @@
     parent: watcher-operator-base
     description: |
       A zuul job to validate the watcher operator and its service deployment.
+      It will deploy podified and EDPM using current-podified antelope content.
+      During watcher deployment, It will fetch master current-podified hash and pull
+      openstack watcher services containers from meta content provider.
+      It will test current-podified control plane EDPM deployment with openstack watcher
+      master content.
+    extra-vars:
+      # Override zuul meta content provider provided content_provider_dlrn_md5_hash
+      # var. As returned dlrn md5 hash comes from master release but job is using
+      # antelope content.
+      content_provider_dlrn_md5_hash: ''
     vars:
-      run_tempest: false
-      # Based on current testing, https://github.com/openstack-k8s-operators/watcher-operator/pull/47#issuecomment-2607474033
-      # We need decision engine and applier CRD to ready to run
-      # whole test suite
-      cifmw_test_operator_tempest_include_list: |
-        watcher_tempest_plugin.tests.api.admin.test_api_discovery.TestApiDiscovery
+      # Donot use openstack services containers from meta content provider master
+      # job.
+      cifmw_update_containers_openstack: false
 
 - job:
     name: watcher-operator-kuttl
+    dependencies: ["openstack-meta-content-provider-master"]
     parent: cifmw-multinode-kuttl-operator-target
     description: |
       A zuul job to run watcher operator kuttl tests.
+      It will pull operator images from meta content provider. There is no
+      change in openstack services container images.
     vars:
       operator_name: watcher-operator
       cifmw_install_yamls_whitelisted_vars: *install_yamls_whitelist
       watcher_repo: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator"
       watcher_hook: "{{ watcher_repo }}/ci/playbooks/deploy_watcher_service.yaml"
       deploy_watcher_service: false
+      # Do not fetch dlrn md5 hash
+      fetch_dlrn_hash: false
       # run the hook to install watcher at the end of the cifmw infra playbook. If we try to run it
       # as a standalone plabyook, it tries to load the cifmw ci_script action
       # plugin from the zuul executor and doesn't find it
@@ -93,6 +113,13 @@
           source: "{{ watcher_hook }}"
           extra_vars:
             watcher_catalog_image: "{{ content_provider_registry_ip }}:5001/openstack-k8s-operators/watcher-operator-index:{{ zuul.patchset }}"
+    extra-vars:
+      # Override zuul meta content provider provided content_provider_dlrn_md5_hash
+      # var. As returned dlrn md5 hash comes from master release but job is using
+      # antelope content.
+      content_provider_dlrn_md5_hash: ''
+      # We also need to override the registry otherwise kuttl test will fail
+      content_provider_os_registry_url: "quay.io/podified-master-centos9"
 
 - job:
     name: watcher-operator-doc-preview
@@ -103,3 +130,49 @@
     vars:
       asciidoc_available: true
       doc_available: false
+
+##########################################################
+#                                                        #
+#               Master Zuul Jobs                         #
+#                                                        #
+##########################################################
+- job:
+    name: openstack-meta-content-provider-master
+    description: |
+      A zuul job building content from OpenDev master release.
+    parent: openstack-meta-content-provider
+    vars:
+      cifmw_operator_build_meta_build: false
+      cifmw_bop_openstack_release: master
+      cifmw_bop_dlrn_baseurl: "https://trunk.rdoproject.org/centos9-master"
+      cifmw_repo_setup_branch: master
+      cifmw_build_containers_registry_namespace: podified-master-centos9
+
+- job:
+    name: watcher-operator-validation-master
+    parent: watcher-operator-base
+    description: |
+      A Zuul job consuming content from openstack-meta-content-provider-master
+      and deploying EDPM with master content.
+    vars:
+      cifmw_repo_setup_branch: master
+      # To consume containers from meta content provider
+      cifmw_update_containers_openstack: true
+      cifmw_update_containers_org: podified-master-centos9
+
+##########################################################
+#                                                        #
+#               Project Template                         #
+#                                                        #
+##########################################################
+
+- project-template:
+    name: opendev-master-watcher-operator-pipeline
+    description: |
+      Project template to run meta content provider and
+      EDPM job with master opendev and github operator
+      content.
+    github-check:
+      jobs:
+        - openstack-meta-content-provider-master
+        - watcher-operator-validation-master
