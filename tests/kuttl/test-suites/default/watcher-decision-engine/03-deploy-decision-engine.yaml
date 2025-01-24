@@ -1,0 +1,9 @@
+apiVersion: watcher.openstack.org/v1beta1
+kind: WatcherDecisionEngine
+metadata:
+  name: watcher-kuttl
+  namespace: watcher-kuttl-default
+spec:
+  databaseInstance: "openstack"
+  tls:
+    caBundleSecretName: "combined-ca-bundle"
