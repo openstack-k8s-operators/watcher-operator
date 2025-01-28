@@ -1,0 +1,33 @@
+apiVersion: watcher.openstack.org/v1beta1
+kind: WatcherDecisionEngine
+metadata:
+  finalizers:
+  - openstack.org/watcherdecisionengine
+  name: watcherdecisionengine-kuttl
+spec:
+  passwordSelectors:
+    service: WatcherPassword
+  secret: osp-secret
+  memcachedInstance: memcached
+  preserveJobs: false
+  serviceUser: watcher
+  replicas: 1
+  containerImage: ""
+status:
+  conditions:
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: Ready
+  - message: Input data complete
+    reason: Ready
+    status: "True"
+    type: InputReady
+  - message: ' Memcached instance has been provisioned'
+    reason: Ready
+    status: "True"
+    type: MemcachedReady
+  - message: Service config create completed
+    reason: Ready
+    status: "True"
+    type: ServiceConfigReady

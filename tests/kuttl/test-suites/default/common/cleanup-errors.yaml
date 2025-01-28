@@ -103,3 +103,10 @@ metadata:
   finalizers:
   - openstack.org/watcherapplier
   name: watcher-applier-kuttl
+---
+apiVersion: watcher.openstack.org/v1beta1
+kind: WatcherDecisionEngine
+metadata:
+  finalizers:
+  - openstack.org/watcherdecisionengine
+  name: watcherdecisionengine-kuttl
