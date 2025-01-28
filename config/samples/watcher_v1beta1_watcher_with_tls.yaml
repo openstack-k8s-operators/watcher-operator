@@ -1,0 +1,23 @@
+apiVersion: watcher.openstack.org/v1beta1
+kind: Watcher
+metadata:
+  labels:
+    app.kubernetes.io/name: watcher
+    app.kubernetes.io/instance: watcher
+    app.kubernetes.io/part-of: watcher-operator
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: watcher-operator
+  name: watcher
+spec:
+  databaseInstance: "openstack"
+  apiOverride:
+    tls:
+      secretName: cert-watcher-public-route
+  apiServiceTemplate:
+    tls:
+      caBundleSecretName: "combined-ca-bundle"
+      api:
+        internal:
+          secretName: cert-watcher-internal-svc
+        public:
+          secretName: cert-watcher-public-svc

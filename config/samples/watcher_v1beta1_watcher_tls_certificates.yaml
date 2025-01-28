@@ -1,0 +1,55 @@
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: watcher-internal-svc
+spec:
+  dnsNames:
+  - watcher-internal.openstack.svc
+  - watcher-internal.openstack.svc.cluster.local
+  duration: 43800h0m0s
+  issuerRef:
+    group: cert-manager.io
+    kind: Issuer
+    name: rootca-internal
+  secretName: cert-watcher-internal-svc
+  usages:
+  - key encipherment
+  - digital signature
+  - server auth
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: watcher-public-route
+spec:
+  dnsNames:
+  - watcher-public-openstack.apps-crc.testing
+  issuerRef:
+    group: cert-manager.io
+    kind: Issuer
+    name: rootca-public
+  secretName: cert-watcher-public-route
+  usages:
+  - key encipherment
+  - digital signature
+  - server auth
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: watcher-public-svc
+spec:
+  dnsNames:
+  - watcher-public.openstack.svc
+  - watcher-public.openstack.svc.cluster.local
+  duration: 43800h0m0s
+  issuerRef:
+    group: cert-manager.io
+    kind: Issuer
+    name: rootca-public
+  secretName: cert-watcher-public-svc
+  usages:
+  - key encipherment
+  - digital signature
+  - server auth

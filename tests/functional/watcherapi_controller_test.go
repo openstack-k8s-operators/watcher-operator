@@ -25,7 +25,7 @@ var (
 )
 
 var _ = Describe("WatcherAPI controller with minimal spec values", func() {
-	When("A Watcher instance is created from minimal spec", func() {
+	When("A WatcherAPI instance is created from minimal spec", func() {
 		BeforeEach(func() {
 			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, MinimalWatcherAPISpec))
 		})

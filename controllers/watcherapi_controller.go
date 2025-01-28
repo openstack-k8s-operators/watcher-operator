@@ -20,9 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
 	"path/filepath"
-	"strings"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -53,12 +51,12 @@ import (
 	"github.com/openstack-k8s-operators/watcher-operator/pkg/watcher"
 	"github.com/openstack-k8s-operators/watcher-operator/pkg/watcherapi"
 
-	routev1 "github.com/openshift/api/route/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 )
 
 // WatcherAPIReconciler reconciles a WatcherAPI object
@@ -83,7 +81,6 @@ func (r *WatcherAPIReconciler) GetLogger(ctx context.Context) logr.Logger {
 //+kubebuilder:rbac:groups=memcached.openstack.org,resources=memcacheds,verbs=get;list;watch;update;patch
 //+kubebuilder:rbac:groups=memcached.openstack.org,resources=memcacheds/finalizers,verbs=update;patch
 //+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete;
-//+kubebuilder:rbac:groups=route.openshift.io,resources=routes,verbs=get;list;watch;create;update;patch;delete;
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -314,10 +311,11 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		// so we need to return and reconcile again
 		return ctrl.Result{}, nil
 	}
+
 	instance.Status.Conditions.MarkTrue(condition.ServiceConfigReadyCondition, condition.ServiceConfigReadyMessage)
 
 	result, err = r.ensureDeployment(ctx, helper, instance, prometheusSecret, inputHash)
-	if err != nil {
+	if (err != nil || result != ctrl.Result{}) {
 		return result, err
 	}
 
@@ -552,61 +550,110 @@ func (r *WatcherAPIReconciler) ensureServiceExposed(
 			Port: watcher.WatcherPublicPort,
 		},
 	}
+	apiEndpoints := make(map[string]string)
 
-	for endpointType := range instance.Spec.Override.Service {
+	for endpointType, data := range ports {
+		endpointTypeStr := string(endpointType)
+		endpointName := watcher.ServiceName + "-" + endpointTypeStr
 		svcOverride := instance.Spec.Override.Service[endpointType]
-		portCfg := ports[endpointType]
-		portCfg.MetalLB = &endpoint.MetalLBData{
-			IPAddressPool:   svcOverride.IPAddressPool,
-			SharedIP:        svcOverride.SharedIP,
-			SharedIPKey:     svcOverride.SharedIPKey,
-			LoadBalancerIPs: svcOverride.LoadBalancerIPs,
+		if svcOverride.EmbeddedLabelsAnnotations == nil {
+			svcOverride.EmbeddedLabelsAnnotations = &service.EmbeddedLabelsAnnotations{}
 		}
 
-		ports[endpointType] = portCfg
-	}
+		exportLabels := util.MergeStringMaps(
+			getAPIServiceLabels(),
+			map[string]string{
+				service.AnnotationEndpointKey: endpointTypeStr,
+			},
+		)
 
-	apiEndpoints, ctrlResult, err := endpoint.ExposeEndpoints(
-		ctx,
-		helper,
-		watcher.ServiceName,
-		getAPIServiceLabels(),
-		ports,
-		r.RequeueTimeout,
-	)
-	if err != nil {
-		instance.Status.Conditions.Set(condition.FalseCondition(
-			condition.ExposeServiceReadyCondition,
-			condition.ErrorReason,
-			condition.SeverityWarning,
-			condition.ExposeServiceReadyErrorMessage,
-			err.Error(),
-		))
-		return nil, ctrlResult, err
-	} else if (ctrlResult != ctrl.Result{}) {
-		instance.Status.Conditions.Set(condition.FalseCondition(
-			condition.ExposeServiceReadyCondition,
-			condition.RequestedReason,
-			condition.SeverityInfo,
-			condition.ExposeServiceReadyRunningMessage,
-		))
-		return nil, ctrlResult, nil
-	}
-
-	// fix wrongly formatted endpoint url gotten from the lib-common
-	// ExposeEndpoints function
-	for endpointType, endpointURL := range apiEndpoints {
-		// fix repeated '://' in endpoint url
-		endpointURL = strings.Replace(endpointURL, "://://", "://", 1)
-		if endpointType == string(service.EndpointPublic) {
-			// remove trailing port number
-			url, _ := url.Parse(endpointURL)
-			endpointURL = fmt.Sprintf("%s://%s", url.Scheme, url.Hostname())
+		// create the service
+		svc, err := service.NewService(
+			service.GenericService(&service.GenericServiceDetails{
+				Name:      endpointName,
+				Namespace: instance.Namespace,
+				Labels:    exportLabels,
+				Selector:  getAPIServiceLabels(),
+				Port: service.GenericServicePort{
+					Name:     endpointName,
+					Port:     data.Port,
+					Protocol: corev1.ProtocolTCP,
+				},
+			}),
+			5,
+			&svcOverride.OverrideSpec,
+		)
+		if err != nil {
+			instance.Status.Conditions.Set(condition.FalseCondition(
+				condition.CreateServiceReadyCondition,
+				condition.ErrorReason,
+				condition.SeverityWarning,
+				condition.CreateServiceReadyErrorMessage,
+				err.Error(),
+			))
+			return nil, ctrl.Result{}, err
 		}
-		apiEndpoints[endpointType] = endpointURL
+
+		svc.AddAnnotation(map[string]string{
+			service.AnnotationEndpointKey: endpointTypeStr,
+		})
+
+		// add Annotation to whether creating an ingress is required or not
+		if endpointType == service.EndpointPublic && svc.GetServiceType() == corev1.ServiceTypeClusterIP {
+			svc.AddAnnotation(map[string]string{
+				service.AnnotationIngressCreateKey: "true",
+			})
+		} else {
+			svc.AddAnnotation(map[string]string{
+				service.AnnotationIngressCreateKey: "false",
+			})
+			if svc.GetServiceType() == corev1.ServiceTypeLoadBalancer {
+				svc.AddAnnotation(map[string]string{
+					// add annotation to register service name in dnsmasq
+					service.AnnotationHostnameKey: svc.GetServiceHostname(),
+				})
+			}
+		}
+
+		ctrlResult, err := svc.CreateOrPatch(ctx, helper)
+		if err != nil {
+			instance.Status.Conditions.Set(condition.FalseCondition(
+				condition.CreateServiceReadyCondition,
+				condition.ErrorReason,
+				condition.SeverityWarning,
+				condition.CreateServiceReadyErrorMessage,
+				err.Error(),
+			))
+
+			return nil, ctrlResult, err
+		} else if (ctrlResult != ctrl.Result{}) {
+			instance.Status.Conditions.Set(condition.FalseCondition(
+				condition.CreateServiceReadyCondition,
+				condition.RequestedReason,
+				condition.SeverityInfo,
+				condition.CreateServiceReadyRunningMessage,
+			))
+
+			return nil, ctrlResult, nil
+		}
+
+		// if TLS is enabled
+		if instance.Spec.TLS.API.Enabled(endpointType) {
+			// set endpoint protocol to https
+			data.Protocol = ptr.To(service.ProtocolHTTPS)
+		}
+
+		apiEndpoints[endpointTypeStr], err = svc.GetAPIEndpoint(
+			svcOverride.EndpointURL,
+			data.Protocol,
+			"",
+		)
+		if err != nil {
+			return nil, ctrl.Result{}, err
+		}
 	}
 
-	instance.Status.Conditions.MarkTrue(condition.ExposeServiceReadyCondition, condition.ExposeServiceReadyMessage)
+	instance.Status.Conditions.MarkTrue(condition.CreateServiceReadyCondition, condition.CreateServiceReadyMessage)
 
 	return apiEndpoints, ctrl.Result{}, nil
 }
@@ -719,7 +766,7 @@ func (r *WatcherAPIReconciler) initStatus(instance *watcherv1beta1.WatcherAPI) e
 		condition.UnknownCondition(condition.ServiceConfigReadyCondition, condition.InitReason, condition.ServiceConfigReadyInitMessage),
 		condition.UnknownCondition(condition.MemcachedReadyCondition, condition.InitReason, condition.MemcachedReadyInitMessage),
 		condition.UnknownCondition(condition.DeploymentReadyCondition, condition.InitReason, condition.DeploymentReadyInitMessage),
-		condition.UnknownCondition(condition.ExposeServiceReadyCondition, condition.InitReason, condition.ExposeServiceReadyInitMessage),
+		condition.UnknownCondition(condition.CreateServiceReadyCondition, condition.InitReason, condition.CreateServiceReadyInitMessage),
 		condition.UnknownCondition(condition.KeystoneEndpointReadyCondition, condition.InitReason, "KeystoneEndpoint not created"),
 	)
 
@@ -760,6 +807,7 @@ func (r *WatcherAPIReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}); err != nil {
 		return err
 	}
+
 	// index tlsAPIInternalField
 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &watcherv1beta1.WatcherAPI{}, tlsAPIInternalField, func(rawObj client.Object) []string {
 		// Extract the secret name from the spec, if one is provided
@@ -800,7 +848,6 @@ func (r *WatcherAPIReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.Secret{}).
 		Owns(&appsv1.StatefulSet{}).
 		Owns(&corev1.Service{}).
-		Owns(&routev1.Route{}).
 		Owns(&keystonev1.KeystoneEndpoint{}).
 		Watches(
 			&corev1.Secret{},

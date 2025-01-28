@@ -78,9 +78,7 @@ type APIOverrideSpec struct {
 	// Override configuration for the Service created to serve traffic to
 	// the cluster.
 	// The key must be the endpoint type (public, internal)
-	// temporarily use MetalLBConfig struct, later we'll switch to
-	// service.RoutedOverrideSpec
-	Service map[service.Endpoint]MetalLBConfig `json:"service,omitempty"`
+	Service map[service.Endpoint]service.RoutedOverrideSpec `json:"service,omitempty"`
 }
 
 // WatcherAPITemplate defines the input parameters specified by the user to
