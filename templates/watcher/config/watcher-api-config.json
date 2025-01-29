@@ -34,20 +34,6 @@
       "owner": "root",
       "perm": "0640",
       "optional": true
-    },
-    {
-      "source": "/var/lib/config-data/default/main",
-      "dest": "/var/www/cgi-bin/watcher/main",
-      "owner": "watcher",
-      "perm": "0640",
-      "optional": true
-    },
-    {
-      "source": "/var/lib/config-data/default/mime.conf",
-      "dest": "/etc/httpd/conf.modules.d/mime.conf",
-      "owner": "root",
-      "perm": "0640",
-      "optional": true
     }
   ],
   "permissions": [
