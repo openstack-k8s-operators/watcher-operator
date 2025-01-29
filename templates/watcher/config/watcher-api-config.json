@@ -2,6 +2,12 @@
   "command": "/usr/sbin/httpd -DFOREGROUND",
   "config_files": [
     {
+      "source": "/var/lib/config-data/default/watcher-blank.conf",
+      "dest": "/etc/watcher/watcher.conf",
+      "owner": "watcher",
+      "perm": "0600"
+    },
+    {
       "source": "/var/lib/config-data/default/00-default.conf",
       "dest": "/etc/watcher/watcher.conf.d/00-default.conf",
       "owner": "watcher",
