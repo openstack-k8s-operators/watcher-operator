@@ -40,6 +40,12 @@
       "owner": "root",
       "perm": "0640",
       "optional": true
+    },
+	{
+      "source": "/var/lib/config-data/default/ssl.conf",
+      "dest": "/etc/httpd/conf.d/ssl.conf",
+      "owner": "root",
+      "perm": "0640"
     }
   ],
   "permissions": [
