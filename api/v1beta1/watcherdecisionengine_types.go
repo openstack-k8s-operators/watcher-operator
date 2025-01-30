@@ -55,6 +55,10 @@ type WatcherDecisionEngineStatus struct {
 	// then the controller has not processed the latest changes injected by
 	// the openstack-operator in the top-level CR (e.g. the ContainerImage)
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// ReadyCount of WatcherDecisionEngine instances
+	ReadyCount int32 `json:"readyCount,omitempty"`
+
 	// Map of hashes to track e.g. job status
 	Hash map[string]string `json:"hash,omitempty"`
 }

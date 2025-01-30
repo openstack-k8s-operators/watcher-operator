@@ -109,7 +109,7 @@ kind: WatcherDecisionEngine
 metadata:
   finalizers:
   - openstack.org/watcherdecisionengine
-  name: watcherdecisionengine-kuttl
+  name: watcher-decision-engine-kuttl
 ---
 apiVersion: v1
 kind: Secret

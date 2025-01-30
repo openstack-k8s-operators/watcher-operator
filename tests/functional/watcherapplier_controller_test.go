@@ -123,7 +123,7 @@ var _ = Describe("WatcherApplier controller", func() {
 			DeferCleanup(
 				mariadb.DeleteDBService,
 				mariadb.CreateDBService(
-					watcherTest.WatcherAPI.Namespace,
+					watcherTest.WatcherApplier.Namespace,
 					"openstack",
 					corev1.ServiceSpec{
 						Ports: []corev1.ServicePort{{Port: 3306}},
@@ -137,7 +137,7 @@ var _ = Describe("WatcherApplier controller", func() {
 				},
 			)
 			mariadb.CreateMariaDBDatabase(
-				watcherTest.WatcherAPI.Namespace,
+				watcherTest.WatcherApplier.Namespace,
 				"watcher",
 				mariadbv1.MariaDBDatabaseSpec{
 					Name: "watcher",
@@ -145,7 +145,7 @@ var _ = Describe("WatcherApplier controller", func() {
 			)
 			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
 			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
-			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherApplier.Namespace))
 			memcachedSpec := memcachedv1.MemcachedSpec{
 				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
 					Replicas: ptr.To(int32(1)),

@@ -66,6 +66,9 @@ const (
 	// WatcherApplierLabelPrefix - a unique, service binary specific prefix for the
 	// labels the WatcherApplier controller uses on children objects
 	WatcherApplierLabelPrefix = "watcher-applier"
+	// WatcherDecisionEngineLabelPrefix - a unique, service binary specific prefix
+	// for the labels the WatcherDecisionEngine controller uses on child objects
+	WatcherDecisionEngineLabelPrefix = "watcher-decision-engine"
 )
 
 // GetLogger returns a logger object with a prefix of "controller.name" and additional controller context fields

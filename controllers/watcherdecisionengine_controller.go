@@ -18,7 +18,9 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"path/filepath"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -31,11 +33,22 @@ import (
 
 	"github.com/go-logr/logr"
 	memcachedv1 "github.com/openstack-k8s-operators/infra-operator/apis/memcached/v1beta1"
+	keystonev1 "github.com/openstack-k8s-operators/keystone-operator/api/v1beta1"
+	"github.com/openstack-k8s-operators/lib-common/modules/common"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/endpoint"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/env"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/helper"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/labels"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/statefulset"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/tls"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/util"
+	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
+	"github.com/openstack-k8s-operators/watcher-operator/pkg/watcher"
+	"github.com/openstack-k8s-operators/watcher-operator/pkg/watcherdecisionengine"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/fields"
@@ -142,6 +155,12 @@ func (r *WatcherDecisionEngineReconciler) Reconcile(ctx context.Context, req ctr
 		types.NamespacedName{Namespace: instance.Namespace, Name: instance.Spec.Secret},
 		[]string{
 			instance.Spec.PasswordSelectors.Service,
+			TransportURLSelector,
+			DatabaseAccount,
+			DatabaseUsername,
+			DatabaseHostname,
+			DatabasePassword,
+			watcher.GlobalCustomConfigFileName,
 		},
 		helper.GetClient(),
 		&instance.Status.Conditions,
@@ -152,6 +171,29 @@ func (r *WatcherDecisionEngineReconciler) Reconcile(ctx context.Context, req ctr
 	}
 
 	configVars[instance.Spec.Secret] = env.SetValue(secretHash)
+
+	hashPrometheus, _, prometheusSecret, err := ensureSecret(
+		ctx,
+		types.NamespacedName{Namespace: instance.Namespace, Name: instance.Spec.PrometheusSecret},
+		[]string{
+			PrometheusHost,
+			PrometheusPort,
+		},
+		helper.GetClient(),
+		&instance.Status.Conditions,
+		r.RequeueTimeout,
+	)
+	if err != nil || hashPrometheus == "" {
+		// Empty hash means that there is some problem retrieving the key from the secret
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			condition.InputReadyCondition,
+			condition.RequestedReason,
+			condition.SeverityWarning,
+			watcherv1beta1.WatcherPrometheusSecretErrorMessage))
+		return ctrl.Result{}, errors.New("error retrieving required data from prometheus secret")
+	}
+
+	configVars[instance.Spec.PrometheusSecret] = env.SetValue(hashPrometheus)
 
 	// all our input checks out so report InputReady
 	instance.Status.Conditions.MarkTrue(condition.InputReadyCondition, condition.InputReadyMessage)
@@ -175,12 +217,38 @@ func (r *WatcherDecisionEngineReconciler) Reconcile(ctx context.Context, req ctr
 		}
 	}
 
-	err = r.generateServiceConfigs(ctx, instance, secret, memcached, helper, &configVars)
+	err = r.generateServiceConfigs(ctx, instance, secret, prometheusSecret, memcached, helper, &configVars)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
+	Log.Info(fmt.Sprintf("[DecisionEngine] Getting input hash '%s'", instance.Name))
+	//
+	// create hash over all the different input resources to identify if any those changed
+	// and a restart/recreate is required.
+	//
+
+	inputHash, hashChanged, errorHash := r.createHashOfInputHashes(ctx, instance, configVars)
+	if errorHash != nil {
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			condition.ServiceConfigReadyCondition,
+			condition.ErrorReason,
+			condition.SeverityWarning,
+			condition.ServiceConfigReadyErrorMessage,
+			err.Error()))
+		return ctrl.Result{}, err
+	} else if hashChanged {
+		// Hash changed and instance status should be updated (which will be done by main defer func),
+		// so we need to return and reconcile again
+		return ctrl.Result{}, nil
+	}
+
 	instance.Status.Conditions.MarkTrue(condition.ServiceConfigReadyCondition, condition.ServiceConfigReadyMessage)
+
+	result, err = r.ensureDeployment(ctx, helper, instance, prometheusSecret, inputHash)
+	if err != nil {
+		return result, err
+	}
 
 	// We reached the end of the Reconcile, update the Ready condition based on
 	// the sub conditions
@@ -189,8 +257,8 @@ func (r *WatcherDecisionEngineReconciler) Reconcile(ctx context.Context, req ctr
 			condition.ReadyCondition, condition.ReadyMessage)
 	}
 
+	Log.Info(fmt.Sprintf("Successfully reconciled WatcherDecisionEngine instance '%s'", instance.Name))
 	return ctrl.Result{}, nil
-
 }
 
 func (r *WatcherDecisionEngineReconciler) initStatus(instance *watcherv1beta1.WatcherDecisionEngine) error {
@@ -204,6 +272,7 @@ func (r *WatcherDecisionEngineReconciler) initStatus(instance *watcherv1beta1.Wa
 		condition.UnknownCondition(condition.InputReadyCondition, condition.InitReason, condition.InputReadyInitMessage),
 		condition.UnknownCondition(condition.ServiceConfigReadyCondition, condition.InitReason, condition.ServiceConfigReadyInitMessage),
 		condition.UnknownCondition(condition.MemcachedReadyCondition, condition.InitReason, condition.MemcachedReadyInitMessage),
+		condition.UnknownCondition(condition.DeploymentReadyCondition, condition.InitReason, condition.DeploymentReadyInitMessage),
 	)
 
 	instance.Status.Conditions.Init(&cl)
@@ -246,6 +315,7 @@ func (r *WatcherDecisionEngineReconciler) SetupWithManager(mgr ctrl.Manager) err
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&watcherv1beta1.WatcherDecisionEngine{}).
 		Owns(&corev1.Secret{}).
+		Owns(&appsv1.StatefulSet{}).
 		Watches(
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.findObjectsForSrc),
@@ -295,18 +365,153 @@ func (r *WatcherDecisionEngineReconciler) findObjectsForSrc(ctx context.Context,
 func (r *WatcherDecisionEngineReconciler) generateServiceConfigs(
 	ctx context.Context, instance *watcherv1beta1.WatcherDecisionEngine,
 	secret corev1.Secret,
+	prometheusSecret corev1.Secret,
 	memcachedInstance *memcachedv1.Memcached,
 	helper *helper.Helper, envVars *map[string]env.Setter,
 ) error {
 	Log := r.GetLogger(ctx)
 	Log.Info("generateServiceConfigs - reconciling")
 
-	_ = instance
-	_ = secret
-	_ = memcachedInstance
-	_ = helper
-	_ = envVars
-	return nil
+	labels := labels.GetLabels(instance, labels.GetGroupLabel(WatcherDecisionEngineLabelPrefix), map[string]string{})
+
+	keystoneAPI, err := keystonev1.GetKeystoneAPI(ctx, helper, instance.Namespace, map[string]string{})
+	// KeystoneAPI not available we should not aggregate the error and continue
+	if err != nil {
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			condition.ServiceConfigReadyCondition,
+			condition.ErrorReason,
+			condition.SeverityWarning,
+			condition.ServiceConfigReadyErrorMessage,
+			"keystoneAPI not found"))
+		return err
+	}
+	keystoneInternalURL, err := keystoneAPI.GetEndpoint(endpoint.EndpointInternal)
+	if err != nil {
+		return err
+	}
+
+	databaseAccount := string(secret.Data[DatabaseAccount])
+	db, err := mariadbv1.GetDatabaseByNameAndAccount(ctx, helper, watcher.DatabaseCRName, databaseAccount, instance.Namespace)
+	if err != nil {
+		return err
+	}
+	// customData hold any customization for the service.
+	var tlsCfg *tls.Service
+	if instance.Spec.TLS.Ca.CaBundleSecretName != "" {
+		tlsCfg = &tls.Service{}
+	}
+	// customData hold any customization for the service.
+	customData := map[string]string{
+		watcher.GlobalCustomConfigFileName:  string(secret.Data[watcher.GlobalCustomConfigFileName]),
+		watcher.ServiceCustomConfigFileName: instance.Spec.CustomServiceConfig,
+		"my.cnf":                            db.GetDatabaseClientConfig(tlsCfg), //(mschuppert) for now just get the default my.cnf
+	}
+
+	databaseUsername := string(secret.Data[DatabaseUsername])
+	databaseHostname := string(secret.Data[DatabaseHostname])
+	databasePassword := string(secret.Data[DatabasePassword])
+	prometheusHost := string(prometheusSecret.Data[PrometheusHost])
+	prometheusPort := string(prometheusSecret.Data[PrometheusPort])
+	prometheusCaCertSecret := string(prometheusSecret.Data[PrometheusCaCertSecret])
+	prometheusCaCertKey := string(prometheusSecret.Data[PrometheusCaCertKey])
+
+	var prometheusCaCertPath string
+	if prometheusCaCertSecret != "" && prometheusCaCertKey != "" {
+		prometheusCaCertPath = filepath.Join(watcher.PrometheusCaCertFolderPath, prometheusCaCertKey)
+	}
+
+	var CaFilePath string
+	if instance.Spec.TLS.CaBundleSecretName != "" {
+		CaFilePath = tls.DownstreamTLSCABundlePath
+	}
+	templateParameters := map[string]interface{}{
+		"DatabaseConnection": fmt.Sprintf("mysql+pymysql://%s:%s@%s/%s?read_default_file=/etc/my.cnf",
+			databaseUsername,
+			databasePassword,
+			databaseHostname,
+			watcher.DatabaseName,
+		),
+		"KeystoneAuthURL":          keystoneInternalURL,
+		"ServicePassword":          string(secret.Data[instance.Spec.PasswordSelectors.Service]),
+		"ServiceUser":              instance.Spec.ServiceUser,
+		"TransportURL":             string(secret.Data[TransportURLSelector]),
+		"MemcachedServers":         memcachedInstance.GetMemcachedServerListString(),
+		"MemcachedServersWithInet": memcachedInstance.GetMemcachedServerListWithInetString(),
+		"MemcachedTLS":             memcachedInstance.GetMemcachedTLSSupport(),
+		"APIPublicPort":            fmt.Sprintf("%d", watcher.WatcherPublicPort),
+		"CaFilePath":               CaFilePath,
+		"PrometheusHost":           prometheusHost,
+		"PrometheusPort":           prometheusPort,
+		"PrometheusCaCertPath":     prometheusCaCertPath,
+	}
+
+	return GenerateConfigsGeneric(ctx, helper, instance, envVars, templateParameters, customData, labels, false)
+}
+
+func (r *WatcherDecisionEngineReconciler) ensureDeployment(
+	ctx context.Context,
+	h *helper.Helper,
+	instance *watcherv1beta1.WatcherDecisionEngine,
+	prometheusSecret corev1.Secret,
+	inputHash string,
+) (ctrl.Result, error) {
+	Log := r.GetLogger(ctx)
+	Log.Info(fmt.Sprintf("Defining WatcherDecisionEngine deployment '%s'", instance.Name))
+
+	// If the prometheus config is providing CA cert a volume must be mounted
+	prometheusCaCertSecret := string(prometheusSecret.Data[PrometheusCaCertSecret])
+	prometheusCaCertKey := string(prometheusSecret.Data[PrometheusCaCertKey])
+	prometheusCaCert := make(map[string]string)
+	if prometheusCaCertSecret != "" && prometheusCaCertKey != "" {
+		prometheusCaCert = map[string]string{
+			"casecret_key":  prometheusCaCertKey,
+			"casecret_name": prometheusCaCertSecret,
+		}
+
+	}
+
+	ss := statefulset.NewStatefulSet(watcherdecisionengine.StatefulSet(instance, inputHash, prometheusCaCert, getDecisionEngineServiceLabels()), r.RequeueTimeout)
+
+	ctrlResult, err := ss.CreateOrPatch(ctx, h)
+	if err != nil && !k8s_errors.IsNotFound(err) {
+		Log.Error(err, "Deployment failed")
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			condition.DeploymentReadyCondition,
+			condition.ErrorReason,
+			condition.SeverityWarning,
+			condition.DeploymentReadyErrorMessage,
+			err.Error()))
+		return ctrlResult, err
+	} else if (ctrlResult != ctrl.Result{} || k8s_errors.IsNotFound(err)) {
+		Log.Info("Deployment in progress")
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			condition.DeploymentReadyCondition,
+			condition.RequestedReason,
+			condition.SeverityInfo,
+			condition.DeploymentReadyRunningMessage))
+		// It is OK to return success as we are watching for StatefulSet changes
+		return ctrlResult, nil
+	}
+
+	statefulSet := ss.GetStatefulSet()
+	if statefulSet.Generation == statefulSet.Status.ObservedGeneration {
+		instance.Status.ReadyCount = statefulSet.Status.ReadyReplicas
+	}
+
+	if instance.Status.ReadyCount == *instance.Spec.Replicas && statefulSet.Generation == statefulSet.Status.ObservedGeneration {
+		Log.Info("Deployment is ready")
+		instance.Status.Conditions.MarkTrue(condition.DeploymentReadyCondition, condition.DeploymentReadyMessage)
+	} else {
+		Log.Info("Deployment is not ready", "Status", ss.GetStatefulSet().Status)
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			condition.DeploymentReadyCondition,
+			condition.RequestedReason,
+			condition.SeverityInfo,
+			condition.DeploymentReadyRunningMessage))
+		// It is OK to return success as we are watching for StatefulSet changes
+		return ctrl.Result{}, nil
+	}
+	return ctrl.Result{}, nil
 }
 
 func (r *WatcherDecisionEngineReconciler) reconcileDelete(ctx context.Context, instance *watcherv1beta1.WatcherDecisionEngine, helper *helper.Helper) (ctrl.Result, error) {
@@ -330,4 +535,30 @@ func (r *WatcherDecisionEngineReconciler) reconcileDelete(ctx context.Context, i
 	controllerutil.RemoveFinalizer(instance, helper.GetFinalizer())
 	Log.Info(fmt.Sprintf("Reconciled Service '%s' delete successfully", instance.Name))
 	return ctrl.Result{}, nil
+}
+
+func (r *WatcherDecisionEngineReconciler) createHashOfInputHashes(
+	ctx context.Context,
+	instance *watcherv1beta1.WatcherDecisionEngine,
+	envVars map[string]env.Setter,
+) (string, bool, error) {
+	Log := r.GetLogger(ctx)
+	var hashMap map[string]string
+	changed := false
+	mergedMapVars := env.MergeEnvs([]corev1.EnvVar{}, envVars)
+	hash, err := util.ObjectHash(mergedMapVars)
+	if err != nil {
+		return hash, changed, err
+	}
+	if hashMap, changed = util.SetHash(instance.Status.Hash, common.InputHashName, hash); changed {
+		instance.Status.Hash = hashMap
+		Log.Info(fmt.Sprintf("Input maps hash %s - %s", common.InputHashName, hash))
+	}
+	return hash, changed, nil
+}
+
+func getDecisionEngineServiceLabels() map[string]string {
+	return map[string]string{
+		common.AppSelector: WatcherDecisionEngineLabelPrefix,
+	}
 }

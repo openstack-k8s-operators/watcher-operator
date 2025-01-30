@@ -1,9 +1,22 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: metric-storage-prometheus-config
+  namespace: watcher-kuttl-default
+stringData:
+  host: metric-storage-prometheus.watcher-kuttl-default.svc
+  port: "9090"
+  ca_secret: "combined-ca-bundle"
+  ca_key: "internal-ca-bundle.pem"
+---
 apiVersion: watcher.openstack.org/v1beta1
 kind: WatcherDecisionEngine
 metadata:
-  name: watcherdecisionengine-kuttl
+  name: watcher-decision-engine-kuttl
   namespace: watcher-kuttl-default
 spec:
-  secret: osp-secret
+  secret: watcher-kuttl
   tls:
     caBundleSecretName: "combined-ca-bundle"
+  containerImage: "quay.io/podified-master-centos9/openstack-watcher-decision-engine:current-podified"
+  serviceAccount: "watcher-watcher-kuttl"

@@ -30,32 +30,33 @@ type APIType string
 // WatcherTestData is the data structure used to provide input data to envTest
 type WatcherTestData struct {
 	//DatabaseHostname             string
-	DatabaseInstance             string
-	RabbitMqClusterName          string
-	Instance                     types.NamespacedName
-	Watcher                      types.NamespacedName
-	WatcherDatabaseName          types.NamespacedName
-	WatcherDatabaseAccount       types.NamespacedName
-	WatcherDatabaseAccountSecret types.NamespacedName
-	InternalTopLevelSecretName   types.NamespacedName
-	PrometheusSecretName         types.NamespacedName
-	WatcherTransportURL          types.NamespacedName
-	KeystoneServiceName          types.NamespacedName
-	WatcherAPI                   types.NamespacedName
-	MemcachedNamespace           types.NamespacedName
-	ServiceAccountName           types.NamespacedName
-	RoleName                     types.NamespacedName
-	RoleBindingName              types.NamespacedName
-	WatcherDBSync                types.NamespacedName
-	WatcherAPIStatefulSet        types.NamespacedName
-	WatcherDecisionEngine        types.NamespacedName
-	WatcherPublicServiceName     types.NamespacedName
-	WatcherInternalServiceName   types.NamespacedName
-	WatcherRouteName             types.NamespacedName
-	WatcherInternalRouteName     types.NamespacedName
-	WatcherKeystoneEndpointName  types.NamespacedName
-	WatcherApplier               types.NamespacedName
-	WatcherApplierStatefulSet    types.NamespacedName
+	DatabaseInstance                 string
+	RabbitMqClusterName              string
+	Instance                         types.NamespacedName
+	Watcher                          types.NamespacedName
+	WatcherDatabaseName              types.NamespacedName
+	WatcherDatabaseAccount           types.NamespacedName
+	WatcherDatabaseAccountSecret     types.NamespacedName
+	InternalTopLevelSecretName       types.NamespacedName
+	PrometheusSecretName             types.NamespacedName
+	WatcherTransportURL              types.NamespacedName
+	KeystoneServiceName              types.NamespacedName
+	WatcherAPI                       types.NamespacedName
+	MemcachedNamespace               types.NamespacedName
+	ServiceAccountName               types.NamespacedName
+	RoleName                         types.NamespacedName
+	RoleBindingName                  types.NamespacedName
+	WatcherDBSync                    types.NamespacedName
+	WatcherAPIStatefulSet            types.NamespacedName
+	WatcherDecisionEngine            types.NamespacedName
+	WatcherDecisionEngineStatefulSet types.NamespacedName
+	WatcherPublicServiceName         types.NamespacedName
+	WatcherInternalServiceName       types.NamespacedName
+	WatcherRouteName                 types.NamespacedName
+	WatcherInternalRouteName         types.NamespacedName
+	WatcherKeystoneEndpointName      types.NamespacedName
+	WatcherApplier                   types.NamespacedName
+	WatcherApplierStatefulSet        types.NamespacedName
 }
 
 // GetWatcherTestData is a function that initialize the WatcherTestData
@@ -108,6 +109,11 @@ func GetWatcherTestData(watcherName types.NamespacedName) WatcherTestData {
 			Namespace: watcherName.Namespace,
 			Name:      "watcher-decision-engine",
 		},
+		WatcherDecisionEngineStatefulSet: types.NamespacedName{
+			Namespace: watcherName.Namespace,
+			Name:      "watcher-decision-engine",
+		},
+
 		MemcachedNamespace: types.NamespacedName{
 			Namespace: watcherName.Namespace,
 			Name:      "memcached",

@@ -3,22 +3,27 @@ kind: WatcherDecisionEngine
 metadata:
   finalizers:
   - openstack.org/watcherdecisionengine
-  name: watcherdecisionengine-kuttl
+  name: watcher-decision-engine-kuttl
 spec:
   passwordSelectors:
     service: WatcherPassword
-  secret: osp-secret
+  secret: watcher-kuttl
+  containerImage: quay.io/podified-master-centos9/openstack-watcher-decision-engine:current-podified
   memcachedInstance: memcached
   preserveJobs: false
   serviceUser: watcher
   replicas: 1
-  containerImage: ""
+  serviceAccount: watcher-watcher-kuttl
 status:
   conditions:
   - message: Setup complete
     reason: Ready
     status: "True"
     type: Ready
+  - message: Deployment completed
+    reason: Ready
+    status: "True"
+    type: DeploymentReady
   - message: Input data complete
     reason: Ready
     status: "True"
@@ -31,3 +36,33 @@ status:
     reason: Ready
     status: "True"
     type: ServiceConfigReady
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: watcher-decision-engine-kuttl
+  labels:
+    service: watcher-decision-engine
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+      - name: watcher-decision-engine
+        image: quay.io/podified-master-centos9/openstack-watcher-decision-engine:current-podified
+status:
+  readyReplicas: 1
+  replicas: 1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: watcher-decision-engine-kuttl-0
+  labels:
+    service: watcher-decision-engine
+spec:
+  containers:
+  - name: watcher-decision-engine
+    image: quay.io/podified-master-centos9/openstack-watcher-decision-engine:current-podified
+status:
+  phase: Running
