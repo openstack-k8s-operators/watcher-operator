@@ -35,6 +35,13 @@ type WatcherDecisionEngineSpec struct {
 	Secret string `json:"secret"`
 
 	WatcherSubCrsCommon `json:",inline"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=1
+	// +kubebuilder:validation:Maximum=1
+	// +kubebuilder:validation:Minimum=0
+	// Replicas of Watcher service to run
+	Replicas *int32 `json:"replicas"`
 }
 
 // WatcherDecisionEngineStatus defines the observed state of WatcherDecisionEngine

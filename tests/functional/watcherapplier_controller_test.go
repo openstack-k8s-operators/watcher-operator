@@ -10,6 +10,7 @@ import (
 	memcachedv1 "github.com/openstack-k8s-operators/infra-operator/apis/memcached/v1beta1"
 	condition "github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 	. "github.com/openstack-k8s-operators/lib-common/modules/common/test/helpers"
+	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/ptr"
@@ -109,12 +110,42 @@ var _ = Describe("WatcherApplier controller", func() {
 			secret := th.CreateSecret(
 				watcherTest.InternalTopLevelSecretName,
 				map[string][]byte{
-					"WatcherPassword": []byte("service-password"),
-					"transport_url":   []byte("url"),
+					"WatcherPassword":       []byte("service-password"),
+					"transport_url":         []byte("url"),
+					"database_username":     []byte("username"),
+					"database_password":     []byte("password"),
+					"database_hostname":     []byte("hostname"),
+					"database_account":      []byte("watcher"),
+					"01-global-custom.conf": []byte(""),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
-			DeferCleanup(th.DeleteInstance, CreateWatcherApplier(watcherTest.WatcherApplier, GetDefaultWatcherApplierSpec()))
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.WatcherAPI.Namespace,
+					"openstack",
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+			mariadb.CreateMariaDBAccountAndSecret(
+				watcherTest.WatcherDatabaseAccount,
+				mariadbv1.MariaDBAccountSpec{
+					UserName: "watcher",
+				},
+			)
+			mariadb.CreateMariaDBDatabase(
+				watcherTest.WatcherAPI.Namespace,
+				"watcher",
+				mariadbv1.MariaDBDatabaseSpec{
+					Name: "watcher",
+				},
+			)
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
 			memcachedSpec := memcachedv1.MemcachedSpec{
 				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
 					Replicas: ptr.To(int32(1)),
@@ -122,6 +153,7 @@ var _ = Describe("WatcherApplier controller", func() {
 			}
 			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.WatcherApplier.Namespace, MemcachedInstance, memcachedSpec))
 			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+			DeferCleanup(th.DeleteInstance, CreateWatcherApplier(watcherTest.WatcherApplier, GetDefaultWatcherApplierSpec()))
 		})
 		It("should have input ready", func() {
 			th.ExpectCondition(
@@ -146,6 +178,33 @@ var _ = Describe("WatcherApplier controller", func() {
 				condition.ServiceConfigReadyCondition,
 				corev1.ConditionTrue,
 			)
+		})
+		It("creates a deployment for the watcher-applier service", func() {
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherApplierStatefulSet)
+			th.ExpectCondition(
+				watcherTest.WatcherApplier,
+				ConditionGetterFunc(WatcherApplierConditionGetter),
+				condition.DeploymentReadyCondition,
+				corev1.ConditionTrue,
+			)
+
+			statefulset := th.GetStatefulSet(watcherTest.WatcherApplierStatefulSet)
+			Expect(statefulset.Spec.Template.Spec.ServiceAccountName).To(Equal("watcher-sa"))
+			Expect(int(*statefulset.Spec.Replicas)).To(Equal(1))
+			Expect(statefulset.Spec.Template.Spec.Volumes).To(HaveLen(3))
+			Expect(statefulset.Spec.Template.Spec.Containers).To(HaveLen(1))
+			Expect(statefulset.Spec.Selector.MatchLabels).To(Equal(map[string]string{"service": "watcher-applier"}))
+
+			container := statefulset.Spec.Template.Spec.Containers[0]
+			Expect(container.VolumeMounts).To(HaveLen(4))
+			Expect(container.Image).To(Equal("test://watcher"))
+
+			probeCmd := []string{
+				"/usr/bin/pgrep", "-r", "DRST", "watcher-applier",
+			}
+			Expect(container.StartupProbe.Exec.Command).To(Equal(probeCmd))
+			Expect(container.LivenessProbe.Exec.Command).To(Equal(probeCmd))
+			Expect(container.ReadinessProbe.Exec.Command).To(Equal(probeCmd))
 		})
 	})
 	When("the secret is created but missing fields", func() {
@@ -200,11 +259,13 @@ var _ = Describe("WatcherApplier controller", func() {
 			secret := th.CreateSecret(
 				watcherTest.InternalTopLevelSecretName,
 				map[string][]byte{
-					"WatcherPassword":   []byte("service-password"),
-					"transport_url":     []byte("url"),
-					"database_username": []byte("username"),
-					"database_password": []byte("password"),
-					"database_hostname": []byte("hostname"),
+					"WatcherPassword":       []byte("service-password"),
+					"transport_url":         []byte("url"),
+					"database_username":     []byte("username"),
+					"database_password":     []byte("password"),
+					"database_hostname":     []byte("hostname"),
+					"database_account":      []byte("watcher"),
+					"01-global-custom.conf": []byte(""),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -230,16 +291,18 @@ var _ = Describe("WatcherApplier controller", func() {
 			)
 		})
 	})
-	When("secret, db and memcached are created", func() {
+	When("secret, db and memcached are created, but there is no keystoneapi", func() {
 		BeforeEach(func() {
 			secret := th.CreateSecret(
 				watcherTest.InternalTopLevelSecretName,
 				map[string][]byte{
-					"WatcherPassword":   []byte("service-password"),
-					"transport_url":     []byte("url"),
-					"database_username": []byte("username"),
-					"database_password": []byte("password"),
-					"database_hostname": []byte("hostname"),
+					"WatcherPassword":       []byte("service-password"),
+					"transport_url":         []byte("url"),
+					"database_username":     []byte("username"),
+					"database_password":     []byte("password"),
+					"database_hostname":     []byte("hostname"),
+					"database_account":      []byte("watcher"),
+					"01-global-custom.conf": []byte(""),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -269,12 +332,18 @@ var _ = Describe("WatcherApplier controller", func() {
 				corev1.ConditionTrue,
 			)
 		})
-		It("should have config service input true", func() {
-			th.ExpectCondition(
+		It("should have config service input unknown", func() {
+			errorString := fmt.Sprintf(
+				condition.ServiceConfigReadyErrorMessage,
+				"keystoneAPI not found",
+			)
+			th.ExpectConditionWithDetails(
 				watcherTest.WatcherApplier,
 				ConditionGetterFunc(WatcherApplierConditionGetter),
 				condition.ServiceConfigReadyCondition,
-				corev1.ConditionTrue,
+				corev1.ConditionFalse,
+				condition.ErrorReason,
+				errorString,
 			)
 		})
 	})

@@ -817,10 +817,10 @@ func (r *WatcherReconciler) ensureAPI(
 		},
 		WatcherSubCrsCommon: watcherv1beta1.WatcherSubCrsCommon{
 			ContainerImage: instance.Spec.APIContainerImageURL,
-			Replicas:       instance.Spec.APIServiceTemplate.Replicas,
 			Resources:      instance.Spec.APIServiceTemplate.Resources,
 			ServiceAccount: "watcher-" + instance.Name,
 		},
+		Replicas: instance.Spec.APIServiceTemplate.Replicas,
 		Override: instance.Spec.APIServiceTemplate.Override,
 	}
 

@@ -43,4 +43,7 @@ const (
 
 	// Path to deploy the Prometheus CaCert if needed
 	PrometheusCaCertFolderPath = "/etc/pki/ca-trust/extracted/pem/prometheus/"
+
+	// WatcherUserID is the linux user ID used by Kolla for watcher service
+	WatcherUserID int64 = 42451
 )

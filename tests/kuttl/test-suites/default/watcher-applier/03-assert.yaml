@@ -5,7 +5,7 @@ metadata:
   - openstack.org/watcherapplier
   name: watcher-applier-kuttl
 spec:
-  containerImage: ""
+  containerImage: quay.io/podified-master-centos9/openstack-watcher-applier:current-podified
   memcachedInstance: memcached
   passwordSelectors:
     service: WatcherPassword
@@ -13,7 +13,7 @@ spec:
   replicas: 1
   resources: {}
   secret: watcher-kuttl
-  serviceAccount: ""
+  serviceAccount: watcher-watcher-kuttl
   serviceUser: watcher
   tls:
     api:
@@ -26,6 +26,10 @@ status:
     reason: Ready
     status: "True"
     type: Ready
+  - message: Deployment completed
+    reason: Ready
+    status: "True"
+    type: DeploymentReady
   - message: Input data complete
     reason: Ready
     status: "True"
@@ -38,3 +42,33 @@ status:
     reason: Ready
     status: "True"
     type: ServiceConfigReady
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: watcher-applier-kuttl
+  labels:
+    service: watcher-applier
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+      - name: watcher-applier
+        image: quay.io/podified-master-centos9/openstack-watcher-applier:current-podified
+status:
+  readyReplicas: 1
+  replicas: 1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: watcher-applier-kuttl-0
+  labels:
+    service: watcher-applier
+spec:
+  containers:
+  - name: watcher-applier
+    image: quay.io/podified-master-centos9/openstack-watcher-applier:current-podified
+status:
+  phase: Running

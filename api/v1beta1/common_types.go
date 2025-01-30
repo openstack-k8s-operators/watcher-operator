@@ -123,13 +123,6 @@ type WatcherSubCrsCommon struct {
 	ContainerImage string `json:"containerImage"`
 
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:default=1
-	// +kubebuilder:validation:Maximum=32
-	// +kubebuilder:validation:Minimum=0
-	// Replicas of Watcher service to run
-	Replicas *int32 `json:"replicas"`
-
-	// +kubebuilder:validation:Optional
 	// Resources - Compute Resources required by this service (Limits/Requests).
 	// https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
 	Resources corev1.ResourceRequirements `json:"resources,omitempty"`

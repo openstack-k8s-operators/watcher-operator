@@ -31,15 +31,24 @@ import (
 
 	"github.com/go-logr/logr"
 	memcachedv1 "github.com/openstack-k8s-operators/infra-operator/apis/memcached/v1beta1"
+	keystonev1 "github.com/openstack-k8s-operators/keystone-operator/api/v1beta1"
 	"github.com/openstack-k8s-operators/lib-common/modules/common"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/endpoint"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/env"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/helper"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/labels"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/statefulset"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/tls"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/util"
 
+	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
 
+	"github.com/openstack-k8s-operators/watcher-operator/pkg/watcher"
+	"github.com/openstack-k8s-operators/watcher-operator/pkg/watcherapplier"
+
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/fields"
@@ -63,6 +72,9 @@ func (r *WatcherApplierReconciler) GetLogger(ctx context.Context) logr.Logger {
 //+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete;
 //+kubebuilder:rbac:groups=memcached.openstack.org,resources=memcacheds,verbs=get;list;watch;update;patch
 //+kubebuilder:rbac:groups=memcached.openstack.org,resources=memcacheds/finalizers,verbs=update;patch
+//+kubebuilder:rbac:groups=keystone.openstack.org,resources=keystoneendpoints,verbs=get;list;watch;create;update;patch;delete;
+//+kubebuilder:rbac:groups=keystone.openstack.org,resources=keystoneapis,verbs=get;list;watch;
+// +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete;
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -140,12 +152,17 @@ func (r *WatcherApplierReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	configVars := make(map[string]env.Setter)
 	// check for required OpenStack secret holding passwords for service/admin user and add hash to the vars map
-	secretHash, result, _, err := ensureSecret(
+	secretHash, result, secret, err := ensureSecret(
 		ctx,
 		types.NamespacedName{Namespace: instance.Namespace, Name: instance.Spec.Secret},
 		[]string{
 			instance.Spec.PasswordSelectors.Service,
 			TransportURLSelector,
+			DatabaseAccount,
+			DatabaseUsername,
+			DatabaseHostname,
+			DatabasePassword,
+			watcher.GlobalCustomConfigFileName,
 		},
 		helper.GetClient(),
 		&instance.Status.Conditions,
@@ -179,7 +196,7 @@ func (r *WatcherApplierReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 	}
 
-	err = r.generateServiceConfigs(ctx, instance, helper, &configVars)
+	err = r.generateServiceConfigs(ctx, instance, secret, memcached, helper, &configVars)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -190,7 +207,7 @@ func (r *WatcherApplierReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	// and a restart/recreate is required.
 	//
 
-	_, hashChanged, errorHash := r.createHashOfInputHashes(ctx, instance, configVars)
+	inputHash, hashChanged, errorHash := r.createHashOfInputHashes(ctx, instance, configVars)
 	if errorHash != nil {
 		instance.Status.Conditions.Set(condition.FalseCondition(
 			condition.ServiceConfigReadyCondition,
@@ -207,7 +224,10 @@ func (r *WatcherApplierReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	instance.Status.Conditions.MarkTrue(condition.ServiceConfigReadyCondition, condition.ServiceConfigReadyMessage)
 
-	// TODO(dviroel): Add create Deployment/StatefulSet
+	result, err = r.ensureDeployment(ctx, helper, instance, inputHash)
+	if err != nil {
+		return result, err
+	}
 
 	// We reached the end of the Reconcile, update the Ready condition based on
 	// the sub conditions
@@ -231,6 +251,7 @@ func (r *WatcherApplierReconciler) initStatus(instance *watcherv1beta1.WatcherAp
 		condition.UnknownCondition(condition.InputReadyCondition, condition.InitReason, condition.InputReadyInitMessage),
 		condition.UnknownCondition(condition.ServiceConfigReadyCondition, condition.InitReason, condition.ServiceConfigReadyInitMessage),
 		condition.UnknownCondition(condition.MemcachedReadyCondition, condition.InitReason, condition.MemcachedReadyInitMessage),
+		condition.UnknownCondition(condition.DeploymentReadyCondition, condition.InitReason, condition.DeploymentReadyInitMessage),
 	)
 
 	instance.Status.Conditions.Init(&cl)
@@ -293,6 +314,8 @@ func (r *WatcherApplierReconciler) createHashOfInputHashes(
 func (r *WatcherApplierReconciler) generateServiceConfigs(
 	ctx context.Context,
 	instance *watcherv1beta1.WatcherApplier,
+	secret corev1.Secret,
+	memcachedInstance *memcachedv1.Memcached,
 	helper *helper.Helper,
 	envVars *map[string]env.Setter,
 ) error {
@@ -301,9 +324,64 @@ func (r *WatcherApplierReconciler) generateServiceConfigs(
 
 	labels := labels.GetLabels(instance, labels.GetGroupLabel(WatcherApplierLabelPrefix), map[string]string{})
 
-	// TODO(dviroel): CustomServiceConfig to be implemented
-	customData := map[string]string{}
-	templateParameters := map[string]interface{}{}
+	keystoneAPI, err := keystonev1.GetKeystoneAPI(ctx, helper, instance.Namespace, map[string]string{})
+	// KeystoneAPI not available we should not aggregate the error and continue
+	if err != nil {
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			condition.ServiceConfigReadyCondition,
+			condition.ErrorReason,
+			condition.SeverityWarning,
+			condition.ServiceConfigReadyErrorMessage,
+			"keystoneAPI not found"))
+		return err
+	}
+	keystoneInternalURL, err := keystoneAPI.GetEndpoint(endpoint.EndpointInternal)
+	if err != nil {
+		return err
+	}
+
+	databaseAccount := string(secret.Data[DatabaseAccount])
+	db, err := mariadbv1.GetDatabaseByNameAndAccount(ctx, helper, watcher.DatabaseCRName, databaseAccount, instance.Namespace)
+	if err != nil {
+		return err
+	}
+	// customData hold any customization for the service.
+	var tlsCfg *tls.Service
+	if instance.Spec.TLS.Ca.CaBundleSecretName != "" {
+		tlsCfg = &tls.Service{}
+	}
+	// customData hold any customization for the service.
+	customData := map[string]string{
+		watcher.GlobalCustomConfigFileName:  string(secret.Data[watcher.GlobalCustomConfigFileName]),
+		watcher.ServiceCustomConfigFileName: instance.Spec.CustomServiceConfig,
+		"my.cnf":                            db.GetDatabaseClientConfig(tlsCfg), //(mschuppert) for now just get the default my.cnf
+	}
+
+	databaseUsername := string(secret.Data[DatabaseUsername])
+	databaseHostname := string(secret.Data[DatabaseHostname])
+	databasePassword := string(secret.Data[DatabasePassword])
+
+	var CaFilePath string
+	if instance.Spec.TLS.CaBundleSecretName != "" {
+		CaFilePath = tls.DownstreamTLSCABundlePath
+	}
+	templateParameters := map[string]interface{}{
+		"DatabaseConnection": fmt.Sprintf("mysql+pymysql://%s:%s@%s/%s?read_default_file=/etc/my.cnf",
+			databaseUsername,
+			databasePassword,
+			databaseHostname,
+			watcher.DatabaseName,
+		),
+		"KeystoneAuthURL":          keystoneInternalURL,
+		"ServicePassword":          string(secret.Data[instance.Spec.PasswordSelectors.Service]),
+		"ServiceUser":              instance.Spec.ServiceUser,
+		"TransportURL":             string(secret.Data[TransportURLSelector]),
+		"MemcachedServers":         memcachedInstance.GetMemcachedServerListString(),
+		"MemcachedServersWithInet": memcachedInstance.GetMemcachedServerListWithInetString(),
+		"MemcachedTLS":             memcachedInstance.GetMemcachedTLSSupport(),
+		"APIPublicPort":            fmt.Sprintf("%d", watcher.WatcherPublicPort),
+		"CaFilePath":               CaFilePath,
+	}
 
 	return GenerateConfigsGeneric(ctx, helper, instance, envVars, templateParameters, customData, labels, false)
 }
@@ -325,6 +403,7 @@ func (r *WatcherApplierReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&watcherv1beta1.WatcherApplier{}).
 		Owns(&corev1.Secret{}).
+		Owns(&appsv1.StatefulSet{}).
 		Watches(
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.findObjectsForSrc),
@@ -365,4 +444,64 @@ func (r *WatcherApplierReconciler) findObjectsForSrc(ctx context.Context, src cl
 	}
 
 	return requests
+}
+
+func getApplierServiceLabels() map[string]string {
+	return map[string]string{
+		common.AppSelector: WatcherApplierLabelPrefix,
+	}
+}
+
+func (r *WatcherApplierReconciler) ensureDeployment(
+	ctx context.Context,
+	helper *helper.Helper,
+	instance *watcherv1beta1.WatcherApplier,
+	inputHash string,
+) (ctrl.Result, error) {
+	Log := r.GetLogger(ctx)
+	Log.Info(fmt.Sprintf("Defining WatcherApplier deployment '%s'", instance.Name))
+
+	ss := statefulset.NewStatefulSet(watcherapplier.StatefulSet(
+		instance, inputHash, getApplierServiceLabels()), r.RequeueTimeout)
+
+	ctrlResult, err := ss.CreateOrPatch(ctx, helper)
+	if err != nil && !k8s_errors.IsNotFound(err) {
+		Log.Error(err, "Deployment failed")
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			condition.DeploymentReadyCondition,
+			condition.ErrorReason,
+			condition.SeverityWarning,
+			condition.DeploymentReadyErrorMessage,
+			err.Error()))
+		return ctrlResult, err
+	} else if (ctrlResult != ctrl.Result{} || k8s_errors.IsNotFound(err)) {
+		Log.Info("Deployment in progress")
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			condition.DeploymentReadyCondition,
+			condition.RequestedReason,
+			condition.SeverityInfo,
+			condition.DeploymentReadyRunningMessage))
+		// It is OK to return success as we are watching for StatefulSet changes
+		return ctrlResult, nil
+	}
+
+	statefulSet := ss.GetStatefulSet()
+	if statefulSet.Generation == statefulSet.Status.ObservedGeneration {
+		instance.Status.ReadyCount = statefulSet.Status.ReadyReplicas
+	}
+
+	if instance.Status.ReadyCount == *instance.Spec.Replicas && statefulSet.Generation == statefulSet.Status.ObservedGeneration {
+		Log.Info("Deployment is ready")
+		instance.Status.Conditions.MarkTrue(condition.DeploymentReadyCondition, condition.DeploymentReadyMessage)
+	} else {
+		Log.Info("Deployment is not ready", "Status", ss.GetStatefulSet().Status)
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			condition.DeploymentReadyCondition,
+			condition.RequestedReason,
+			condition.SeverityInfo,
+			condition.DeploymentReadyRunningMessage))
+		// It is OK to return success as we are watching for StatefulSet changes
+		return ctrl.Result{}, nil
+	}
+	return ctrl.Result{}, nil
 }

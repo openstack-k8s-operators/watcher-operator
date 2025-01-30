@@ -36,6 +36,13 @@ type WatcherApplierSpec struct {
 	Secret string `json:"secret"`
 
 	WatcherSubCrsCommon `json:",inline"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=1
+	// +kubebuilder:validation:Maximum=1
+	// +kubebuilder:validation:Minimum=0
+	// Replicas of Watcher service to run
+	Replicas *int32 `json:"replicas"`
 }
 
 // WatcherApplierStatus defines the observed state of WatcherApplier
@@ -52,9 +59,8 @@ type WatcherApplierStatus struct {
 	// the openstack-operator in the top-level CR (e.g. the ContainerImage)
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 
-	// TODO(dviroel): Add ReadyCount once Deployment is implemented
 	// ReadyCount of watcher Applier instances
-	// ReadyCount int32 `json:"readyCount,omitempty"`
+	ReadyCount int32 `json:"readyCount,omitempty"`
 
 	// Map of hashes to track e.g. job status
 	Hash map[string]string `json:"hash,omitempty"`

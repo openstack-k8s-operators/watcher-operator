@@ -5,5 +5,7 @@ metadata:
   namespace: watcher-kuttl-default
 spec:
   secret: "watcher-kuttl"
+  containerImage: "quay.io/podified-master-centos9/openstack-watcher-applier:current-podified"
+  serviceAccount: "watcher-watcher-kuttl"
   tls:
     caBundleSecretName: "combined-ca-bundle"
