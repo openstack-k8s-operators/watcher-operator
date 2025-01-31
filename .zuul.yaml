@@ -97,7 +97,7 @@
     description: |
       A zuul job to run watcher operator kuttl tests.
       It will pull operator images from meta content provider. There is no
-      change in openstack services container images.
+      change in openstack services container images. foobar
     vars:
       operator_name: watcher-operator
       cifmw_install_yamls_whitelisted_vars: *install_yamls_whitelist
