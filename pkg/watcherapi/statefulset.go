@@ -3,11 +3,14 @@ package watcherapi
 import (
 	"path/filepath"
 
+	"github.com/openstack-k8s-operators/lib-common/modules/common"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/affinity"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/env"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/ptr"
 
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
 	watcher "github.com/openstack-k8s-operators/watcher-operator/pkg/watcher"
@@ -18,28 +21,31 @@ const (
 	ServiceCommand = "/usr/local/bin/kolla_start"
 )
 
-// Deployment - returns a WatcherAPI Deployment
-func Deployment(
+// StatefulSet - returns a WatcherAPI StatefulSet
+func StatefulSet(
 	instance *watcherv1beta1.WatcherAPI,
 	configHash string,
 	prometheusCaCertSecret map[string]string,
 	labels map[string]string,
-) (*appsv1.Deployment, error) {
+) (*appsv1.StatefulSet, error) {
 
-	runAsUser := int64(0)
 	var config0644AccessMode int32 = 0644
 	envVars := map[string]env.Setter{}
 	envVars["KOLLA_CONFIG_STRATEGY"] = env.SetValue("COPY_ALWAYS")
 	envVars["CONFIG_HASH"] = env.SetValue(configHash)
+	// This allows the pod to start up slowly. The pod will only be killed
+	// if it does not succeed a probe in 60 seconds.
+	startupProbe := &corev1.Probe{
+		FailureThreshold: 6,
+		PeriodSeconds:    10,
+	}
 	livenessProbe := &corev1.Probe{
-		TimeoutSeconds:      5,
-		PeriodSeconds:       3,
-		InitialDelaySeconds: 5,
+		TimeoutSeconds: 5,
+		PeriodSeconds:  5,
 	}
 	readinessProbe := &corev1.Probe{
-		TimeoutSeconds:      5,
-		PeriodSeconds:       5,
-		InitialDelaySeconds: 5,
+		TimeoutSeconds: 5,
+		PeriodSeconds:  5,
 	}
 	args := []string{"-c", ServiceCommand}
 
@@ -50,6 +56,7 @@ func Deployment(
 		Port: intstr.IntOrString{Type: intstr.Int, IntVal: int32(watcher.WatcherPublicPort)},
 	}
 	readinessProbe.HTTPGet = livenessProbe.HTTPGet
+	startupProbe.HTTPGet = livenessProbe.HTTPGet
 
 	apiVolumes := append(watcher.GetLogVolume(),
 		corev1.Volume{
@@ -95,17 +102,18 @@ func Deployment(
 		)
 	}
 
-	deployment := &appsv1.Deployment{
+	statefulSet := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      instance.Name,
 			Namespace: instance.Namespace,
 			Labels:    labels,
 		},
-		Spec: appsv1.DeploymentSpec{
+		Spec: appsv1.StatefulSetSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: labels,
 			},
-			Replicas: instance.Spec.Replicas,
+			PodManagementPolicy: appsv1.ParallelPodManagement,
+			Replicas:            instance.Spec.Replicas,
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: labels,
@@ -128,13 +136,14 @@ func Deployment(
 							},
 							Image: instance.Spec.ContainerImage,
 							SecurityContext: &corev1.SecurityContext{
-								RunAsUser: &runAsUser,
+								RunAsUser: ptr.To(watcher.WatcherUserID),
 							},
 							Env:            env.MergeEnvs([]corev1.EnvVar{}, envVars),
 							VolumeMounts:   watcher.GetLogVolumeMount(),
 							Resources:      instance.Spec.Resources,
 							ReadinessProbe: readinessProbe,
 							LivenessProbe:  livenessProbe,
+							StartupProbe:   startupProbe,
 						},
 						{
 							Name: watcher.ServiceName + "-api",
@@ -144,7 +153,7 @@ func Deployment(
 							Args:  args,
 							Image: instance.Spec.ContainerImage,
 							SecurityContext: &corev1.SecurityContext{
-								RunAsUser: &runAsUser,
+								RunAsUser: ptr.To(watcher.WatcherUserID),
 							},
 							Env: env.MergeEnvs([]corev1.EnvVar{}, envVars),
 							VolumeMounts: append(watcher.GetVolumeMounts(
@@ -156,18 +165,28 @@ func Deployment(
 							LivenessProbe:  livenessProbe,
 						},
 					},
+					// If possible two pods of the same service should not run
+					// on the same worker node. Of this is not possible they
+					// will still be created on the same worker node
+					Affinity: affinity.DistributePods(
+						common.AppSelector,
+						[]string{
+							labels[common.AppSelector],
+						},
+						corev1.LabelHostname,
+					),
 				},
 			},
 		},
 	}
 
-	deployment.Spec.Template.Spec.Volumes = append(watcher.GetVolumes(
+	statefulSet.Spec.Template.Spec.Volumes = append(watcher.GetVolumes(
 		instance.Name,
 		[]string{}),
 		apiVolumes...)
 
 	if instance.Spec.NodeSelector != nil {
-		deployment.Spec.Template.Spec.NodeSelector = *instance.Spec.NodeSelector
+		statefulSet.Spec.Template.Spec.NodeSelector = *instance.Spec.NodeSelector
 	}
-	return deployment, nil
+	return statefulSet, nil
 }

@@ -190,7 +190,7 @@ var _ = Describe("WatcherAPI controller", func() {
 			)
 		})
 		It("creates a deployment for the watcher-api service", func() {
-			th.SimulateDeploymentReplicaReady(watcherTest.WatcherAPIDeployment)
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
 			th.ExpectCondition(
 				watcherTest.WatcherAPI,
 				ConditionGetterFunc(WatcherAPIConditionGetter),
@@ -198,7 +198,7 @@ var _ = Describe("WatcherAPI controller", func() {
 				corev1.ConditionTrue,
 			)
 
-			deployment := th.GetDeployment(watcherTest.WatcherAPIDeployment)
+			deployment := th.GetStatefulSet(watcherTest.WatcherAPIStatefulSet)
 			Expect(deployment.Spec.Template.Spec.ServiceAccountName).To(Equal("watcher-sa"))
 			Expect(int(*deployment.Spec.Replicas)).To(Equal(1))
 			Expect(deployment.Spec.Template.Spec.Volumes).To(HaveLen(3))
@@ -217,6 +217,7 @@ var _ = Describe("WatcherAPI controller", func() {
 			Expect(container.ReadinessProbe.HTTPGet.Port.IntVal).To(Equal(int32(9322)))
 		})
 		It("exposes the watcher-api service", func() {
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
 			th.ExpectCondition(
 				watcherTest.WatcherAPI,
 				ConditionGetterFunc(WatcherAPIConditionGetter),
@@ -232,6 +233,7 @@ var _ = Describe("WatcherAPI controller", func() {
 			Expect(internal.Labels["internal"]).To(Equal("true"))
 		})
 		It("created the keystone endpoint for the watcher-api service", func() {
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
 			keystone.SimulateKeystoneEndpointReady(watcherTest.WatcherKeystoneEndpointName)
 			// it registers the endpointURL as the public endpoint and svc
 			// for the internal
@@ -444,6 +446,9 @@ var _ = Describe("WatcherAPI controller", func() {
 					"WatcherPassword":       []byte("service-password"),
 					"transport_url":         []byte("url"),
 					"database_account":      []byte("watcher"),
+					"database_username":     []byte("watcher"),
+					"database_password":     []byte("watcher-password"),
+					"database_hostname":     []byte("db-hostname"),
 					"01-global-custom.conf": []byte(""),
 				},
 			)
@@ -502,7 +507,7 @@ var _ = Describe("WatcherAPI controller", func() {
 
 		})
 		It("creates MetalLB service", func() {
-			th.SimulateDeploymentReplicaReady(watcherTest.WatcherAPIDeployment)
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
 			// simulate that the internal service got a LoadBalancerIP
 			// assigned
 			th.SimulateLoadBalancerServiceIP(watcherTest.WatcherInternalServiceName)

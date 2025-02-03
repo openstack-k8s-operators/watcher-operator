@@ -240,7 +240,7 @@ status:
     type: ServiceConfigReady
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: watcher-kuttl-api
   labels:
@@ -261,6 +261,7 @@ kind: Pod
 metadata:
   labels:
     service: watcher-api
+  name: watcher-kuttl-api-0
 spec:
   containers:
   - name: watcher-kuttl-api-log

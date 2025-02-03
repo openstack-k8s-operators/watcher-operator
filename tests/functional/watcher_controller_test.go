@@ -267,11 +267,12 @@ var _ = Describe("Watcher controller", func() {
 			// We validate the full Watcher CR readiness status here
 			// DB Ready
 
+			// Simulate WatcherAPI deployment
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
+
 			// Simulate KeystoneEndpoint success
 			keystone.SimulateKeystoneEndpointReady(watcherTest.WatcherKeystoneEndpointName)
 
-			// Simulate WatcherAPI deployment
-			th.SimulateDeploymentReplicaReady(watcherTest.WatcherAPIDeployment)
 			th.ExpectCondition(
 				watcherTest.Instance,
 				ConditionGetterFunc(WatcherConditionGetter),
@@ -372,8 +373,8 @@ var _ = Describe("Watcher controller", func() {
 			Expect(WatcherAPI.Spec.CustomServiceConfig).To(Equal(""))
 			Expect(WatcherAPI.Spec.PrometheusSecret).Should(Equal("metric-storage-prometheus-config"))
 
-			// Assert that the watcher deployment is created
-			deployment := th.GetDeployment(watcherTest.WatcherAPIDeployment)
+			// Assert that the watcher statefulset is created
+			deployment := th.GetStatefulSet(watcherTest.WatcherAPIStatefulSet)
 			Expect(deployment.Spec.Template.Spec.ServiceAccountName).To(Equal("watcher-watcher"))
 			Expect(int(*deployment.Spec.Replicas)).To(Equal(1))
 			Expect(deployment.Spec.Template.Spec.Volumes).To(HaveLen(3))
@@ -677,11 +678,11 @@ var _ = Describe("Watcher controller", func() {
 			// Simulate dbsync success
 			th.SimulateJobSuccess(watcherTest.WatcherDBSync)
 
+			// Simulate WatcherAPI deployment
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
+
 			// Simulate KeystoneEndpoint success
 			keystone.SimulateKeystoneEndpointReady(watcherTest.WatcherKeystoneEndpointName)
-
-			// Simulate WatcherAPI deployment
-			th.SimulateDeploymentReplicaReady(watcherTest.WatcherAPIDeployment)
 
 			// We validate the full Watcher CR readiness status here
 			// DB Ready
@@ -811,7 +812,7 @@ var _ = Describe("Watcher controller", func() {
 			Expect(WatcherAPI.Spec.PrometheusSecret).Should(Equal("custom-prometheus-config"))
 
 			// Assert that the watcher deployment is created
-			deployment := th.GetDeployment(watcherTest.WatcherAPIDeployment)
+			deployment := th.GetStatefulSet(watcherTest.WatcherAPIStatefulSet)
 			Expect(deployment.Spec.Template.Spec.ServiceAccountName).To(Equal("watcher-watcher"))
 			Expect(int(*deployment.Spec.Replicas)).To(Equal(2))
 			Expect(deployment.Spec.Template.Spec.Volumes).To(HaveLen(5))

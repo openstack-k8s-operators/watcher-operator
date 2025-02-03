@@ -23,7 +23,6 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
-	"time"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -39,12 +38,12 @@ import (
 	keystonev1 "github.com/openstack-k8s-operators/keystone-operator/api/v1beta1"
 	"github.com/openstack-k8s-operators/lib-common/modules/common"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
-	"github.com/openstack-k8s-operators/lib-common/modules/common/deployment"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/endpoint"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/env"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/helper"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/labels"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/service"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/statefulset"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/tls"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/util"
 
@@ -83,7 +82,7 @@ func (r *WatcherAPIReconciler) GetLogger(ctx context.Context) logr.Logger {
 //+kubebuilder:rbac:groups=keystone.openstack.org,resources=keystoneendpoints,verbs=get;list;watch;create;update;patch;delete;
 //+kubebuilder:rbac:groups=memcached.openstack.org,resources=memcacheds,verbs=get;list;watch;update;patch
 //+kubebuilder:rbac:groups=memcached.openstack.org,resources=memcacheds/finalizers,verbs=update;patch
-//+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete;
+//+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete;
 //+kubebuilder:rbac:groups=route.openshift.io,resources=routes,verbs=get;list;watch;create;update;patch;delete;
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -166,6 +165,9 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			instance.Spec.PasswordSelectors.Service,
 			TransportURLSelector,
 			DatabaseAccount,
+			DatabaseUsername,
+			DatabaseHostname,
+			DatabasePassword,
 			watcher.GlobalCustomConfigFileName,
 		},
 		helper.GetClient(),
@@ -253,9 +255,15 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	instance.Status.Conditions.MarkTrue(condition.ServiceConfigReadyCondition, condition.ServiceConfigReadyMessage)
 
-	result, err = r.createDeployment(ctx, helper, instance, prometheusSecret, inputHash)
+	result, err = r.ensureDeployment(ctx, helper, instance, prometheusSecret, inputHash)
 	if err != nil {
 		return result, err
+	}
+
+	// Only expose the service if the deployment succeeded
+	if !instance.Status.Conditions.IsTrue(condition.DeploymentReadyCondition) {
+		Log.Info("Waiting for the Deployment to become Ready before exposing the service in Keystone")
+		return ctrl.Result{}, nil
 	}
 
 	apiEndpoints, result, err := r.ensureServiceExposed(ctx, helper, instance)
@@ -383,7 +391,7 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 	return GenerateConfigsGeneric(ctx, helper, instance, envVars, templateParameters, customData, labels, false)
 }
 
-func (r *WatcherAPIReconciler) createDeployment(
+func (r *WatcherAPIReconciler) ensureDeployment(
 	ctx context.Context,
 	helper *helper.Helper,
 	instance *watcherv1beta1.WatcherAPI,
@@ -405,9 +413,10 @@ func (r *WatcherAPIReconciler) createDeployment(
 
 	}
 
-	// define a new Deployment object
-	deploymentDef, err := watcherapi.Deployment(instance, configHash, prometheusCaCert, getAPIServiceLabels())
+	// define a new StatefulSet object
+	statefulSetDef, err := watcherapi.StatefulSet(instance, configHash, prometheusCaCert, getAPIServiceLabels())
 	if err != nil {
+		Log.Error(err, "Defining statefulSet failed")
 		instance.Status.Conditions.Set(condition.FalseCondition(
 			condition.DeploymentReadyCondition,
 			condition.ErrorReason,
@@ -417,11 +426,11 @@ func (r *WatcherAPIReconciler) createDeployment(
 		return ctrl.Result{}, err
 	}
 
-	Log.Info(fmt.Sprintf("Getting deployment '%s'", instance.Name))
-	deploymentObject := deployment.NewDeployment(deploymentDef, time.Duration(5)*time.Second)
-	Log.Info(fmt.Sprintf("Got deployment '%s'", instance.Name))
-	ctrlResult, errorResult := deploymentObject.CreateOrPatch(ctx, helper)
+	Log.Info(fmt.Sprintf("Getting statefulSet '%s'", instance.Name))
+	statefulSetObject := statefulset.NewStatefulSet(statefulSetDef, r.RequeueTimeout)
+	ctrlResult, errorResult := statefulSetObject.CreateOrPatch(ctx, helper)
 	if errorResult != nil {
+		Log.Error(err, "Deployment failed")
 		instance.Status.Conditions.Set(condition.FalseCondition(
 			condition.DeploymentReadyCondition,
 			condition.ErrorReason,
@@ -430,6 +439,7 @@ func (r *WatcherAPIReconciler) createDeployment(
 			errorResult.Error()))
 		return ctrlResult, errorResult
 	} else if (ctrlResult != ctrl.Result{}) {
+		Log.Info("Deployment in progress")
 		instance.Status.Conditions.Set(condition.FalseCondition(
 			condition.DeploymentReadyCondition,
 			condition.RequestedReason,
@@ -438,11 +448,17 @@ func (r *WatcherAPIReconciler) createDeployment(
 		return ctrlResult, nil
 	}
 
-	instance.Status.ReadyCount = deploymentObject.GetDeployment().Status.ReadyReplicas
+	Log.Info(fmt.Sprintf("Got statefulSet '%s'", instance.Name))
+	statefulSet := statefulSetObject.GetStatefulSet()
+	if statefulSet.Generation == statefulSet.Status.ObservedGeneration {
+		instance.Status.ReadyCount = statefulSet.Status.ReadyReplicas
+	}
 
-	if instance.Status.ReadyCount > 0 {
+	if instance.Status.ReadyCount == *instance.Spec.Replicas && statefulSet.Generation == statefulSet.Status.ObservedGeneration {
+		Log.Info("Deployment is ready")
 		instance.Status.Conditions.MarkTrue(condition.DeploymentReadyCondition, condition.DeploymentReadyMessage)
 	} else {
+		Log.Info("Deployment not ready")
 		instance.Status.Conditions.Set(condition.FalseCondition(
 			condition.DeploymentReadyCondition,
 			condition.RequestedReason,
@@ -681,7 +697,7 @@ func (r *WatcherAPIReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&watcherv1beta1.WatcherAPI{}).
 		Owns(&corev1.Secret{}).
-		Owns(&appsv1.Deployment{}).
+		Owns(&appsv1.StatefulSet{}).
 		Owns(&corev1.Service{}).
 		Owns(&routev1.Route{}).
 		Owns(&keystonev1.KeystoneEndpoint{}).

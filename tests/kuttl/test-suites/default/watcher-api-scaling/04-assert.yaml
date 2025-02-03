@@ -1,0 +1,14 @@
+---
+apiVersion: watcher.openstack.org/v1beta1
+kind: WatcherAPI
+metadata:
+  name: watcher-kuttl-api
+spec:
+  replicas: 0
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: watcher-kuttl-api
+spec:
+  replicas: 0
