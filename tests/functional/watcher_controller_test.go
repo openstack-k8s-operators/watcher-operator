@@ -53,7 +53,7 @@ var _ = Describe("Watcher controller with minimal spec values", func() {
 			Expect(Watcher.Spec.PreserveJobs).Should(BeFalse())
 			Expect(Watcher.Spec.TLS.CaBundleSecretName).Should(Equal(""))
 			Expect(Watcher.Spec.CustomServiceConfig).Should(Equal(""))
-			Expect(Watcher.Spec.PrometheusSecret).Should(Equal("metric-storage-prometheus-config"))
+			Expect(Watcher.Spec.PrometheusSecret).Should(Equal("metric-storage-prometheus-endpoint"))
 			Expect(Watcher.Spec.APIServiceTemplate.CustomServiceConfig).Should(Equal(""))
 
 		})
@@ -214,7 +214,7 @@ var _ = Describe("Watcher controller", func() {
 			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
 			DeferCleanup(
 				k8sClient.Delete, ctx, th.CreateSecret(
-					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: "metric-storage-prometheus-config"},
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: "metric-storage-prometheus-endpoint"},
 					map[string][]byte{
 						"host": []byte("prometheus.example.com"),
 						"port": []byte("9090"),
@@ -382,7 +382,7 @@ var _ = Describe("Watcher controller", func() {
 			Expect(int(*WatcherAPI.Spec.Replicas)).To(Equal(1))
 			Expect(WatcherAPI.Spec.NodeSelector).To(BeNil())
 			Expect(WatcherAPI.Spec.CustomServiceConfig).To(Equal(""))
-			Expect(WatcherAPI.Spec.PrometheusSecret).Should(Equal("metric-storage-prometheus-config"))
+			Expect(WatcherAPI.Spec.PrometheusSecret).Should(Equal("metric-storage-prometheus-endpoint"))
 
 			// Assert that the watcher statefulset is created
 			deployment := th.GetStatefulSet(watcherTest.WatcherAPIStatefulSet)
@@ -408,6 +408,9 @@ var _ = Describe("Watcher controller", func() {
 			Expect(applierDeploy.Spec.Template.Spec.Volumes).To(HaveLen(3))
 			Expect(applierDeploy.Spec.Template.Spec.Containers).To(HaveLen(1))
 			Expect(applierDeploy.Spec.Selector.MatchLabels).To(Equal(map[string]string{"service": "watcher-applier"}))
+
+			prometheusSecret := th.GetSecret(types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: "metric-storage-prometheus-endpoint"})
+			Expect(prometheusSecret.Finalizers).To(ContainElement("openstack.org/watcher"))
 		})
 
 		It("Should fail to register watcher service to keystone when has not the expected secret", func() {

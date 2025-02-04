@@ -114,11 +114,6 @@ metadata:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: metric-storage-prometheus-config
----
-apiVersion: v1
-kind: Secret
-metadata:
   name: custom-prometheus-config
 ---
 apiVersion: apps/v1

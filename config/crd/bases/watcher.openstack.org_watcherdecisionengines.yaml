@@ -80,7 +80,7 @@ spec:
                   e.g. to check logs
                 type: boolean
               prometheusSecret:
-                default: metric-storage-prometheus-config
+                default: metric-storage-prometheus-endpoint
                 description: Secret containing prometheus connection parameters
                 type: string
               replicas:

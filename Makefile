@@ -386,14 +386,12 @@ watcher: ## Install watcher operator via olm
 
 .PHONY: watcher_deploy
 watcher_deploy: ## Deploy watcher service
-	oc apply -f config/samples/watcher_requirements.yaml
 	oc apply -f config/samples/watcher_v1beta1_watcher.yaml
 	oc wait watcher watcher --for condition=Ready --timeout=600s
 
 .PHONY: watcher_deploy_cleanup
 watcher_deploy_cleanup: ## Undeploy watcher service
 	oc delete -f config/samples/watcher_v1beta1_watcher.yaml
-	oc delete -f config/samples/watcher_requirements.yaml
 	timeout 300s bash -c "while (oc get watcher watcher); do sleep 10; done"
 
 .PHONY: watcher_cleanup

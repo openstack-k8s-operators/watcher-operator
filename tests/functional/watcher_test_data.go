@@ -90,7 +90,7 @@ func GetWatcherTestData(watcherName types.NamespacedName) WatcherTestData {
 		},
 		PrometheusSecretName: types.NamespacedName{
 			Namespace: watcherName.Namespace,
-			Name:      "metric-storage-prometheus-config",
+			Name:      "metric-storage-prometheus-endpoint",
 		},
 		RabbitMqClusterName: "rabbitmq",
 		WatcherTransportURL: types.NamespacedName{

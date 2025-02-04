@@ -6,7 +6,4 @@ delete:
   name: watcher-kuttl
 - apiVersion: v1
   kind: Secret
-  name: metric-storage-prometheus-config
-- apiVersion: v1
-  kind: Secret
   name: custom-prometheus-config

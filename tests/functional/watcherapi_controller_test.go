@@ -34,7 +34,7 @@ var _ = Describe("WatcherAPI controller with minimal spec values", func() {
 			Expect(WatcherAPI.Spec.Secret).Should(Equal("osp-secret"))
 			Expect(WatcherAPI.Spec.MemcachedInstance).Should(Equal("memcached"))
 			Expect(WatcherAPI.Spec.PasswordSelectors).Should(Equal(watcherv1beta1.PasswordSelector{Service: "WatcherPassword"}))
-			Expect(WatcherAPI.Spec.PrometheusSecret).Should(Equal("metric-storage-prometheus-config"))
+			Expect(WatcherAPI.Spec.PrometheusSecret).Should(Equal("metric-storage-prometheus-endpoint"))
 		})
 
 		It("should have the Status fields initialized", func() {
@@ -63,7 +63,7 @@ var _ = Describe("WatcherAPI controller", func() {
 			WatcherAPI := GetWatcherAPI(watcherTest.WatcherAPI)
 			Expect(WatcherAPI.Spec.Secret).Should(Equal("test-osp-secret"))
 			Expect(WatcherAPI.Spec.MemcachedInstance).Should(Equal("memcached"))
-			Expect(WatcherAPI.Spec.PrometheusSecret).Should(Equal("metric-storage-prometheus-config"))
+			Expect(WatcherAPI.Spec.PrometheusSecret).Should(Equal("metric-storage-prometheus-endpoint"))
 		})
 
 		It("should have the Status fields initialized", func() {

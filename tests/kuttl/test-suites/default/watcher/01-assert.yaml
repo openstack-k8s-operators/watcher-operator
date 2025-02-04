@@ -23,7 +23,7 @@ spec:
   applierServiceTemplate:
     replicas: 1
     resources: {}
-  prometheusSecret: metric-storage-prometheus-config
+  prometheusSecret: metric-storage-prometheus-endpoint
 status:
   apiServiceReadyCount: 1
   applierServiceReadyCount: 1
@@ -92,7 +92,7 @@ metadata:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: metric-storage-prometheus-config
+  name: metric-storage-prometheus-endpoint
   namespace: watcher-kuttl-default
   finalizers:
   - openstack.org/watcher
