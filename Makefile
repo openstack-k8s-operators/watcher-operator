@@ -465,7 +465,7 @@ run-with-webhook: manifests generate fmt vet ## Run a controller from your host.
 
 .PHONY: docs-dependencies
 docs-dependencies: .bundle ## Convert markdown docs to ascii docs
-	bundle exec kramdoc README.md -o docs/main.adoc
+	bundle exec kramdoc README.md -o docs/readme.adoc
 
 .PHONY: .bundle
 .bundle:

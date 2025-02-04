@@ -11,7 +11,7 @@ Dockerfile.cross
 /.bundle
 /Gemfile.lock
 /local
-docs/main.adoc
+docs/readme.adoc
 /docs_build
 
 # Test binary, built with `go test -c`

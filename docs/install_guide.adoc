@@ -1,0 +1,219 @@
+= User Installation Guide
+
+== Getting Started
+
+Before installing the Watcher operator you first need a functional
+OpenShift installation with the required Openstack operators,
+including the Telemetry operator. The following links point
+to documents detailing how to create this required starting environment:
+
+* https://github.com/openstack-k8s-operators/openstack-operator[Openstack Operator]
+* https://github.com/openstack-k8s-operators/telemetry-operator[Telemetry Operator]
+* https://kubernetes.io/docs/concepts/extend-kubernetes/operator/[Kubernetes operators]
+* https://prometheus.io/[Prometheus metrics]
+
+A CRC (https://crc.dev/docs/introducing/[Code Ready Containers]) installation is
+adequade for a developer environment.
+
+To verify that the environment set up is ready, do the following:
+
+. Log in to the Kubernetes/Openshift environment:
++
+[,console]
+----
+$ oc login -u <username> -p <password> https://api.crc.testing:6443 --insecure-skip-tls-verify=true
+----
++
+. Access the Openstack client and verify the service endpoints are available:
++
+[,console]
+----
+$ oc rsh openstackclient openstack endpoint list -c 'ID' -c 'Service Name' -c 'Enabled'
++----------------------------------+--------------+---------+
+| ID                               | Service Name | Enabled |
++----------------------------------+--------------+---------+
+| 0bada656064a4d409bc5fed610654edd | neutron      | True    |
+| 17453066f8dc40bfa0f8584007cffc9a | cinderv3     | True    |
+| 22768bf3e9a34fefa57b96c20d405cfe | keystone     | True    |
+| 284fd13676ed4bb095b602a004b4a0f2 | watcher      | True    |
+| 48602a17288f442a98c300931f82244a | watcher      | True    |
+| 54e3d48cdda84263b7f1c65c924f3e3a | glance       | True    |
+| 74345a18262740eb952d2b6b7220ceeb | keystone     | True    |
+| 789a2d6048174b849a7c7243421675b4 | placement    | True    |
+| 9b7d8f26834343a59108a4225e0e574a | nova         | True    |
+| a836d134394846ff88f2f3dd8d96de34 | nova         | True    |
+| af1bf23e62c148d3b7f6c47f8f071739 | placement    | True    |
+| ce0489dfeff64afb859338e480397f90 | glance       | True    |
+| db69cc22117344b796f97e8dd3dc67e5 | neutron      | True    |
+| fa48dc132b524915b4d1ca963c50a653 | cinderv3     | True    |
++----------------------------------+--------------+---------+
+----
++
+. Verify that the Telemetry operator with Prometheus metric storage is ready:
++
+[,console]
+----
+$ oc get telemetry
+NAME        STATUS   MESSAGE
+telemetry   True     Setup complete
+
+$ oc get metricstorage
+NAME             STATUS   MESSAGE
+metric-storage   True     Setup complete
+
+$ oc get route metric-storage-prometheus
+NAME                        HOST/PORT                                              PATH   SERVICES                    PORT   TERMINATION     WILDCARD
+metric-storage-prometheus   metric-storage-prometheus-openstack.apps-crc.testing          metric-storage-prometheus   web    edge/Redirect   None
+----
++
+. You can view the Prometheus metrics in a web browser at the `HOST/PORT` address, for example,
+https://metric-storage-prometheus-openstack.apps-crc.testing.
+
+== Installing the Operator
+
+.Procedure
+
+Now that you have a ready working environment, you can install the Watcher Operator.
+NOTE: The steps below require you to log in to your OpenShift cluster as a user with
+cluster-admin privileges.
+
+. Create a `watcher-operator.yaml` file:
++
+[source,yaml]
+----
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  name: watcher-operator-index
+  namespace: openstack-operators
+spec:
+  image: quay.io/openstack-k8s-operators/watcher-operator-index:latest
+  sourceType: grpc
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: openstack
+  namespace: openstack-operators
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: watcher-operator
+  namespace: openstack-operators
+spec:
+  name: watcher-operator
+  channel: alpha
+  source: watcher-operator-index
+  sourceNamespace: openstack-operators
+----
++
+. `oc apply` the file to create the resources:
++
+[,console]
+----
+$ oc apply -f watcher-operator.yaml
+catalogsource.operators.coreos.com/watcher-operator-index created
+operatorgroup.operators.coreos.com/openstack unchanged
+subscription.operators.coreos.com/watcher-operator created
+----
++
+. Check that the operator is installed:
++
+[,console]
+----
+$ oc get subscription.operators.coreos.com/watcher-operator -n openstack-operators
+NAME               PACKAGE            SOURCE                   CHANNEL
+watcher-operator   watcher-operator   watcher-operator-index   alpha
+
+$ oc get pod -l openstack.org/operator-name=watcher -n openstack-operators
+NAME                                                  READY   STATUS    RESTARTS   AGE
+watcher-operator-controller-manager-dd95db756-kslw9   2/2     Running   0          44s
+
+$ oc get csv watcher-operator.v0.0.1
+NAME                      DISPLAY            VERSION   REPLACES   PHASE
+watcher-operator.v0.0.1   Watcher Operator   0.0.1                Succeeded
+----
+
+== Deploying the Watcher Service
+
+Now, you will need to create a Watcher Custom Resource based on the `Watcher CRD`.
+
+.Procedure
+
+. Use the following commands to _view_ the `Watcher CRD` definition and specification schema:
++
+[,console]
+----
+$ oc describe crd watcher
+
+$ oc explain watcher.spec
+----
++
+. Add a WatcherPassword field to the `Secret` created as part of the control plane deployment.
++
+For more information, see link:https://docs.redhat.com/en/documentation/red_hat_openstack_services_on_openshift/18.0/html/deploying_red_hat_openstack_services_on_openshift/assembly_preparing-RHOCP-for-RHOSO#proc_providing-secure-access-to-the-RHOSO-services_preparing[Providing secure access to the Red Hat OpenStack Services on OpenShift services].
++
+. Update the `Secret`, and verify that the `WatcherPassword` field is present:
++
+[,console]
+----
+$ oc apply -f <secret file> -n openstack
+
+$ oc describe secret osp-secret -n openstack | grep Watcher
+WatcherPassword:                  9 bytes
+----
++
+. Create a file on your workstation named `watcher.yaml` to define the Watcher CR. Your file should contain parameters similar to the example below:
++
+[source,yaml]
+----
+apiVersion: watcher.openstack.org/v1beta1
+kind: Watcher
+metadata:
+  name: watcher
+spec:
+  databaseInstance: "openstack"
+  secret: <name of the secret with the credentials of the ControlPlane deploy>
+  tls:
+    caBundleSecretName: "combined-ca-bundle"
+----
++
+For more information about how to define an OpenStackControlPlane custom resource (CR), see link:https://docs.redhat.com/en/documentation/red_hat_openstack_services_on_openshift/18.0/html/deploying_red_hat_openstack_services_on_openshift/assembly_creating-the-control-plane#proc_creating-the-control-plane_controlplane[Creating the control plane].
++
+. `oc apply` to configure Watcher
++
+[,console]
+----
+$ oc apply -f watcher.yaml -n openstack
+watcher.watcher.openstack.org/watcher configured
+----
++
+. To check if the service status, run:
++
+[,console]
+----
+$ oc wait -n openstack --for condition=Ready --timeout=300s Watcher watcher
+watcher.watcher.openstack.org/watcher condition met
+----
++
+where `Watcher` refers to the _kind_ and `watcher` refers to the name of the CR.
+. Check that the watcher service has been registered in list of keystone services with command:
++
+[,console]
+----
+$ oc rsh openstackclient openstack service list
++----------------------------------+------------+-------------+
+| ID                               | Name       | Type        |
++----------------------------------+------------+-------------+
+| 1470e8d6019446a1bcdfdb6dc55f3f6a | nova       | compute     |
+| 41d60e1c678142cf8e5daf7a82af1864 | neutron    | network     |
+| 5b0d95d1c08e4deb832815addd859924 | ceilometer | Ceilometer  |
+| 7e081cb4928945d7aa41d1622f7b8586 | cinderv3   | volumev3    |
+| 8d7ee56ca2bb4dba999d67580909dd90 | glance     | image       |
+| c3348e10fb414780988fbbceac9c4b5f | watcher    | infra-optim |
+| db60453eca65409bbb0b61f4295c66ec | placement  | placement   |
+| fa717124fbcb4d708ba4c41c9109df81 | keystone   | identity    |
++----------------------------------+------------+-------------+
+----

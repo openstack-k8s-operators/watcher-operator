@@ -1,0 +1,10 @@
+= Watcher Operator documentation
+:toc: left
+:toclevels: 3
+:icons: font
+:compat-mode:
+:doctype: book
+:context: osp
+
+include::readme.adoc[leveloffset=+1]
+include::install_guide.adoc[leveloffset=+1]

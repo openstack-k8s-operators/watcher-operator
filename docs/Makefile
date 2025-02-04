@@ -1,11 +1,14 @@
+BUILD = upstream
 BUILD_DIR = ../docs_build
 ROOTDIR = $(realpath .)
 NAME = watcher-operator
 DEST_DIR = $(BUILD_DIR)/$(NAME)
 DEST_HTML = $(DEST_DIR)/index.html
+INSTALL_HTML = $(DEST_DIR)/install-$(BUILD).html
 IMAGES_DIR = $(DEST_DIR)/images
 IMAGES_TS = $(DEST_DIR)/.timestamp-images
 MAIN_SOURCE = main.adoc
+INSTALL_SOURCE = install_guide.adoc
 OTHER_SOURCES = $(shell find ./assemblies -type f)
 IMAGES = $(shell find ./images -type f)
 ALL_SOURCES = $(MAIN_SOURCE) $(OTHER_SOURCES) $(IMAGES)
@@ -23,7 +26,7 @@ all: html
 
 html: html-latest
 
-html-latest: prepare $(IMAGES_TS) $(DEST_HTML)
+html-latest: prepare $(IMAGES_TS) $(DEST_HTML) $(INSTALL_HTML)
 
 prepare:
 	@mkdir -p $(BUILD_DIR)
@@ -49,3 +52,6 @@ $(IMAGES_TS): $(IMAGES)
 
 $(DEST_HTML): $(ALL_SOURCES)
 	$(BUNDLE_EXEC) asciidoctor -a source-highlighter=highlightjs -a highlightjs-languages="yaml,bash" -a highlightjs-theme="monokai" --failure-level WARN -a build=$(BUILD) -b xhtml5 -d book -o $@ $(MAIN_SOURCE)
+
+$(INSTALL_HTML): $(ALL_SOURCES)
+	$(BUNDLE_EXEC) asciidoctor -a source-highlighter=highlightjs -a highlightjs-languages="yaml,bash" -a highlightjs-theme="monokai" --failure-level WARN -a build=$(BUILD) -b xhtml5 -d book -o $@ $(INSTALL_SOURCE)
