@@ -7,6 +7,8 @@ const (
 	WatcherRabbitMQTransportURLReadyCondition condition.Type = "WatcherRabbitMQTransportURLReady"
 	// WatcherAPIReadyCondition -
 	WatcherAPIReadyCondition condition.Type = "WatcherAPIReady"
+	// WatcherApplierReadyCondition -
+	WatcherApplierReadyCondition condition.Type = "WatcherApplierReady"
 )
 
 const (
@@ -26,4 +28,12 @@ const (
 	WatcherAPIReadyErrorMessage = "WatcherAPI error occured %s"
 	// WatcherPrometheusSecretErrorMessage -
 	WatcherPrometheusSecretErrorMessage = "Error with prometheus config secret"
+	// WatcherApplierReadyInitMessage -
+	WatcherApplierReadyInitMessage = "WatcherApplier creation not started"
+	// WatcherApplierReadyRunningMessage -
+	WatcherApplierReadyRunningMessage = "WatcherApplier creation in progress"
+	// WatcherApplierReadyMessage -
+	WatcherApplierReadyMessage = "WatcherApplier successfully created"
+	// WatcherApplierReadyErrorMessage -
+	WatcherApplierReadyErrorMessage = "WatcherApplier error occured %s"
 )

@@ -65,6 +65,10 @@ status:
     reason: Ready
     status: "True"
     type: WatcherAPIReady
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: WatcherApplierReady
   - message: WatcherRabbitMQTransportURL successfully created
     reason: Ready
     status: "True"
@@ -263,6 +267,76 @@ spec:
   containers:
   - name: watcher-kuttl-api-log
   - name: watcher-api
+status:
+  phase: Running
+---
+apiVersion: watcher.openstack.org/v1beta1
+kind: WatcherApplier
+metadata:
+  finalizers:
+  - openstack.org/watcherapplier
+  name: watcher-kuttl-applier
+spec:
+  containerImage: quay.io/podified-master-centos9/openstack-watcher-applier:current-podified
+  memcachedInstance: memcached
+  passwordSelectors:
+    service: WatcherPassword
+  preserveJobs: false
+  replicas: 1
+  resources: {}
+  secret: watcher-kuttl
+  serviceAccount: watcher-watcher-kuttl
+  serviceUser: watcher
+status:
+  conditions:
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: Ready
+  - message: Deployment completed
+    reason: Ready
+    status: "True"
+    type: DeploymentReady
+  - message: Input data complete
+    reason: Ready
+    status: "True"
+    type: InputReady
+  - message: " Memcached instance has been provisioned"
+    reason: Ready
+    status: "True"
+    type: MemcachedReady
+  - message: Service config create completed
+    reason: Ready
+    status: "True"
+    type: ServiceConfigReady
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: watcher-kuttl-applier
+  labels:
+    service: watcher-applier
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+      - name: watcher-applier
+        image: quay.io/podified-master-centos9/openstack-watcher-applier:current-podified
+status:
+  readyReplicas: 1
+  replicas: 1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    service: watcher-applier
+  name: watcher-kuttl-applier-0
+spec:
+  containers:
+  - name: watcher-applier
+    image: quay.io/podified-master-centos9/openstack-watcher-applier:current-podified
 status:
   phase: Running
 ---

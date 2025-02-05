@@ -353,6 +353,14 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		return ctrl.Result{}, err
 	}
 
+	// Deploy Watcher Applier
+	_, _, err = r.ensureApplier(ctx, instance, subLevelSecretName)
+
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	// End of Watcher Applier deploy
+
 	// We reached the end of the Reconcile, update the Ready condition based on
 	// the sub conditions
 	if instance.Status.Conditions.AllSubConditionIsTrue() {
@@ -431,6 +439,10 @@ func (r *WatcherReconciler) initConditions(instance *watcherv1beta1.Watcher) err
 			watcherv1beta1.WatcherAPIReadyCondition,
 			condition.InitReason,
 			watcherv1beta1.WatcherAPIReadyInitMessage),
+		condition.UnknownCondition(
+			watcherv1beta1.WatcherApplierReadyCondition,
+			condition.InitReason,
+			watcherv1beta1.WatcherApplierReadyInitMessage),
 	)
 
 	instance.Status.Conditions.Init(&cl)
@@ -862,7 +874,7 @@ func (r *WatcherReconciler) ensureAPI(
 		return nil, op, err
 	}
 	if op != controllerutil.OperationResultNone {
-		Log.Info(fmt.Sprintf("WatcherAPI %s , WatcherPI.Name %s.", string(op), apiDeployment.Name))
+		Log.Info(fmt.Sprintf("WatcherAPI %s , WatcherAPI.Name %s.", string(op), apiDeployment.Name))
 	}
 
 	if apiDeployment.Generation == apiDeployment.Status.ObservedGeneration {
@@ -876,6 +888,84 @@ func (r *WatcherReconciler) ensureAPI(
 	}
 
 	return apiDeployment, op, nil
+
+}
+
+func (r *WatcherReconciler) ensureApplier(
+	ctx context.Context,
+	instance *watcherv1beta1.Watcher,
+	secretName string,
+) (*watcherv1beta1.WatcherApplier, controllerutil.OperationResult, error) {
+	Log := r.GetLogger(ctx)
+	Log.Info(fmt.Sprintf("Creating WatcherApplier '%s'", instance.Name))
+
+	watcherApplierSpec := watcherv1beta1.WatcherApplierSpec{
+		Secret: secretName,
+		WatcherCommon: watcherv1beta1.WatcherCommon{
+			ServiceUser:         instance.Spec.ServiceUser,
+			PasswordSelectors:   instance.Spec.PasswordSelectors,
+			MemcachedInstance:   instance.Spec.MemcachedInstance,
+			NodeSelector:        instance.Spec.ApplierServiceTemplate.NodeSelector,
+			PreserveJobs:        instance.Spec.PreserveJobs,
+			CustomServiceConfig: instance.Spec.ApplierServiceTemplate.CustomServiceConfig,
+		},
+		WatcherSubCrsCommon: watcherv1beta1.WatcherSubCrsCommon{
+			ContainerImage: instance.Spec.ApplierContainerImageURL,
+			Resources:      instance.Spec.ApplierServiceTemplate.Resources,
+			ServiceAccount: "watcher-" + instance.Name,
+		},
+		Replicas: instance.Spec.ApplierServiceTemplate.Replicas,
+	}
+
+	// If NodeSelector is not specified in Watcher ApplierServiceTemplate,
+	// the instance inherits the value from the top-level Watcher CR.
+	if watcherApplierSpec.NodeSelector == nil {
+		watcherApplierSpec.NodeSelector = instance.Spec.NodeSelector
+	}
+
+	// We need to have TLS defined in SubCRs to have some values available
+	watcherApplierSpec.TLS = instance.Spec.TLS
+
+	applierDeployment := &watcherv1beta1.WatcherApplier{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-applier", instance.Name),
+			Namespace: instance.Namespace,
+		},
+	}
+
+	op, err := controllerutil.CreateOrPatch(ctx, r.Client, applierDeployment, func() error {
+		applierDeployment.Spec = watcherApplierSpec
+		err := controllerutil.SetControllerReference(instance, applierDeployment, r.Scheme)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+
+	if err != nil {
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			watcherv1beta1.WatcherApplierReadyCondition,
+			condition.ErrorReason,
+			condition.SeverityError,
+			watcherv1beta1.WatcherApplierReadyErrorMessage,
+			err.Error()))
+		return nil, op, err
+	}
+	if op != controllerutil.OperationResultNone {
+		Log.Info(fmt.Sprintf("WatcherApplier %s , WatcherApplier.Name %s.", string(op), applierDeployment.Name))
+	}
+
+	if applierDeployment.Generation == applierDeployment.Status.ObservedGeneration {
+		c := applierDeployment.Status.Conditions.Mirror(watcherv1beta1.WatcherApplierReadyCondition)
+		// NOTE(gibi): it can be nil if the WatcherApplier CR is created but no
+		// reconciliation is run on it to initialize the ReadyCondition yet.
+		if c != nil {
+			instance.Status.Conditions.Set(c)
+		}
+		instance.Status.ApplierServiceReadyCount = applierDeployment.Status.ReadyCount
+	}
+
+	return applierDeployment, op, nil
 
 }
 

@@ -83,6 +83,13 @@ type WatcherAPITemplate struct {
 	WatcherSubCrsTemplate `json:",inline"`
 
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=1
+	// +kubebuilder:validation:Maximum=32
+	// +kubebuilder:validation:Minimum=0
+	// Replicas of WatcherAPI service to run
+	Replicas *int32 `json:"replicas"`
+
+	// +kubebuilder:validation:Optional
 	// Override, provides the ability to override the generated manifest of
 	// several child resources.
 	Override APIOverrideSpec `json:"override,omitempty"`

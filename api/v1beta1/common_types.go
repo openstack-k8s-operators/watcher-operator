@@ -106,6 +106,11 @@ type WatcherTemplate struct {
 	// +kubebuilder:default={replicas:1}
 	// APIServiceTemplate - define the watcher-api service
 	APIServiceTemplate WatcherAPITemplate `json:"apiServiceTemplate"`
+
+	// +kubebuilder:validation:Required
+	// +kubebuilder:default={replicas:1}
+	// WatcherApplierTemplate - define the watcher-applier service
+	ApplierServiceTemplate WatcherApplierTemplate `json:"applierServiceTemplate"`
 }
 
 // PasswordSelector to identify the DB and AdminUser password from the Secret
@@ -136,13 +141,6 @@ type WatcherSubCrsCommon struct {
 // WatcherSubCrsTemplate define de common part of the input parameters specified by the user to
 // create a 2nd CR via higher level CRDs.
 type WatcherSubCrsTemplate struct {
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:default=1
-	// +kubebuilder:validation:Maximum=32
-	// +kubebuilder:validation:Minimum=0
-	// Replicas of Watcher service to run
-	Replicas *int32 `json:"replicas"`
-
 	// +kubebuilder:validation:Optional
 	// Resources - Compute Resources required by this service (Limits/Requests).
 	// https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/

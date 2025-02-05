@@ -66,6 +66,19 @@ type WatcherApplierStatus struct {
 	Hash map[string]string `json:"hash,omitempty"`
 }
 
+// WatcherApplierTemplatce defines the input parameters specified by the user to
+// create a WatcherApplier via higher level CRDs.
+type WatcherApplierTemplate struct {
+	WatcherSubCrsTemplate `json:",inline"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=1
+	// +kubebuilder:validation:Maximum=1
+	// +kubebuilder:validation:Minimum=0
+	// Replicas of WatcherApplier service to run
+	Replicas *int32 `json:"replicas"`
+}
+
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 

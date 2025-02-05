@@ -53,7 +53,13 @@ func GetNonDefaultWatcherSpec() map[string]interface{} {
 		"tls": map[string]interface{}{
 			"caBundleSecretName": "combined-ca-bundle",
 		},
-		"prometheusSecret": "custom-prometheus-config",
+		"prometheusSecret":         "custom-prometheus-config",
+		"applierContainerImageURL": "fake-Applier-Container-URL",
+		"applierServiceTemplate": map[string]interface{}{
+			"replicas":            1,
+			"nodeSelector":        map[string]string{"foo": "bar"},
+			"customServiceConfig": "# Service config Applier",
+		},
 	}
 }
 

@@ -273,6 +273,9 @@ var _ = Describe("Watcher controller", func() {
 			// Simulate KeystoneEndpoint success
 			keystone.SimulateKeystoneEndpointReady(watcherTest.WatcherKeystoneEndpointName)
 
+			// Simulate WatcherApplier deployment
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherApplierStatefulSet)
+
 			th.ExpectCondition(
 				watcherTest.Instance,
 				ConditionGetterFunc(WatcherConditionGetter),
@@ -332,6 +335,14 @@ var _ = Describe("Watcher controller", func() {
 				corev1.ConditionTrue,
 			)
 
+			// WatcherApplier in Ready condition
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				watcherv1beta1.WatcherApplierReadyCondition,
+				corev1.ConditionTrue,
+			)
+
 			// Global status Ready
 			th.ExpectCondition(
 				watcherTest.Instance,
@@ -380,6 +391,23 @@ var _ = Describe("Watcher controller", func() {
 			Expect(deployment.Spec.Template.Spec.Volumes).To(HaveLen(3))
 			Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(2))
 			Expect(deployment.Spec.Selector.MatchLabels).To(Equal(map[string]string{"service": "watcher-api"}))
+
+			// Check if WatcherApplier is created
+			WatcherApplier := GetWatcherApplier(watcherTest.WatcherApplier)
+			Expect(WatcherApplier.Spec.ContainerImage).To(Equal(watcherv1beta1.WatcherApplierContainerImage))
+			Expect(WatcherApplier.Spec.Secret).To(Equal("watcher"))
+			Expect(WatcherApplier.Spec.ServiceAccount).To(Equal("watcher-watcher"))
+			Expect(int(*WatcherApplier.Spec.Replicas)).To(Equal(1))
+			Expect(WatcherApplier.Spec.NodeSelector).To(BeNil())
+			Expect(WatcherApplier.Spec.CustomServiceConfig).To(Equal(""))
+
+			// Assert that the watcher applier statefulset is created
+			applierDeploy := th.GetStatefulSet(watcherTest.WatcherApplierStatefulSet)
+			Expect(applierDeploy.Spec.Template.Spec.ServiceAccountName).To(Equal("watcher-watcher"))
+			Expect(int(*applierDeploy.Spec.Replicas)).To(Equal(1))
+			Expect(applierDeploy.Spec.Template.Spec.Volumes).To(HaveLen(3))
+			Expect(applierDeploy.Spec.Template.Spec.Containers).To(HaveLen(1))
+			Expect(applierDeploy.Spec.Selector.MatchLabels).To(Equal(map[string]string{"service": "watcher-applier"}))
 		})
 
 		It("Should fail to register watcher service to keystone when has not the expected secret", func() {
@@ -521,7 +549,7 @@ var _ = Describe("Watcher controller", func() {
 		})
 	})
 
-	When("Watcher is created  with container images defined in CR and env variables contains fake values", func() {
+	When("Watcher is created with container images defined in CR and env variables contains fake values", func() {
 		BeforeEach(func() {
 			// Set environment variables
 			os.Setenv("WATCHER_API_IMAGE_URL_DEFAULT", "watcher-api-custom-image-env")
@@ -538,7 +566,7 @@ var _ = Describe("Watcher controller", func() {
 		})
 	})
 
-	When("Watcher is created with not container images defined in CR and env variables contains fake value", func() {
+	When("Watcher is created with no container images defined in CR and env variables contains fake value", func() {
 		BeforeEach(func() {
 			os.Setenv("WATCHER_API_IMAGE_URL_DEFAULT", "watcher-api-custom-image-env")
 			os.Setenv("WATCHER_DECISION_ENGINE_IMAGE_URL_DEFAULT", "watcher-decision-engine-custom-image-env")
@@ -684,6 +712,9 @@ var _ = Describe("Watcher controller", func() {
 			// Simulate KeystoneEndpoint success
 			keystone.SimulateKeystoneEndpointReady(watcherTest.WatcherKeystoneEndpointName)
 
+			// Simulate WatcherApplier deployment
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherApplierStatefulSet)
+
 			// We validate the full Watcher CR readiness status here
 			// DB Ready
 			th.ExpectCondition(
@@ -742,6 +773,14 @@ var _ = Describe("Watcher controller", func() {
 				watcherTest.Instance,
 				ConditionGetterFunc(WatcherConditionGetter),
 				watcherv1beta1.WatcherAPIReadyCondition,
+				corev1.ConditionTrue,
+			)
+
+			// WatcherApplier in Ready condition
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				watcherv1beta1.WatcherApplierReadyCondition,
 				corev1.ConditionTrue,
 			)
 
@@ -825,6 +864,46 @@ var _ = Describe("Watcher controller", func() {
 			Expect(createdConfigSecret).ShouldNot(BeNil())
 			Expect(createdConfigSecret.Data["01-global-custom.conf"]).Should(Equal([]byte("# Global config")))
 			Expect(createdConfigSecret.Data["02-service-custom.conf"]).Should(Equal([]byte("# Service config")))
+
+			// Check Wacther Applier
+			watcherApplier := &watcherv1beta1.WatcherApplier{}
+			Expect(k8sClient.Get(ctx,
+				types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: watcherTest.Instance.Name + "-applier"},
+				watcherApplier)).Should(Succeed())
+
+			// Check the config-data volume of watcherapplier has expected info
+			applierConfigSecret := th.GetSecret(
+				types.NamespacedName{
+					Name:      watcherTest.Instance.Name + "-applier-config-data",
+					Namespace: watcherTest.Instance.Namespace,
+				},
+			)
+			Expect(applierConfigSecret).ShouldNot(BeNil())
+			Expect(applierConfigSecret.Data["my.cnf"]).To(Equal([]byte("[client]\nssl=0")))
+
+			WatcherApplier := GetWatcherApplier(watcherTest.WatcherApplier)
+			Expect(WatcherApplier.Spec.ContainerImage).To(Equal("fake-Applier-Container-URL"))
+			Expect(WatcherApplier.Spec.Secret).To(Equal("watcher"))
+			Expect(WatcherApplier.Spec.ServiceAccount).To(Equal("watcher-watcher"))
+			Expect(int(*WatcherApplier.Spec.Replicas)).To(Equal(1))
+			Expect(*WatcherApplier.Spec.NodeSelector).To(Equal(map[string]string{"foo": "bar"}))
+			Expect(WatcherApplier.Spec.TLS.CaBundleSecretName).Should(Equal("combined-ca-bundle"))
+			Expect(WatcherApplier.Spec.CustomServiceConfig).Should(Equal("# Service config Applier"))
+
+			// Assert that the watcher applier deployment is created
+			applierDeploy := th.GetStatefulSet(watcherTest.WatcherApplierStatefulSet)
+			Expect(applierDeploy.Spec.Template.Spec.ServiceAccountName).To(Equal("watcher-watcher"))
+			Expect(int(*applierDeploy.Spec.Replicas)).To(Equal(1))
+			Expect(applierDeploy.Spec.Template.Spec.Volumes).To(HaveLen(4))
+			Expect(applierDeploy.Spec.Template.Spec.Containers).To(HaveLen(1))
+			Expect(applierDeploy.Spec.Selector.MatchLabels).To(Equal(map[string]string{"service": "watcher-applier"}))
+
+			// Assert that the required custom configuration is applied in the config secret
+			// assert that the top level secret is created with proper content
+			createdConfigSecret = th.GetSecret(types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: watcherTest.Instance.Name + "-applier-config-data"})
+			Expect(createdConfigSecret).ShouldNot(BeNil())
+			Expect(createdConfigSecret.Data["01-global-custom.conf"]).Should(Equal([]byte("# Global config")))
+			Expect(createdConfigSecret.Data["02-service-custom.conf"]).Should(Equal([]byte("# Service config Applier")))
 		})
 
 	})

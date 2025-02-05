@@ -55,6 +55,9 @@ type WatcherStatus struct {
 
 	// APIServiceReadyCount defines the number or replicas ready from watcher-api
 	APIServiceReadyCount int32 `json:"apiServiceReadyCount,omitempty"`
+
+	// ApplierServiceReadyCount defines the number or replicas ready from watcher-applier
+	ApplierServiceReadyCount int32 `json:"applierServiceReadyCount,omitempty"`
 }
 
 //+kubebuilder:object:root=true
