@@ -116,11 +116,52 @@ type EndpointDetail struct {
 func (ed *EndpointDetail) ensureRoute(
 	ctx context.Context,
 	helper *helper.Helper,
+	instance *watcherv1beta1.Watcher,
+	svc *k8s_corev1.Service,
 ) (ctrl.Result, error) {
+	// check if there is already a route with watcherapi labels
+	routes, err := GetRoutesListWithLabel(ctx, helper, instance.Namespace, getAPIServiceLabels())
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	for _, route := range routes.Items {
+		instanceRef := metav1.OwnerReference{
+			APIVersion:         instance.APIVersion,
+			Kind:               instance.Kind,
+			Name:               instance.GetName(),
+			UID:                instance.GetUID(),
+			BlockOwnerDeletion: ptr.To(true),
+			Controller:         ptr.To(true),
+		}
+
+		owner := metav1.GetControllerOf(&route.ObjectMeta)
+
+		// Delete the route if the service was changed not to expose a route
+		if svc.ObjectMeta.Annotations[service.AnnotationIngressCreateKey] == "false" &&
+			route.Spec.To.Name == ed.Name &&
+			owner != nil && owner.UID == instance.GetUID() {
+			// Delete any other owner refs from ref list to not block deletion until owners are gone
+			route.SetOwnerReferences([]metav1.OwnerReference{instanceRef})
+
+			// Delete route
+			err := helper.GetClient().Delete(ctx, &route)
+			if err != nil && !k8s_errors.IsNotFound(err) {
+				err = fmt.Errorf("Error deleting route %s: %w", route.Name, err)
+				return ctrl.Result{}, err
+			}
+
+			if ed.Service.OverrideSpec.EndpointURL != nil {
+				ed.Service.OverrideSpec.EndpointURL = nil
+				helper.GetLogger().Info(fmt.Sprintf("Service %s override endpointURL removed", svc.Name))
+			}
+		}
+
+	}
 	if ed.Route.Create {
 		if ed.Service.OverrideSpec.EmbeddedLabelsAnnotations == nil {
 			ed.Service.OverrideSpec.EmbeddedLabelsAnnotations = &service.EmbeddedLabelsAnnotations{}
 		}
+		ed.Labels = getAPIServiceLabels()
 
 		ctrlResult, err := ed.CreateRoute(ctx, helper)
 		return ctrlResult, err
@@ -266,6 +307,27 @@ func hasCertInOverrideSpec(overrideSpec route.OverrideSpec) bool {
 	return overrideSpec.Spec.TLS.CACertificate != "" &&
 		overrideSpec.Spec.TLS.Certificate != "" &&
 		overrideSpec.Spec.TLS.Key != ""
+}
+
+// GetRoutesListWithLabel - Get all routes in namespace of the obj matching label selector
+func GetRoutesListWithLabel(
+	ctx context.Context,
+	h *helper.Helper,
+	namespace string,
+	labelSelectorMap map[string]string,
+) (*routev1.RouteList, error) {
+	routeList := &routev1.RouteList{}
+	listOpts := []client.ListOption{
+		client.InNamespace(namespace),
+		client.MatchingLabels(labelSelectorMap),
+	}
+
+	if err := h.GetClient().List(ctx, routeList, listOpts...); err != nil {
+		err = fmt.Errorf("Error listing routes for %s: %w", labelSelectorMap, err)
+		return nil, err
+	}
+
+	return routeList, nil
 }
 
 // end of helper types to expose services
@@ -1493,7 +1555,7 @@ func (r *WatcherReconciler) exposeEndpoints(
 				}
 			}
 
-			ctrlResult, err := ed.ensureRoute(ctx, helper)
+			ctrlResult, err := ed.ensureRoute(ctx, helper, instance, &svc)
 			if err != nil || (ctrlResult != ctrl.Result{}) {
 				return ctrlResult, err
 			}
