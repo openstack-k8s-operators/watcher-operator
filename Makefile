@@ -408,6 +408,7 @@ KUTTL_SUITE_DIR ?= tests/kuttl/test-suites/$(KUTTL_SUITE)
 
 .PHONY: kuttl-test-prep
 kuttl-test-prep:
+	timeout 60s bash -c "while ! ( oc get service openstack-operator-webhook-service -n openstack-operators -o jsonpath='{.status.loadBalancer}' |grep -q '{}' ) ; do sleep 2; done"
 	oc apply -k $(KUTTL_SUITE_DIR)/deps/ --timeout=120s
 	oc wait -n $(KUTTL_NAMESPACE) openstackcontrolplane openstack --for condition=Ready --timeout=300s
 
