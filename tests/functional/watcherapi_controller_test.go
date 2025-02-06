@@ -13,6 +13,7 @@ import (
 	"github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 )
 
@@ -540,6 +541,167 @@ var _ = Describe("WatcherAPI controller", func() {
 				ConditionGetterFunc(WatcherAPIConditionGetter),
 				condition.ReadyCondition,
 				corev1.ConditionTrue,
+			)
+		})
+	})
+	When("WatcherAPI is created with service TLS but invalid cert secret", func() {
+		BeforeEach(func() {
+			secret := th.CreateSecret(
+				watcherTest.InternalTopLevelSecretName,
+				map[string][]byte{
+					"WatcherPassword":       []byte("service-password"),
+					"transport_url":         []byte("url"),
+					"database_account":      []byte("watcher"),
+					"database_username":     []byte("watcher"),
+					"database_password":     []byte("watcher-password"),
+					"database_hostname":     []byte("db-hostname"),
+					"01-global-custom.conf": []byte(""),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, secret)
+			prometheusSecret := th.CreateSecret(
+				watcherTest.PrometheusSecretName,
+				map[string][]byte{
+					"host": []byte("prometheus.example.com"),
+					"port": []byte("9090"),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, prometheusSecret)
+			DeferCleanup(k8sClient.Delete, ctx, th.CreateCertSecret(watcherTest.WatcherPublicCertSecret))
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
+					watcherTest.WatcherInternalCertSecret,
+					map[string][]byte{
+						"random-field": []byte("some-b64-text"),
+					},
+				))
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: "combined-ca-bundle"},
+					map[string][]byte{
+						"internal-ca-bundle.pem": []byte("some-b64-text"),
+						"tls-ca-bundle.pem":      []byte("other-b64-text"),
+					},
+				))
+			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, GetTLSWatcherAPISpec()))
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.WatcherAPI.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.WatcherAPI.Namespace,
+					"openstack",
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+			mariadb.CreateMariaDBAccountAndSecret(
+				watcherTest.WatcherDatabaseAccount,
+				v1beta1.MariaDBAccountSpec{
+					UserName: "watcher",
+				},
+			)
+			mariadb.CreateMariaDBDatabase(
+				watcherTest.WatcherAPI.Namespace,
+				"watcher",
+				v1beta1.MariaDBDatabaseSpec{
+					Name: "watcher",
+				},
+			)
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+		})
+		It("fail for invalid TLS input", func() {
+			th.ExpectConditionWithDetails(
+				watcherTest.WatcherAPI,
+				ConditionGetterFunc(WatcherAPIConditionGetter),
+				condition.TLSInputReadyCondition,
+				corev1.ConditionFalse,
+				condition.ErrorReason,
+				"TLSInput error occured in TLS sources field tls.key not found in Secret "+watcherTest.WatcherAPI.Namespace+"/cert-watcher-internal-svc",
+			)
+		})
+	})
+	When("WatcherAPI is created with an invalid CA bundle secret", func() {
+		BeforeEach(func() {
+			secret := th.CreateSecret(
+				watcherTest.InternalTopLevelSecretName,
+				map[string][]byte{
+					"WatcherPassword":       []byte("service-password"),
+					"transport_url":         []byte("url"),
+					"database_account":      []byte("watcher"),
+					"database_username":     []byte("watcher"),
+					"database_password":     []byte("watcher-password"),
+					"database_hostname":     []byte("db-hostname"),
+					"01-global-custom.conf": []byte(""),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, secret)
+			prometheusSecret := th.CreateSecret(
+				watcherTest.PrometheusSecretName,
+				map[string][]byte{
+					"host": []byte("prometheus.example.com"),
+					"port": []byte("9090"),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, prometheusSecret)
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: "combined-ca-bundle"},
+					map[string][]byte{
+						"random-field": []byte("some-b64-text"),
+					},
+				))
+			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, GetTLSCaWatcherAPISpec()))
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.WatcherAPI.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.WatcherAPI.Namespace,
+					"openstack",
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+			mariadb.CreateMariaDBAccountAndSecret(
+				watcherTest.WatcherDatabaseAccount,
+				v1beta1.MariaDBAccountSpec{
+					UserName: "watcher",
+				},
+			)
+			mariadb.CreateMariaDBDatabase(
+				watcherTest.WatcherAPI.Namespace,
+				"watcher",
+				v1beta1.MariaDBDatabaseSpec{
+					Name: "watcher",
+				},
+			)
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+		})
+		It("fail for invalid TLS input", func() {
+			th.ExpectConditionWithDetails(
+				watcherTest.WatcherAPI,
+				ConditionGetterFunc(WatcherAPIConditionGetter),
+				condition.TLSInputReadyCondition,
+				corev1.ConditionFalse,
+				condition.ErrorReason,
+				"TLSInput error occured in TLS sources field tls-ca-bundle.pem not found in Secret "+watcherTest.WatcherAPI.Namespace+"/combined-ca-bundle",
 			)
 		})
 	})

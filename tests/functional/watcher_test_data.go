@@ -57,6 +57,8 @@ type WatcherTestData struct {
 	WatcherKeystoneEndpointName      types.NamespacedName
 	WatcherApplier                   types.NamespacedName
 	WatcherApplierStatefulSet        types.NamespacedName
+	WatcherPublicCertSecret          types.NamespacedName
+	WatcherInternalCertSecret        types.NamespacedName
 }
 
 // GetWatcherTestData is a function that initialize the WatcherTestData
@@ -165,6 +167,14 @@ func GetWatcherTestData(watcherName types.NamespacedName) WatcherTestData {
 		WatcherApplierStatefulSet: types.NamespacedName{
 			Namespace: watcherName.Namespace,
 			Name:      "watcher-applier",
+		},
+		WatcherPublicCertSecret: types.NamespacedName{
+			Namespace: watcherName.Namespace,
+			Name:      "cert-watcher-public-svc",
+		},
+		WatcherInternalCertSecret: types.NamespacedName{
+			Namespace: watcherName.Namespace,
+			Name:      "cert-watcher-internal-svc",
 		},
 	}
 }

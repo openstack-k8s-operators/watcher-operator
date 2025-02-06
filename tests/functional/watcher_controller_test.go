@@ -692,6 +692,13 @@ var _ = Describe("Watcher controller", func() {
 			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
 			DeferCleanup(
 				k8sClient.Delete, ctx, th.CreateSecret(
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: "combined-ca-bundle"},
+					map[string][]byte{
+						"tls-ca-bundle.pem": []byte("other-b64-text"),
+					},
+				))
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
 					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: "custom-prometheus-config"},
 					map[string][]byte{
 						"host":      []byte("customprometheus.example.com"),

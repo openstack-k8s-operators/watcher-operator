@@ -79,6 +79,36 @@ func GetDefaultWatcherAPISpec() map[string]interface{} {
 	}
 }
 
+func GetTLSWatcherAPISpec() map[string]interface{} {
+	return map[string]interface{}{
+		"databaseInstance": "openstack",
+		"secret":           SecretName,
+		"containerImage":   "test://watcher",
+		"tls": map[string]interface{}{
+			"caBundleSecretName": "combined-ca-bundle",
+			"api": map[string]interface{}{
+				"internal": map[string]string{
+					"secretName": "cert-watcher-internal-svc",
+				},
+				"public": map[string]string{
+					"secretName": "cert-watcher-public-svc",
+				},
+			},
+		},
+	}
+
+}
+func GetTLSCaWatcherAPISpec() map[string]interface{} {
+	return map[string]interface{}{
+		"databaseInstance": "openstack",
+		"secret":           SecretName,
+		"containerImage":   "test://watcher",
+		"tls": map[string]interface{}{
+			"caBundleSecretName": "combined-ca-bundle",
+		},
+	}
+}
+
 func GetDefaultWatcherApplierSpec() map[string]interface{} {
 	return map[string]interface{}{
 		"databaseInstance":  "openstack",
