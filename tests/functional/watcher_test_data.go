@@ -57,6 +57,7 @@ type WatcherTestData struct {
 	WatcherKeystoneEndpointName      types.NamespacedName
 	WatcherApplier                   types.NamespacedName
 	WatcherApplierStatefulSet        types.NamespacedName
+	WatcherRouteCertSecret           types.NamespacedName
 	WatcherPublicCertSecret          types.NamespacedName
 	WatcherInternalCertSecret        types.NamespacedName
 }
@@ -167,6 +168,10 @@ func GetWatcherTestData(watcherName types.NamespacedName) WatcherTestData {
 		WatcherApplierStatefulSet: types.NamespacedName{
 			Namespace: watcherName.Namespace,
 			Name:      "watcher-applier",
+		},
+		WatcherRouteCertSecret: types.NamespacedName{
+			Namespace: watcherName.Namespace,
+			Name:      "cert-watcher-public-route",
 		},
 		WatcherPublicCertSecret: types.NamespacedName{
 			Namespace: watcherName.Namespace,

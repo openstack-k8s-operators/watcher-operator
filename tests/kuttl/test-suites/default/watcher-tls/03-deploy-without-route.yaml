@@ -1,0 +1,5 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: |
+      oc patch watcher -n $NAMESPACE watcher-kuttl --type='json' -p='[{"op": "replace", "path": "/spec/apiServiceTemplate/override", "value":{"service": { "internal": {}, "public": { "metadata": { "annotations": { "metallb.universe.tf/address-pool": "ctlplane", "metallb.universe.tf/allow-shared-ip": "ctlplane" } }, "spec": { "type": "LoadBalancer" } } } }}]'
