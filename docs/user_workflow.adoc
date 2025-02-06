@@ -1,0 +1,425 @@
+= Example Workflow
+
+This section takes you through two example workflows using `Watcher` to go through
+optimization scenarios. The first workflow, _instances consolidation in minimal compute
+nodes_ uses the CLI. The second workflow, _workload stabilization_,
+uses `Horizon` UI and Prometheus metrics dashboards.
+
+== Requirements
+
+The example requires that the following setup is in place:
+
+* An OpenStack operators-based deployment with two or more Compute nodes
+* Nova Live migration is functional on your environment
+* Watcher has been deployed following the instructions in the User Installation Guide
+* Instances (Virtual Machines) have been created on the Compute nodes
+
+Test instances can be created using the `deploy-instance-demo.sh` script:
+[source,bash]
+----
+include::_include/deploy-instance-demo.sh[]
+----
+and modifying the script for your environment and deploy test instances as
+shown with the example commands below:
+
+[,console]
+----
+rm -f temp/deploy-instance-demo.sh
+cp deploy-instance-demo.sh temp/deploy-instance-demo.sh
+
+# Modify the openstack subnet create public_subnet command options
+# to your particular environment.
+
+# This example uses 8 instances.
+# Adjust the number per the number of instances to be used
+# in the test environment
+oc cp temp/deploy-instance-demo.sh openstackclient:/home/cloud-admin
+oc rsh openstackclient bash /home/cloud-admin/deploy-instance-demo.sh 8
+----
+
+You can check which hosts the VMs have been deployed on using the `--long` option
+on the `openstack server list` command:
+
+[,console]
+----
+$ oc rsh openstackclient openstack server list --project demo \
+--long -c 'Name' -c 'Status' -c 'Host'
++--------+--------+-------------------------------+
+| Name   | Status | Host                          |
++--------+--------+-------------------------------+
+| test_7 | ACTIVE | compute1.ctlplane.localdomain |
+| test_6 | ACTIVE | compute2.ctlplane.localdomain |
+| test_5 | ACTIVE | compute1.ctlplane.localdomain |
+| test_4 | ACTIVE | compute2.ctlplane.localdomain |
+| test_3 | ACTIVE | compute1.ctlplane.localdomain |
+| test_2 | ACTIVE | compute2.ctlplane.localdomain |
+| test_1 | ACTIVE | compute1.ctlplane.localdomain |
+| test_0 | ACTIVE | compute1.ctlplane.localdomain |
++--------+--------+-------------------------------+
+----
+
+== Watcher Workflow (CLI)
+=== Optimization Scenario I: Instances Consolidation in Minimal Compute Nodes
+
+Information on the Watcher Strategies is available in the Openstack documentation.
+The server consolidation strategy is explained in the
+link:https://docs.openstack.org/watcher/2024.2/strategies/basic-server-consolidation.html[strategies documentation].
+
+.Procedure
+
+The steps below are all executed from the `openstackclient` pod.
+Run `oc rsh openstackclient` to access the `openstackclient` pod before beginning the workflow steps.
+
+. Create the `Audit Template`
++
+[,console]
+----
+$ openstack optimize audittemplate create -s node_resource_consolidation \
+AuditTemplateNodeConsolidation server_consolidation
++-------------+--------------------------------------+
+| Field       | Value                                |
++-------------+--------------------------------------+
+| UUID        | 4b80a46d-d6e3-401a-a615-d8d1d5c3ec1b |
+| Created At  | 2025-02-11T16:16:54.797663+00:00     |
+| Updated At  | None                                 |
+| Deleted At  | None                                 |
+| Description | None                                 |
+| Name        | AuditTemplateNodeConsolidation       |
+| Goal        | server_consolidation                 |
+| Strategy    | node_resource_consolidation          |
+| Audit Scope | []                                   |
++-------------+--------------------------------------+
+----
++
+Check that `Audit Template` has been created with:
++
+[,console]
+----
+$ openstack optimize audittemplate list -c 'UUID' -c 'Goal' -c 'Strategy'
++--------------------------------------+----------------------+-----------------------------+
+| UUID                                 | Goal                 | Strategy                    |
++--------------------------------------+----------------------+-----------------------------+
+| 4b80a46d-d6e3-401a-a615-d8d1d5c3ec1b | server_consolidation | node_resource_consolidation |
++--------------------------------------+----------------------+-----------------------------+
+----
++
+. Now create the Audit
++
+[,console]
+----
+$ openstack optimize audit create -a AuditTemplateNodeConsolidation -t ONESHOT \
+--name node_server_consolidation-PoC
++---------------+--------------------------------------+
+| Field         | Value                                |
++---------------+--------------------------------------+
+| UUID          | 19ae8e21-3185-4366-96e3-ed04184234e8 |
+| Name          | node_server_consolidation-PoC        |
+| Created At    | 2025-02-11T16:19:41.454788+00:00     |
+| Updated At    | None                                 |
+| Deleted At    | None                                 |
+| State         | PENDING                              |
+| Audit Type    | ONESHOT                              |
+| Parameters    | {'host_choice': 'auto'}              |
+| Interval      | None                                 |
+| Goal          | server_consolidation                 |
+| Strategy      | node_resource_consolidation          |
+| Audit Scope   | []                                   |
+| Auto Trigger  | False                                |
+| Next Run Time | None                                 |
+| Hostname      | None                                 |
+| Start Time    | None                                 |
+| End Time      | None                                 |
+| Force         | False                                |
++---------------+--------------------------------------+
+----
++
+Verify the `Audit` was created with the command below:
++
+[,console]
+----
+$ openstack optimize audit list -c 'UUID' -c 'Name' -c 'Audit Type' -c 'State'
++--------------------------------------+-------------------------------+------------+-----------+
+| UUID                                 | Name                          | Audit Type | State     |
++--------------------------------------+-------------------------------+------------+-----------+
+| 19ae8e21-3185-4366-96e3-ed04184234e8 | node_server_consolidation-PoC | ONESHOT    | SUCCEEDED |
++--------------------------------------+-------------------------------+------------+-----------+
+----
++
+*Note* that you are looking for the `State` to show `SUCCEEDED`.
+. Now check the `Action Plan`
++
+[,console]
+----
+$ openstack optimize actionplan list  -c 'UUID' -c 'State' -c 'Global efficacy'
++--------------------------------------+-------------+-------------------------------+
+| UUID                                 | State       | Global efficacy               |
++--------------------------------------+-------------+-------------------------------+
+| dfdcb491-89c5-4c07-a5ed-65d2085c488c | RECOMMENDED | Released_nodes_ratio: 50.00 % |
+|                                      |             |                               |
++--------------------------------------+-------------+-------------------------------+
+----
++
+*Note* that the `State` is `RECOMMENDED` and the `Global efficacy` shows `Released_nodes_ratio: 50.00 %`.
+This indicates that implementing this Action Plan will empty 50% of the Compute nodes.
+. List the actions inside this `Action Plan`
++
+[,console]
+----
+# dfdcb491-89c5-4c07-a5ed-65d2085c488c is the UUID of the Action Plan
+$ openstack optimize action list --action-plan dfdcb491-89c5-4c07-a5ed-65d2085c488c \
+-c 'UUID' -c 'State' -c 'Action'
++--------------------------------------+-----------+---------------------------+
+| UUID                                 | State     | Action                    |
++--------------------------------------+-----------+---------------------------+
+| 01774d02-00a9-4f34-a6f7-6b2264b8970c | PENDING   | change_nova_service_state |
+| 8573aa4e-6fac-4002-8de6-569e72d4dca3 | PENDING   | migrate                   |
+| 6d88ea4a-012b-4cb8-af86-8e699c6c2738 | PENDING   | migrate                   |
+| fa2827c6-78f8-48b8-8f8a-734b9f170841 | PENDING   | migrate                   |
+| 4009c44d-9af6-4a6e-91dd-96bd4f17abd5 | PENDING   | migrate                   |
+| e3dc2dec-74fc-4f16-b76d-c4b99acb1b01 | PENDING   | change_nova_service_state |
++--------------------------------------+-----------+---------------------------+
+----
++
+Listed above you will see that the `Action Plan` has 5 actions.
+You can see the details of each `Action` with using with:
+`$ openstack optimize action show < Action UUID >`.
++
+[,console]
+----
+$ openstack optimize action show 8573aa4e-6fac-4002-8de6-569e72d4dca3 \
+--max-width=72
++-------------+--------------------------------------------------------+
+| Field       | Value                                                  |
++-------------+--------------------------------------------------------+
+| UUID        | 8573aa4e-6fac-4002-8de6-569e72d4dca3                   |
+| Created At  | 2025-02-11T16:19:44+00:00                              |
+| Updated At  | None                                                   |
+| Deleted At  | None                                                   |
+| Parents     | ['01774d02-00a9-4f34-a6f7-6b2264b8970c']               |
+| State       | PENDING                                                |
+| Action Plan | dfdcb491-89c5-4c07-a5ed-65d2085c488c                   |
+| Action      | migrate                                                |
+| Parameters  | {'migration_type': 'live', 'source_node':              |
+|             | 'compute1.ctlplane.localdomain', 'resource_name':      |
+|             | 'test_7', 'resource_id':                               |
+|             | '0cbda264-b496-4649-ab55-9405984092e9'}                |
+| Description | Moving a VM instance from source_node to               |
+|             | destination_node                                       |
++-------------+--------------------------------------------------------+
+----
++
+In this example, the `Action Plan` is disabling the Compute node which is going to be freed,
+then it will migrate the three instances running on it,
+and finally it will enable the Compute node again to make sure it is available for new workloads if needed.
+. Now you are ready to execute `Action Plan` using the command:
+`$ openstack optimize actionplan start <Action Plan UUID>`.
++
+[,console]
+----
+$ openstack optimize actionplan start dfdcb491-89c5-4c07-a5ed-65d2085c488c \
+--max-width=72
++---------------------+------------------------------------------------+
+| Field               | Value                                          |
++---------------------+------------------------------------------------+
+| UUID                | dfdcb491-89c5-4c07-a5ed-65d2085c488c           |
+| Created At          | 2025-02-11T16:19:44+00:00                      |
+| Updated At          | 2025-02-11T16:38:36+00:00                      |
+| Deleted At          | None                                           |
+| Audit               | 19ae8e21-3185-4366-96e3-ed04184234e8           |
+| Strategy            | node_resource_consolidation                    |
+| State               | PENDING                                        |
+| Efficacy indicators | [{'name': 'compute_nodes_count',               |
+|                     | 'description': 'The total number of enabled    |
+|                     | compute nodes.', 'unit': None, 'value': 2.0},  |
+|                     | {'name': 'released_compute_nodes_count',       |
+|                     | 'description': 'The number of compute nodes    |
+|                     | to be released.', 'unit': None, 'value': 1.0}, |
+|                     | {'name': 'instance_migrations_count',          |
+|                     | 'description': 'The number of VM migrations    |
+|                     |to be performed.', 'unit': None, 'value': 4.0}] |
+| Global efficacy     | [{'name': 'released_nodes_ratio',              |
+|                     | 'description': 'Ratio of released compute      |
+|                     | nodes divided by the total number of enabled   |
+|                     | compute nodes.', 'unit': '%', 'value': 50.0}]  |
+| Hostname            | None                                           |
++---------------------+------------------------------------------------+
+----
++
+. Finally, you can monitor the `Action Plan` progress and check the results.
+You can track the status of each action in the plan with:
+`$ openstack optimize action list --action-plan <Action Plan UUID>`.
+After some time, all the actions should report `SUCCEEDED` state as shown
+in an example below:
++
+[,console]
+----
+$ openstack optimize action list --action-plan dfdcb491-89c5-4c07-a5ed-65d2085c488c \
+-c 'UUID' -c 'State' -c 'Action'
++--------------------------------------+-----------+---------------------------+
+| UUID                                 | State     | Action                    |
++--------------------------------------+-----------+---------------------------+
+| 01774d02-00a9-4f34-a6f7-6b2264b8970c | SUCCEEDED | change_nova_service_state |
+| 8573aa4e-6fac-4002-8de6-569e72d4dca3 | SUCCEEDED | migrate                   |
+| 6d88ea4a-012b-4cb8-af86-8e699c6c2738 | SUCCEEDED | migrate                   |
+| fa2827c6-78f8-48b8-8f8a-734b9f170841 | SUCCEEDED | migrate                   |
+| 4009c44d-9af6-4a6e-91dd-96bd4f17abd5 | SUCCEEDED | migrate                   |
+| e3dc2dec-74fc-4f16-b76d-c4b99acb1b01 | SUCCEEDED | change_nova_service_state |
++--------------------------------------+-----------+---------------------------
+----
++
+You can check that the instances have been actually consolidated in one of your hosts by
+listing the instances (VMs) on each one of your hypervisors.
++
+[,console]
+----
+# List the hypervisors:
+$ openstack hypervisor list -c 'Hypervisor Hostname' -c 'State'
++-------------------------------+-------+
+| Hypervisor Hostname           | State |
++-------------------------------+-------+
+| compute2.ctlplane.localdomain | up    |
+| compute1.ctlplane.localdomain | up    |
++-------------------------------+-------+
++
+# Note that the output below lists all instances on one host:
+$ openstack server list --long -c Name -c 'Host' --project demo
++--------+-------------------------------+
+| Name   | Host                          |
++--------+-------------------------------+
+| test_7 | compute2.ctlplane.localdomain |
+| test_6 | compute2.ctlplane.localdomain |
+| test_5 | compute2.ctlplane.localdomain |
+| test_4 | compute2.ctlplane.localdomain |
+| test_3 | compute2.ctlplane.localdomain |
+| test_2 | compute2.ctlplane.localdomain |
+| test_1 | compute2.ctlplane.localdomain |
+| test_0 | compute2.ctlplane.localdomain |
++--------+-------------------------------+
+----
+
+== Watcher Workflow (Horizon Dashboard UI)
+
+=== Optimization Scenario II: Workload balancing/stabilization
+
+This workflow is demonstrated through actions in the `Horizon UI`.
+Example screenshots are added where necessary to further explain the user flow.
+
+.Procedure
+. Login in the `Horizon` dashboard with credentials which would enable the `Admin`
+role in one or more projects.
+. Make sure you have the `Administration` menu enabled by selecting the project
+where you have the `Admin` role assigned in the Projects tab:
++
+
+image::admin_role.png[]
+
++
+. In the Admin menu a new panel `Optimization` should be available:
++
+
+image::optimize_menu.png[]
+
++
+. In the `Audit Templates` panel, click on `Create Template` button. This will open a
+`Create Audit Template` window. Add a new `Audit Template` called *AuditTemplateWorkloadStabilization*
+with the goal *Workload Balancing* and the Strategy *Workload stabilization*.
+Further information on the `Workload stabilization` strategy is available in the
+https://docs.openstack.org/watcher/2024.2/strategies/workload-stabilization.html[Workload stabilization strategy reference].
++
+
+image::audit_template.png[]
+
++
+. In the `Audit` panel, click on the *Create Audit* button. This will bring up the
+`Create Audit` window. Select the *AuditTemplateWorkloadStabilization* `Audit Template`,
+the *CONTINUOUS* `Audit Type`. In the *Interval* field, set the value to *180*.
++
+
+image::audit.png[]
+
++
+Click on the *Create Audit* button and a new `Audit` will be shown.
+
+. Click on the *UUID* of the `Audit` listed and you will find the `Action Plans` created
+for the new Audit. Given the low usage of resources in the instances created for the example
+workflows, the initial `Action Plan` will not have real actions.
+
+. Increase CPU consumption in one of the created instances (VMs).
+You can find the CPU usage of each instance at the example URL:
+https://metric-storage-prometheus-openstack.apps-crc.testing/graph?g0.expr=clamp_max((avg%20by%20(resource)(rate(ceilometer_cpu%5B150s%5D))%2F10e%2B8)%20*(100%2F1)%2C%20100)&g0.tab=0&g0.display_mode=lines&g0.show_exemplars=0&g0.range_input=1h[Prometheus Metrics]
++
+
+image::prometheus_metrics.png[]
+
++
+View the list of instances in `Horizon` by selecting the *Instances* panel from the menus:
+*Admin* -> *Compute* -> *Instances*.
+Click on the name of one of the instances, and go to the *Console* tab for that instance.
+Log in with `cirros` user and the `gocubsgo` password, and run following command:
++
+[,console]
+----
+$ dd if=/dev/random of=/dev/null
+----
++
+After a few minutes, the CPU usage of the edited instance should increase up to close to 100%.
+This increase will be seen in the instance metrics show in the Prometheus metrics URL.
+
+. Go back to `Audit` panel by through menu options: *Admin* -> *Optimization* -> *Audit*.
+Click on the UUID of the continuous `Audit`. The next execution of the `Audit` should generate
+a non-empty `Action Plan` with a *RECOMMENDED* status.
+Depending on specific resources, it may take one or two executions of the `Audit`
+to create this non-empty plan.
++
+
+image::recommended_plan.png[]
+
++
+
+. Click on the *RECOMMENDED* `Action Plan`, there should be a *Migrate* `Action` listed.
+Click on the `Action` to see the related details. The *resource_name* field should
+match name of the instance where you logged in and ran the `dd` command.
++
+
+image::action_migrate.png[]
+
++
+
+. Go back to the list of `Action Plans`, and click the *Start Action Plan* button for
+the RECOMMENDED plan. Click on the `Action Plan` UUID to track the status until it goes
+to *SUCCEEDED*.
++
+
+image::plan_succeeded.png[]
+
++
+
+. Check the distribution of the test instances over the hosts using the
+`openstack server list --long` command. You should see that the instance
+where the load was increased, has moved.
++
+[,console]
+----
+$ openstack server list --long -c Name -c 'Host' --project demo
++--------+-------------------------------+
+| Name   | Host                          |
++--------+-------------------------------+
+| test_7 | compute1.ctlplane.localdomain |
+| test_6 | compute2.ctlplane.localdomain |
+| test_5 | compute2.ctlplane.localdomain |
+| test_4 | compute2.ctlplane.localdomain |
+| test_3 | compute2.ctlplane.localdomain |
+| test_2 | compute2.ctlplane.localdomain |
+| test_1 | compute2.ctlplane.localdomain |
+| test_0 | compute2.ctlplane.localdomain |
++--------+-------------------------------+
+----
++
+. Stop the *CONTINUOUS* `Audit` from the `Audits` panel and select *Cancel Action*.
+If this option is not available from `Horizon` in your environment, you can execute
+it using the CLI:
++
+[,console]
+----
+$ openstack optimize audit update <audit uuid> replace state=CANCELLED
+----
