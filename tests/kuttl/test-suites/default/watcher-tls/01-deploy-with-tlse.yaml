@@ -1,0 +1,72 @@
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: watcher-internal-svc
+spec:
+  dnsNames:
+  - watcher-internal.watcher-kuttl-default.svc
+  duration: 43800h0m0s
+  issuerRef:
+    group: cert-manager.io
+    kind: Issuer
+    name: rootca-internal
+  secretName: cert-watcher-internal-svc
+  usages:
+  - key encipherment
+  - digital signature
+  - server auth
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: watcher-public-route
+spec:
+  dnsNames:
+  - watcher-public-watcher-kuttl-default.apps-crc.testing
+  issuerRef:
+    group: cert-manager.io
+    kind: Issuer
+    name: rootca-public
+  secretName: cert-watcher-public-route
+  usages:
+  - key encipherment
+  - digital signature
+  - server auth
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: watcher-public-svc
+spec:
+  dnsNames:
+  - watcher-public.watcher-kuttl-default.svc
+  duration: 43800h0m0s
+  issuerRef:
+    group: cert-manager.io
+    kind: Issuer
+    name: rootca-public
+  secretName: cert-watcher-public-svc
+  usages:
+  - key encipherment
+  - digital signature
+  - server auth
+---
+apiVersion: watcher.openstack.org/v1beta1
+kind: Watcher
+metadata:
+  name: watcher-kuttl
+  namespace: watcher-kuttl-default
+spec:
+  databaseInstance: "openstack"
+  apiOverride:
+    tls:
+      secretName: cert-watcher-public-route
+  apiServiceTemplate:
+    tls:
+      caBundleSecretName: "combined-ca-bundle"
+      api:
+        internal:
+          secretName: cert-watcher-internal-svc
+        public:
+          secretName: cert-watcher-public-svc

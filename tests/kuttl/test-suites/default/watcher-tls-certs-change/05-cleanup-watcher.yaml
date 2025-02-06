@@ -1,0 +1,9 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+delete:
+- apiVersion: watcher.openstack.org/v1beta1
+  kind: Watcher
+  name: watcher-kuttl
+- apiVersion: v1
+  kind: Secret
+  name: custom-prometheus-config

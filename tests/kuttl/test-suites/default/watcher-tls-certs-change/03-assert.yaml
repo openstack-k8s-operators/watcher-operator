@@ -1,0 +1,12 @@
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+commands:
+  - script: |
+      set -euxo pipefail
+      svc_cert=$(oc rsh -n $NAMESPACE -c watcher-api watcher-kuttl-api-0 cat /etc/pki/tls/certs/internal.crt)
+      secret_cert=$(oc get -n $NAMESPACE secret cert-watcher-internal-svc -o jsonpath='{.data.tls\.crt}' | base64 --decode)
+      # ensure that the svc secret and cert secret match
+      if [ "${svc_cert}" != "${secret_cert}" ]; then
+        exit 1
+      fi

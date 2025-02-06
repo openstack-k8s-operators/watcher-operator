@@ -10,6 +10,7 @@ import (
 	condition "github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 	//revive:disable-next-line:dot-imports
 
+	routev1 "github.com/openshift/api/route/v1"
 	memcachedv1 "github.com/openstack-k8s-operators/infra-operator/apis/memcached/v1beta1"
 	rabbitmqv1 "github.com/openstack-k8s-operators/infra-operator/apis/rabbitmq/v1beta1"
 	keystonev1beta1 "github.com/openstack-k8s-operators/keystone-operator/api/v1beta1"
@@ -482,6 +483,62 @@ var _ = Describe("Watcher controller", func() {
 			Expect(GetEnvVarValue(jobEnv, "PURGE_AGE", "")).To(
 				Equal(fmt.Sprintf("%d", *Watcher.Spec.DBPurge.PurgeAge)))
 		})
+		It("Should expose the watcher public service without TLS", func() {
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+			infra.SimulateTransportURLReady(watcherTest.WatcherTransportURL)
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: SecretName},
+					map[string][]byte{
+						"WatcherPassword": []byte("password"),
+					},
+				))
+
+			// simulate that it becomes ready i.e. the keystone-operator
+			// did its job and registered the watcher service
+			keystone.SimulateKeystoneServiceReady(watcherTest.KeystoneServiceName)
+
+			// Simulate dbsync success
+			th.SimulateJobSuccess(watcherTest.WatcherDBSync)
+			// We validate the full Watcher CR readiness status here
+			// DB Ready
+
+			// Simulate WatcherAPI deployment
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
+
+			// Simulate KeystoneEndpoint success
+			keystone.SimulateKeystoneEndpointReady(watcherTest.WatcherKeystoneEndpointName)
+
+			// Simulate WatcherApplier deployment
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherApplierStatefulSet)
+
+			// Simulate WatcherDecisionEngine deployment
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherDecisionEngineStatefulSet)
+
+			th.ExpectCondition(
+				watcherTest.Watcher,
+				ConditionGetterFunc(WatcherConditionGetter),
+				condition.ExposeServiceReadyCondition,
+				corev1.ConditionTrue,
+			)
+
+			th.AssertRouteExists(watcherTest.WatcherRouteName)
+			// check that the Route has no TLS configuration
+			Eventually(func(g Gomega) {
+				watcherRoute := &routev1.Route{}
+
+				g.Expect(th.K8sClient.Get(th.Ctx, watcherTest.WatcherRouteName, watcherRoute)).Should(Succeed())
+				g.Expect(watcherRoute.Spec.TLS).Should(BeNil())
+
+			}, timeout, interval).Should(Succeed())
+			public := th.GetService(watcherTest.WatcherPublicServiceName)
+			Expect(public.Labels["service"]).To(Equal("watcher-api"))
+			Expect(public.Labels["endpoint"]).To(Equal("public"))
+			internal := th.GetService(watcherTest.WatcherInternalServiceName)
+			Expect(internal.Labels["service"]).To(Equal("watcher-api"))
+			Expect(internal.Labels["endpoint"]).To(Equal("internal"))
+		})
 
 		It("Should fail to register watcher service to keystone when has not the expected secret", func() {
 			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
@@ -738,7 +795,8 @@ var _ = Describe("Watcher controller", func() {
 				k8sClient.Delete, ctx, th.CreateSecret(
 					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: "combined-ca-bundle"},
 					map[string][]byte{
-						"tls-ca-bundle.pem": []byte("other-b64-text"),
+						"internal-ca-bundle.pem": []byte("some-b64-text"),
+						"tls-ca-bundle.pem":      []byte("other-b64-text"),
 					},
 				))
 			DeferCleanup(
@@ -958,7 +1016,7 @@ var _ = Describe("Watcher controller", func() {
 			Expect(createdConfigSecret.Data["01-global-custom.conf"]).Should(Equal([]byte("# Global config")))
 			Expect(createdConfigSecret.Data["02-service-custom.conf"]).Should(Equal([]byte("# Service config")))
 
-			// Check Wacther Applier
+			// Check Watcher Applier
 			watcherApplier := &watcherv1beta1.WatcherApplier{}
 			Expect(k8sClient.Get(ctx,
 				types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: watcherTest.Instance.Name + "-applier"},
@@ -1024,7 +1082,7 @@ var _ = Describe("Watcher controller", func() {
 			Expect(WatcherDecisionEngine.Spec.CustomServiceConfig).Should(Equal("# Service config DecisionEngine"))
 			Expect(WatcherDecisionEngine.Spec.PrometheusSecret).Should(Equal("custom-prometheus-config"))
 
-			// Assert the DecisionEngine StatefuleSet is created
+			// Assert the DecisionEngine StatefulSet is created
 			decisionEngineStatefulSet := th.GetStatefulSet(watcherTest.WatcherDecisionEngineStatefulSet)
 			Expect(decisionEngineStatefulSet.Spec.Template.Spec.ServiceAccountName).To(Equal("watcher-watcher"))
 			Expect(int(*decisionEngineStatefulSet.Spec.Replicas)).To(Equal(1))
@@ -1113,5 +1171,268 @@ var _ = Describe("Watcher controller", func() {
 		})
 
 	})
+	When("A Watcher instance with TLSe is created", func() {
+		BeforeEach(func() {
+			DeferCleanup(th.DeleteInstance, CreateWatcher(watcherTest.Instance, GetTLSeWatcherSpec()))
+			DeferCleanup(k8sClient.Delete, ctx, CreateWatcherMessageBusSecret(watcherTest.Instance.Namespace, "rabbitmq-secret"))
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.Watcher.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.Instance.Namespace,
+					*GetWatcher(watcherTest.Instance).Spec.DatabaseInstance,
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.Watcher.Namespace))
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: "metric-storage-prometheus-endpoint"},
+					map[string][]byte{
+						"host": []byte("prometheus.example.com"),
+						"port": []byte("9090"),
+					},
+				))
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: "combined-ca-bundle"},
+					map[string][]byte{
+						"internal-ca-bundle.pem": []byte("some-b64-text"),
+						"tls-ca-bundle.pem":      []byte("other-b64-text"),
+					},
+				))
+			DeferCleanup(k8sClient.Delete, ctx, th.CreateCertSecret(watcherTest.WatcherRouteCertSecret))
+			DeferCleanup(k8sClient.Delete, ctx, th.CreateCertSecret(watcherTest.WatcherPublicCertSecret))
+			DeferCleanup(k8sClient.Delete, ctx, th.CreateCertSecret(watcherTest.WatcherInternalCertSecret))
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+			infra.SimulateTransportURLReady(watcherTest.WatcherTransportURL)
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: SecretName},
+					map[string][]byte{
+						"WatcherPassword": []byte("password"),
+					},
+				))
+			// simulate that it becomes ready i.e. the keystone-operator
+			// did its job and registered the watcher service
+			keystone.SimulateKeystoneServiceReady(watcherTest.KeystoneServiceName)
 
+			// Simulate dbsync success
+			th.SimulateJobSuccess(watcherTest.WatcherDBSync)
+
+			// Simulate WatcherAPI deployment
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
+
+			// Simulate KeystoneEndpoint success
+			keystone.SimulateKeystoneEndpointReady(watcherTest.WatcherKeystoneEndpointName)
+
+			// Simulate WatcherApplier deployment
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherApplierStatefulSet)
+
+			// Simulate WatcherDecisionEngine deployment
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherDecisionEngineStatefulSet)
+		})
+		It("should have the TLS Spec fields set", func() {
+			Watcher := GetWatcher(watcherTest.Instance)
+			Expect(*Watcher.Spec.APIServiceTemplate.TLS.API.Public.SecretName).Should(Equal("cert-watcher-public-svc"))
+			Expect(*Watcher.Spec.APIServiceTemplate.TLS.API.Internal.SecretName).Should(Equal("cert-watcher-internal-svc"))
+			Expect(Watcher.Spec.APIServiceTemplate.TLS.CaBundleSecretName).Should(Equal("combined-ca-bundle"))
+			Expect(Watcher.Spec.APIOverride.TLS.SecretName).Should(Equal("cert-watcher-public-route"))
+		})
+		It("should have created a route", func() {
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				condition.ReadyCondition,
+				corev1.ConditionTrue,
+			)
+			th.AssertRouteExists(watcherTest.WatcherRouteName)
+			// check that the Route has Reencrypt termination
+			Eventually(func(g Gomega) {
+				watcherRoute := &routev1.Route{}
+
+				g.Expect(th.K8sClient.Get(th.Ctx, watcherTest.WatcherRouteName, watcherRoute)).Should(Succeed())
+				g.Expect(watcherRoute.Spec.TLS.Certificate).Should(Not(BeEmpty()))
+				g.Expect(watcherRoute.Spec.TLS.Key).Should(Not(BeEmpty()))
+				g.Expect(watcherRoute.Spec.TLS.CACertificate).Should(Not(BeEmpty()))
+				g.Expect(string(watcherRoute.Spec.TLS.Termination)).Should(Equal("reencrypt"))
+
+			}, timeout, interval).Should(Succeed())
+
+		})
+	})
+	When("A Watcher instance with TLS at the route but not at pod level is created", func() {
+		BeforeEach(func() {
+			DeferCleanup(th.DeleteInstance, CreateWatcher(watcherTest.Instance, GetTLSIngressWatcherSpec()))
+			DeferCleanup(k8sClient.Delete, ctx, CreateWatcherMessageBusSecret(watcherTest.Instance.Namespace, "rabbitmq-secret"))
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.Watcher.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.Instance.Namespace,
+					*GetWatcher(watcherTest.Instance).Spec.DatabaseInstance,
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: "metric-storage-prometheus-endpoint"},
+					map[string][]byte{
+						"host": []byte("prometheus.example.com"),
+						"port": []byte("9090"),
+					},
+				))
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: "combined-ca-bundle"},
+					map[string][]byte{
+						"internal-ca-bundle.pem": []byte("some-b64-text"),
+						"tls-ca-bundle.pem":      []byte("other-b64-text"),
+					},
+				))
+			DeferCleanup(k8sClient.Delete, ctx, th.CreateCertSecret(watcherTest.WatcherRouteCertSecret))
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+			infra.SimulateTransportURLReady(watcherTest.WatcherTransportURL)
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: SecretName},
+					map[string][]byte{
+						"WatcherPassword": []byte("password"),
+					},
+				))
+			// simulate that it becomes ready i.e. the keystone-operator
+			// did its job and registered the watcher service
+			keystone.SimulateKeystoneServiceReady(watcherTest.KeystoneServiceName)
+
+			// Simulate dbsync success
+			th.SimulateJobSuccess(watcherTest.WatcherDBSync)
+
+			// Simulate WatcherAPI deployment
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
+
+			// Simulate KeystoneEndpoint success
+			keystone.SimulateKeystoneEndpointReady(watcherTest.WatcherKeystoneEndpointName)
+
+			// Simulate WatcherApplier deployment
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherApplierStatefulSet)
+
+			// Simulate WatcherDecisionEngine deployment
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherDecisionEngineStatefulSet)
+		})
+		It("should have the TLS Spec fields set", func() {
+			Watcher := GetWatcher(watcherTest.Instance)
+			Expect(Watcher.Spec.APIServiceTemplate.TLS.API.Public.SecretName).Should(BeNil())
+			Expect(Watcher.Spec.APIServiceTemplate.TLS.API.Internal.SecretName).Should(BeNil())
+			Expect(Watcher.Spec.APIServiceTemplate.TLS.CaBundleSecretName).Should(Equal("combined-ca-bundle"))
+			Expect(Watcher.Spec.APIOverride.TLS.SecretName).Should(Equal("cert-watcher-public-route"))
+		})
+		It("should have created a route", func() {
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				condition.ReadyCondition,
+				corev1.ConditionTrue,
+			)
+			th.AssertRouteExists(watcherTest.WatcherRouteName)
+			// check that the Route has Edge termination
+			Eventually(func(g Gomega) {
+				watcherRoute := &routev1.Route{}
+
+				g.Expect(th.K8sClient.Get(th.Ctx, watcherTest.WatcherRouteName, watcherRoute)).Should(Succeed())
+				g.Expect(watcherRoute.Spec.TLS.Certificate).Should(Not(BeEmpty()))
+				g.Expect(watcherRoute.Spec.TLS.Key).Should(Not(BeEmpty()))
+				g.Expect(watcherRoute.Spec.TLS.CACertificate).Should(Not(BeEmpty()))
+				g.Expect(string(watcherRoute.Spec.TLS.Termination)).Should(Equal("edge"))
+
+			}, timeout, interval).Should(Succeed())
+		})
+	})
+	When("A Watcher instance with TLS at the pod but not at the route is created", func() {
+		BeforeEach(func() {
+			DeferCleanup(th.DeleteInstance, CreateWatcher(watcherTest.Instance, GetTLSPodLevelWatcherSpec()))
+			DeferCleanup(k8sClient.Delete, ctx, CreateWatcherMessageBusSecret(watcherTest.Instance.Namespace, "rabbitmq-secret"))
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.Watcher.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.Instance.Namespace,
+					*GetWatcher(watcherTest.Instance).Spec.DatabaseInstance,
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: "metric-storage-prometheus-endpoint"},
+					map[string][]byte{
+						"host": []byte("prometheus.example.com"),
+						"port": []byte("9090"),
+					},
+				))
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: "combined-ca-bundle"},
+					map[string][]byte{
+						"internal-ca-bundle.pem": []byte("some-b64-text"),
+						"tls-ca-bundle.pem":      []byte("other-b64-text"),
+					},
+				))
+			DeferCleanup(k8sClient.Delete, ctx, th.CreateCertSecret(watcherTest.WatcherPublicCertSecret))
+			DeferCleanup(k8sClient.Delete, ctx, th.CreateCertSecret(watcherTest.WatcherInternalCertSecret))
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+			infra.SimulateTransportURLReady(watcherTest.WatcherTransportURL)
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: SecretName},
+					map[string][]byte{
+						"WatcherPassword": []byte("password"),
+					},
+				))
+			// simulate that it becomes ready i.e. the keystone-operator
+			// did its job and registered the watcher service
+			keystone.SimulateKeystoneServiceReady(watcherTest.KeystoneServiceName)
+
+			// Simulate dbsync success
+			th.SimulateJobSuccess(watcherTest.WatcherDBSync)
+		})
+		It("should fail to expose the services", func() {
+			th.ExpectConditionWithDetails(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				condition.ExposeServiceReadyCondition,
+				corev1.ConditionFalse,
+				condition.ErrorReason,
+				"Exposing service error occurred TLS at ingress level is not configured, but at PodLevel is enabled, please set a secret to enable TLS on ingress",
+			)
+
+		})
+	})
 })

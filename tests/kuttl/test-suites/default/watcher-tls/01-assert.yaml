@@ -4,8 +4,10 @@ metadata:
   finalizers:
   - openstack.org/watcher
   name: watcher-kuttl
-  namespace: watcher-kuttl-default
 spec:
+  apiOverride:
+    tls:
+      secretName: cert-watcher-public-route
   apiContainerImageURL: "quay.io/podified-master-centos9/openstack-watcher-api:current-podified"
   decisionengineContainerImageURL: "quay.io/podified-master-centos9/openstack-watcher-decision-engine:current-podified"
   applierContainerImageURL: "quay.io/podified-master-centos9/openstack-watcher-applier:current-podified"
@@ -20,16 +22,19 @@ spec:
   apiServiceTemplate:
     replicas: 1
     resources: {}
+    tls:
+      caBundleSecretName: "combined-ca-bundle"
+      api:
+        internal:
+          secretName: cert-watcher-internal-svc
+        public:
+          secretName: cert-watcher-public-svc
   applierServiceTemplate:
     replicas: 1
     resources: {}
-  prometheusSecret: metric-storage-prometheus-endpoint
   decisionengineServiceTemplate:
     replicas: 1
     resources: {}
-  dbPurge:
-    purgeAge: 90
-    schedule: "0 1 * * *"
 status:
   apiServiceReadyCount: 1
   applierServiceReadyCount: 1
@@ -104,7 +109,6 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: watcher-db-secret
-  namespace: watcher-kuttl-default
   finalizers:
   - openstack.org/watcher
 ---
@@ -112,7 +116,6 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: metric-storage-prometheus-endpoint
-  namespace: watcher-kuttl-default
   finalizers:
   - openstack.org/watcher
 ---
@@ -120,7 +123,6 @@ apiVersion: mariadb.openstack.org/v1beta1
 kind: MariaDBAccount
 metadata:
   name: watcher
-  namespace: watcher-kuttl-default
   finalizers:
   - openstack.org/watcher
   - openstack.org/mariadbaccount
@@ -131,7 +133,6 @@ apiVersion: mariadb.openstack.org/v1beta1
 kind: MariaDBDatabase
 metadata:
   name: watcher
-  namespace: watcher-kuttl-default
   finalizers:
   - openstack.org/watcher
   - openstack.org/mariadbdatabase
@@ -144,7 +145,6 @@ metadata:
   labels:
     service: watcher
   name: watcher-kuttl-watcher-transport
-  namespace: watcher-kuttl-default
 spec:
   rabbitmqClusterName: rabbitmq
 status:
@@ -163,7 +163,6 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: rabbitmq-transport-url-watcher-kuttl-watcher-transport
-  namespace: watcher-kuttl-default
 ---
 apiVersion: v1
 kind: Secret
@@ -196,7 +195,6 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: watcher-watcher-kuttl-rolebinding
-  namespace: watcher-kuttl-default
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -204,7 +202,6 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: watcher-watcher-kuttl
-  namespace: watcher-kuttl-default
 ---
 apiVersion: batch/v1
 kind: Job
@@ -217,38 +214,6 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: watcher-kuttl-config-data
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: watcher-kuttl-scripts
----
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  labels:
-    service: watcher
-  name: watcher-kuttl-db-purge
-spec:
-  jobTemplate:
-    metadata:
-      labels:
-        service: watcher
-    spec:
-      template:
-        spec:
-          containers:
-          - name: watcher-db-manage
-            env:
-            - name: KOLLA_BOOTSTRAP
-              value: "true"
-            - name: KOLLA_CONFIG_STRATEGY
-              value: COPY_ALWAYS
-            - name: PURGE_AGE
-              value: "90"
-            image: quay.io/podified-master-centos9/openstack-watcher-api:current-podified
-          serviceAccount: watcher-watcher-kuttl
-  schedule: 0 1 * * *
 ---
 apiVersion: watcher.openstack.org/v1beta1
 kind: WatcherAPI
@@ -267,6 +232,13 @@ spec:
   secret: watcher-kuttl
   serviceAccount: watcher-watcher-kuttl
   serviceUser: watcher
+  tls:
+    caBundleSecretName: "combined-ca-bundle"
+    api:
+      internal:
+        secretName: cert-watcher-internal-svc
+      public:
+        secretName: cert-watcher-public-svc
 status:
   conditions:
   - message: Setup complete
@@ -532,12 +504,14 @@ namespaced: true
 commands:
   - script: |
       set -euxo pipefail
-      oc exec -n watcher-kuttl-default openstackclient -- openstack service list -f value -c Name -c Type |[ $(grep -c ^watcher) == 1 ]
-      SERVICEID=$(oc exec -n watcher-kuttl-default openstackclient -- openstack service list -f value -c Name -c Type -c ID | grep watcher| awk '{print $1}')
-      [ $(oc get -n watcher-kuttl-default keystoneservice watcher -o jsonpath={.status.serviceID}) == ${SERVICEID} ]
-      [ -n "$(oc get -n watcher-kuttl-default watcher watcher-kuttl -o jsonpath={.status.hash.dbsync})" ]
-      [ "$(oc get -n watcher-kuttl-default secret watcher-kuttl-api-config-data -o jsonpath='{.data.my\.cnf}'|base64 -d|grep -c 'ssl=1')" == 1 ]
-      [ "$(oc get -n watcher-kuttl-default secret watcher-kuttl-api-config-data -o jsonpath='{.data.00-default\.conf}'|base64 -d|grep -c 'cafile = /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem')" == 2 ]
+      oc exec -n ${NAMESPACE} openstackclient -- openstack service list -f value -c Name -c Type |[ $(grep -c ^watcher) == 1 ]
+      SERVICEID=$(oc exec -n ${NAMESPACE} openstackclient -- openstack service list -f value -c Name -c Type -c ID | grep watcher| awk '{print $1}')
+      [ $(oc get -n ${NAMESPACE} keystoneservice watcher -o jsonpath={.status.serviceID}) == ${SERVICEID} ]
+      [ -n "$(oc get -n ${NAMESPACE} watcher watcher-kuttl -o jsonpath={.status.hash.dbsync})" ]
+      [ "$(oc get -n ${NAMESPACE} secret watcher-kuttl-api-config-data -o jsonpath='{.data.my\.cnf}'|base64 -d|grep -c 'ssl=1')" == 1 ]
+      [ "$(oc get -n ${NAMESPACE} secret watcher-kuttl-api-config-data -o jsonpath='{.data.00-default\.conf}'|base64 -d|grep -c 'cafile = /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem')" == 2 ]
+      # check that both endpoints have https set
+      oc exec -n ${NAMESPACE} openstackclient -- openstack endpoint list | grep infra-optim | [ $(grep -c https) == 2 ]
       # If we are running the container locally, skip following test
       if [ "$(oc get pods -n openstack-operators -o name -l openstack.org/operator-name=watcher)" == "" ]; then
           exit 0

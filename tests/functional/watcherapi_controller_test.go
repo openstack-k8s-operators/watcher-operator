@@ -217,21 +217,20 @@ var _ = Describe("WatcherAPI controller", func() {
 			Expect(container.LivenessProbe.HTTPGet.Port.IntVal).To(Equal(int32(9322)))
 			Expect(container.ReadinessProbe.HTTPGet.Port.IntVal).To(Equal(int32(9322)))
 		})
-		It("exposes the watcher-api service", func() {
+		It("creates the watcher-api service", func() {
 			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
 			th.ExpectCondition(
 				watcherTest.WatcherAPI,
 				ConditionGetterFunc(WatcherAPIConditionGetter),
-				condition.ExposeServiceReadyCondition,
+				condition.CreateServiceReadyCondition,
 				corev1.ConditionTrue,
 			)
-			th.AssertRouteExists(watcherTest.WatcherRouteName)
 			public := th.GetService(watcherTest.WatcherPublicServiceName)
 			Expect(public.Labels["service"]).To(Equal("watcher-api"))
-			Expect(public.Labels["public"]).To(Equal("true"))
+			Expect(public.Labels["endpoint"]).To(Equal("public"))
 			internal := th.GetService(watcherTest.WatcherInternalServiceName)
 			Expect(internal.Labels["service"]).To(Equal("watcher-api"))
-			Expect(internal.Labels["internal"]).To(Equal("true"))
+			Expect(internal.Labels["endpoint"]).To(Equal("internal"))
 		})
 		It("created the keystone endpoint for the watcher-api service", func() {
 			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
@@ -240,9 +239,7 @@ var _ = Describe("WatcherAPI controller", func() {
 			// for the internal
 			keystoneEndpoint := keystone.GetKeystoneEndpoint(watcherTest.WatcherKeystoneEndpointName)
 			endpoints := keystoneEndpoint.Spec.Endpoints
-			// jgilaber: the public endpoint returned by the exposeEndpoint
-			// function of lib-common has an empty hostname
-			Expect(endpoints).To(HaveKeyWithValue("public", "http://"))
+			Expect(endpoints).To(HaveKeyWithValue("public", "http://watcher-public."+watcherTest.WatcherAPI.Namespace+".svc:9322"))
 			Expect(endpoints).To(HaveKeyWithValue("internal", "http://watcher-internal."+watcherTest.WatcherAPI.Namespace+".svc:9322"))
 			th.ExpectCondition(
 				watcherTest.WatcherAPI,
@@ -462,16 +459,7 @@ var _ = Describe("WatcherAPI controller", func() {
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, prometheusSecret)
-			spec := GetDefaultWatcherAPISpec()
-			apiOverrideSpec := map[string]interface{}{}
-			endpoint := map[string]interface{}{}
-			internalEndpoint := map[string]interface{}{}
-			endpoint["ipAddressPool"] = "osp-internalapi"
-			endpoint["loadBalancerIPs"] = []string{"internal-lb-ip-1", "internal-lb-ip-2"}
-			internalEndpoint["internal"] = endpoint
-			apiOverrideSpec["service"] = internalEndpoint
-			spec["override"] = apiOverrideSpec
-			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, spec))
+			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, GetServiceOverrideWatcherAPISpec()))
 			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
 			memcachedSpec := memcachedv1.MemcachedSpec{
 				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
@@ -514,25 +502,22 @@ var _ = Describe("WatcherAPI controller", func() {
 			th.SimulateLoadBalancerServiceIP(watcherTest.WatcherInternalServiceName)
 
 			// As the public endpoint is not mentioned in the service override
-			// a generic Service and a Route is created
+			// a generic Service is created
 			public := th.GetService(watcherTest.WatcherPublicServiceName)
 			Expect(public.Annotations).NotTo(HaveKey("metallb.universe.tf/address-pool"))
 			Expect(public.Annotations).NotTo(HaveKey("metallb.universe.tf/allow-shared-ip"))
 			Expect(public.Annotations).NotTo(HaveKey("metallb.universe.tf/loadBalancerIPs"))
 			Expect(public.Labels["service"]).To(Equal("watcher-api"))
-			Expect(public.Labels["public"]).To(Equal("true"))
-			th.AssertRouteExists(watcherTest.WatcherRouteName)
+			Expect(public.Labels["endpoint"]).To(Equal("public"))
 
 			// As the internal endpoint is configure in the service override it
-			// does not get a Route but a Service with MetalLB annotations
-			// instead
+			// creates a Service with MetalLB annotations
 			internal := th.GetService(watcherTest.WatcherInternalServiceName)
 			Expect(internal.Annotations).To(HaveKeyWithValue("metallb.universe.tf/address-pool", "osp-internalapi"))
 			Expect(internal.Annotations).To(HaveKeyWithValue("metallb.universe.tf/allow-shared-ip", "osp-internalapi"))
 			Expect(internal.Annotations).To(HaveKeyWithValue("metallb.universe.tf/loadBalancerIPs", "internal-lb-ip-1,internal-lb-ip-2"))
 			Expect(internal.Labels["service"]).To(Equal("watcher-api"))
-			Expect(internal.Labels["internal"]).To(Equal("true"))
-			th.AssertRouteNotExists(watcherTest.WatcherInternalRouteName)
+			Expect(internal.Labels["endpoint"]).To(Equal("internal"))
 
 			// simulate the keystone endpoint
 			keystone.SimulateKeystoneEndpointReady(watcherTest.WatcherKeystoneEndpointName)
@@ -542,6 +527,104 @@ var _ = Describe("WatcherAPI controller", func() {
 				condition.ReadyCondition,
 				corev1.ConditionTrue,
 			)
+		})
+	})
+	When("WatcherAPI is created with service TLS", func() {
+		BeforeEach(func() {
+			secret := th.CreateSecret(
+				watcherTest.InternalTopLevelSecretName,
+				map[string][]byte{
+					"WatcherPassword":       []byte("service-password"),
+					"transport_url":         []byte("url"),
+					"database_account":      []byte("watcher"),
+					"database_username":     []byte("watcher"),
+					"database_password":     []byte("watcher-password"),
+					"database_hostname":     []byte("db-hostname"),
+					"01-global-custom.conf": []byte(""),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, secret)
+			prometheusSecret := th.CreateSecret(
+				watcherTest.PrometheusSecretName,
+				map[string][]byte{
+					"host": []byte("prometheus.example.com"),
+					"port": []byte("9090"),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, prometheusSecret)
+			DeferCleanup(k8sClient.Delete, ctx, th.CreateCertSecret(watcherTest.WatcherPublicCertSecret))
+			DeferCleanup(k8sClient.Delete, ctx, th.CreateCertSecret(watcherTest.WatcherInternalCertSecret))
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: "combined-ca-bundle"},
+					map[string][]byte{
+						"internal-ca-bundle.pem": []byte("some-b64-text"),
+						"tls-ca-bundle.pem":      []byte("other-b64-text"),
+					},
+				))
+			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, GetTLSWatcherAPISpec()))
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.WatcherAPI.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.WatcherAPI.Namespace,
+					"openstack",
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+			mariadb.CreateMariaDBAccountAndSecret(
+				watcherTest.WatcherDatabaseAccount,
+				v1beta1.MariaDBAccountSpec{
+					UserName: "watcher",
+				},
+			)
+			mariadb.CreateMariaDBDatabase(
+				watcherTest.WatcherAPI.Namespace,
+				"watcher",
+				v1beta1.MariaDBDatabaseSpec{
+					Name: "watcher",
+				},
+			)
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
+
+		})
+		It("should have the TLS Spec fields set", func() {
+			WatcherAPI := GetWatcherAPI(watcherTest.WatcherAPI)
+			Expect(*WatcherAPI.Spec.TLS.API.Public.SecretName).Should(Equal("cert-watcher-public-svc"))
+			Expect(*WatcherAPI.Spec.TLS.API.Internal.SecretName).Should(Equal("cert-watcher-internal-svc"))
+			Expect(WatcherAPI.Spec.TLS.CaBundleSecretName).Should(Equal("combined-ca-bundle"))
+		})
+		It("should have https endpoints", func() {
+			keystone.SimulateKeystoneEndpointReady(watcherTest.WatcherKeystoneEndpointName)
+			th.ExpectCondition(
+				watcherTest.WatcherAPI,
+				ConditionGetterFunc(WatcherAPIConditionGetter),
+				condition.CreateServiceReadyCondition,
+				corev1.ConditionTrue,
+			)
+			th.ExpectCondition(
+				watcherTest.WatcherAPI,
+				ConditionGetterFunc(WatcherAPIConditionGetter),
+				condition.ReadyCondition,
+				corev1.ConditionTrue,
+			)
+			// it registers the endpointURL as the public endpoint and svc
+			// for the internal
+			keystoneEndpoint := keystone.GetKeystoneEndpoint(watcherTest.WatcherKeystoneEndpointName)
+			endpoints := keystoneEndpoint.Spec.Endpoints
+			Expect(endpoints).To(HaveKeyWithValue("public", "https://watcher-public."+watcherTest.WatcherAPI.Namespace+".svc:9322"))
+			Expect(endpoints).To(HaveKeyWithValue("internal", "https://watcher-internal."+watcherTest.WatcherAPI.Namespace+".svc:9322"))
 		})
 	})
 	When("WatcherAPI is created with service TLS but invalid cert secret", func() {

@@ -47,6 +47,10 @@ status:
     reason: Ready
     status: "True"
     type: DBSyncReady
+  - message: Exposing service completed
+    reason: Ready
+    status: "True"
+    type: ExposeServiceReady
   - message: Input data complete
     reason: Ready
     status: "True"
@@ -230,14 +234,14 @@ status:
     reason: Ready
     status: "True"
     type: Ready
+  - message: Create service completed
+    reason: Ready
+    status: "True"
+    type: CreateServiceReady
   - message: Deployment completed
     reason: Ready
     status: "True"
     type: DeploymentReady
-  - message: Exposing service completed
-    reason: Ready
-    status: "True"
-    type: ExposeServiceReady
   - message: Input data complete
     reason: Ready
     status: "True"
@@ -306,7 +310,7 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    public: "true"
+    endpoint: public
     service: watcher-api
   name: watcher-public
 spec:
@@ -323,7 +327,7 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    internal: "true"
+    endpoint: internal
     service: watcher-api
   name: watcher-internal
 spec:
@@ -340,7 +344,6 @@ apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
   labels:
-    public: "true"
     service: watcher-api
   name: watcher-public
 spec:
