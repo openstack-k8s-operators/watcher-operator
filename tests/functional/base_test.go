@@ -21,6 +21,7 @@ import (
 
 	. "github.com/onsi/gomega" //revive:disable:dot-imports
 
+	batchv1 "k8s.io/api/batch/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -65,6 +66,10 @@ func GetNonDefaultWatcherSpec() map[string]interface{} {
 			"replicas":            1,
 			"nodeSelector":        map[string]string{"foo": "bar"},
 			"customServiceConfig": "# Service config DecisionEngine",
+		},
+		"dbPurge": map[string]interface{}{
+			"schedule": "1 2 * * *",
+			"purgeAge": 1,
 		},
 	}
 }
@@ -242,4 +247,13 @@ func GetWatcherDecisionEngine(name types.NamespacedName) *watcherv1.WatcherDecis
 		g.Expect(k8sClient.Get(ctx, name, instance)).Should(Succeed())
 	}, timeout, interval).Should(Succeed())
 	return instance
+}
+
+func GetCronJob(name types.NamespacedName) *batchv1.CronJob {
+	cron := &batchv1.CronJob{}
+	Eventually(func(g Gomega) {
+		g.Expect(k8sClient.Get(ctx, name, cron)).Should(Succeed())
+	}, timeout, interval).Should(Succeed())
+
+	return cron
 }

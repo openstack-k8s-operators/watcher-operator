@@ -110,3 +110,24 @@ func GetKollaConfigVolumeMount(serviceName string) corev1.VolumeMount {
 		ReadOnly:  true,
 	}
 }
+
+func GetScriptVolumeMount() corev1.VolumeMount {
+	return corev1.VolumeMount{
+		Name:      scriptVolume,
+		MountPath: "/var/lib/openstack/bin",
+		ReadOnly:  false,
+	}
+}
+
+func GetScriptVolume(secretName string) corev1.Volume {
+	var scriptMode int32 = 0740
+	return corev1.Volume{
+		Name: scriptVolume,
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				DefaultMode: &scriptMode,
+				SecretName:  secretName,
+			},
+		},
+	}
+}

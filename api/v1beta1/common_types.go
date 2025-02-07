@@ -117,6 +117,9 @@ type WatcherTemplate struct {
 	// APIOverride, provides the ability to override the generated
 	// manifest of several child resources.
 	APIOverride Override `json:"apiOverride,omitempty"`
+
+	// DBPurge defines the parameters for the Watcher DB purging cron job
+	DBPurge WatcherDBPurge `json:"dbPurge"`
 }
 
 type Override struct {

@@ -46,4 +46,7 @@ const (
 
 	// WatcherUserID is the linux user ID used by Kolla for watcher service
 	WatcherUserID int64 = 42451
+
+	// scriptVolume is the name of the volume used to ship scripts into pods
+	scriptVolume = "scripts-volume"
 )

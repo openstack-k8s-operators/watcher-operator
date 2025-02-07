@@ -1,12 +1,14 @@
 package functional
 
 import (
+	"fmt"
+	"os"
+
 	. "github.com/onsi/ginkgo/v2" //revive:disable:dot-imports
 	. "github.com/onsi/gomega"    //revive:disable:dot-imports
 
 	condition "github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 	//revive:disable-next-line:dot-imports
-	"os"
 
 	memcachedv1 "github.com/openstack-k8s-operators/infra-operator/apis/memcached/v1beta1"
 	rabbitmqv1 "github.com/openstack-k8s-operators/infra-operator/apis/rabbitmq/v1beta1"
@@ -54,6 +56,8 @@ var _ = Describe("Watcher controller with minimal spec values", func() {
 			Expect(Watcher.Spec.CustomServiceConfig).Should(Equal(""))
 			Expect(Watcher.Spec.PrometheusSecret).Should(Equal("metric-storage-prometheus-endpoint"))
 			Expect(Watcher.Spec.APIServiceTemplate.CustomServiceConfig).Should(Equal(""))
+			Expect(*(Watcher.Spec.DBPurge.Schedule)).Should(Equal("0 1 * * *"))
+			Expect(*(Watcher.Spec.DBPurge.PurgeAge)).Should(Equal(90))
 
 		})
 
@@ -123,6 +127,13 @@ var _ = Describe("Watcher controller", func() {
 				watcherTest.Instance,
 				ConditionGetterFunc(WatcherConditionGetter),
 				condition.KeystoneServiceReadyCondition,
+				corev1.ConditionUnknown,
+			)
+
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				condition.CronJobReadyCondition,
 				corev1.ConditionUnknown,
 			)
 
@@ -245,7 +256,7 @@ var _ = Describe("Watcher controller", func() {
 			Expect(k8sClient.Get(ctx, watcherTest.WatcherTransportURL, transportURL)).Should(Succeed())
 		})
 
-		It("Should register watcher service to keystone when has the right secret", func() {
+		It("Should create the watcher successfully with default spec values", func() {
 			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
 			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
 			infra.SimulateTransportURLReady(watcherTest.WatcherTransportURL)
@@ -353,6 +364,14 @@ var _ = Describe("Watcher controller", func() {
 				corev1.ConditionTrue,
 			)
 
+			// Get CronJobReadyCondition Ready condition
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				condition.CronJobReadyCondition,
+				corev1.ConditionTrue,
+			)
+
 			// Global status Ready
 			th.ExpectCondition(
 				watcherTest.Instance,
@@ -437,6 +456,30 @@ var _ = Describe("Watcher controller", func() {
 			Expect(decisionengineStatefulSet.Spec.Template.Spec.Volumes).To(HaveLen(3))
 			Expect(decisionengineStatefulSet.Spec.Template.Spec.Containers).To(HaveLen(1))
 			Expect(decisionengineStatefulSet.Spec.Selector.MatchLabels).To(Equal(map[string]string{"service": "watcher-decision-engine"}))
+
+			// The CronJob for DB Purge is created properly
+			// Check the scripts secret is created
+			scriptsSecret := th.GetSecret(
+				types.NamespacedName{
+					Name:      watcherTest.Instance.Name + "-scripts",
+					Namespace: watcherTest.Instance.Namespace,
+				},
+			)
+
+			Expect(scriptsSecret).ShouldNot(BeNil())
+			Expect(scriptsSecret.Data).Should(HaveKey("dbpurge.sh"))
+			scriptData := string(scriptsSecret.Data["dbpurge.sh"])
+			Expect(scriptData).To(ContainSubstring("watcher-db-manage --config-dir /etc/watcher/watcher.conf.d/ --debug purge"))
+			cron := GetCronJob(types.NamespacedName{Namespace: watcherTest.Instance.Namespace,
+				Name: watcherTest.Instance.Name + "-db-purge"})
+
+			jobEnv := cron.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Env
+			Expect(cron.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Image).To(
+				Equal(Watcher.Spec.APIContainerImageURL))
+			Expect(cron.Spec.Schedule).To(Equal(*Watcher.Spec.DBPurge.Schedule))
+			Expect(cron.Labels["service"]).To(Equal("watcher"))
+			Expect(GetEnvVarValue(jobEnv, "PURGE_AGE", "")).To(
+				Equal(fmt.Sprintf("%d", *Watcher.Spec.DBPurge.PurgeAge)))
 		})
 
 		It("Should fail to register watcher service to keystone when has not the expected secret", func() {
@@ -720,6 +763,8 @@ var _ = Describe("Watcher controller", func() {
 			Expect(Watcher.Spec.CustomServiceConfig).Should(Equal("# Global config"))
 			Expect(Watcher.Spec.PrometheusSecret).Should(Equal("custom-prometheus-config"))
 			Expect(Watcher.Spec.APIServiceTemplate.CustomServiceConfig).Should(Equal("# Service config"))
+			Expect(*(Watcher.Spec.DBPurge.Schedule)).Should(Equal("1 2 * * *"))
+			Expect(*(Watcher.Spec.DBPurge.PurgeAge)).Should(Equal(1))
 		})
 
 		It("Should create watcher service with custom values", func() {
@@ -991,6 +1036,30 @@ var _ = Describe("Watcher controller", func() {
 			Expect(createdConfigSecret).ShouldNot(BeNil())
 			Expect(createdConfigSecret.Data["01-global-custom.conf"]).Should(Equal([]byte("# Global config")))
 			Expect(createdConfigSecret.Data["02-service-custom.conf"]).Should(Equal([]byte("# Service config DecisionEngine")))
+
+			// The CronJob for DB Purge is created properly
+			// Check the scripts secret is created
+			scriptsSecret := th.GetSecret(
+				types.NamespacedName{
+					Name:      watcherTest.Instance.Name + "-scripts",
+					Namespace: watcherTest.Instance.Namespace,
+				},
+			)
+
+			Expect(scriptsSecret).ShouldNot(BeNil())
+			Expect(scriptsSecret.Data).Should(HaveKey("dbpurge.sh"))
+			scriptData := string(scriptsSecret.Data["dbpurge.sh"])
+			Expect(scriptData).To(ContainSubstring("watcher-db-manage --config-dir /etc/watcher/watcher.conf.d/ --debug purge"))
+			cron := GetCronJob(types.NamespacedName{Namespace: watcherTest.Instance.Namespace,
+				Name: watcherTest.Instance.Name + "-db-purge"})
+
+			jobEnv := cron.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Env
+			Expect(cron.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Image).To(
+				Equal(Watcher.Spec.APIContainerImageURL))
+			Expect(cron.Spec.Schedule).To(Equal("1 2 * * *"))
+			Expect(cron.Labels["service"]).To(Equal("watcher"))
+			Expect(GetEnvVarValue(jobEnv, "PURGE_AGE", "")).To(
+				Equal(fmt.Sprintf("%d", 1)))
 		})
 	})
 
