@@ -9,6 +9,8 @@ const (
 	WatcherAPIReadyCondition condition.Type = "WatcherAPIReady"
 	// WatcherApplierReadyCondition -
 	WatcherApplierReadyCondition condition.Type = "WatcherApplierReady"
+	// WatcherDecisionEngineReadyCondition -
+	WatcherDecisionEngineReadyCondition condition.Type = "WatcherDecisionEngineReady"
 )
 
 const (
@@ -36,4 +38,12 @@ const (
 	WatcherApplierReadyMessage = "WatcherApplier successfully created"
 	// WatcherApplierReadyErrorMessage -
 	WatcherApplierReadyErrorMessage = "WatcherApplier error occured %s"
+	// WatcherDecisionEngineReadyInitMessage -
+	WatcherDecisionEngineReadyInitMessage = "WatcherDecisionEngine creation not started"
+	// WatcherDecisionEngineReadyRunningMessage -
+	WatcherDecisionEngineReadyRunningMessage = "WatcherDecisionEngine creation in progress"
+	// WatcherDecisionEngineReadyMessage -
+	WatcherDecisionEngineReadyMessage = "WatcherDecisionEngine successfully created"
+	// WatcherDecisionEngineReadyErrorMessage -
+	WatcherDecisionEngineReadyErrorMessage = "WatcherDecisionEngine error occured %s"
 )

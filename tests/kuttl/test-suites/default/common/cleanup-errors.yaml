@@ -109,7 +109,7 @@ kind: WatcherDecisionEngine
 metadata:
   finalizers:
   - openstack.org/watcherdecisionengine
-  name: watcher-decision-engine-kuttl
+  name: watcher-kuttl-decision-engine
 ---
 apiVersion: v1
 kind: Secret
@@ -126,3 +126,16 @@ kind: Pod
 metadata:
   labels:
     service: watcher-applier
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: watcher-kuttl-decision-engine
+  labels:
+    service: watcher-decision-engine
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    service: watcher-decision-engine

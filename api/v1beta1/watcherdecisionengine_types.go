@@ -63,6 +63,19 @@ type WatcherDecisionEngineStatus struct {
 	Hash map[string]string `json:"hash,omitempty"`
 }
 
+// WatcherDecisionEngineTemplate defines the input parameters specified by the user to
+// create a WatcherDecisionengine via higher level CRDs.
+type WatcherDecisionEngineTemplate struct {
+	WatcherSubCrsTemplate `json:",inline"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=1
+	// +kubebuilder:validation:Maximum=1
+	// +kubebuilder:validation:Minimum=0
+	// Replicas of WatcherDecisionEngine service to run
+	Replicas *int32 `json:"replicas"`
+}
+
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 

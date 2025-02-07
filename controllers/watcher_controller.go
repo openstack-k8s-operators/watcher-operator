@@ -342,6 +342,15 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 
 	// End of Watcher API creation
 
+	// Create Watcher DecisionEngine
+	_, _, err = r.ensureDecisionEngine(ctx, instance, subLevelSecretName)
+
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// End of Watcher DecisionEngine creation
+
 	//
 	// remove finalizers from unused MariaDBAccount records
 	// this assumes all database-depedendent deployments are up and
@@ -443,6 +452,10 @@ func (r *WatcherReconciler) initConditions(instance *watcherv1beta1.Watcher) err
 			watcherv1beta1.WatcherApplierReadyCondition,
 			condition.InitReason,
 			watcherv1beta1.WatcherApplierReadyInitMessage),
+		condition.UnknownCondition(
+			watcherv1beta1.WatcherDecisionEngineReadyCondition,
+			condition.InitReason,
+			watcherv1beta1.WatcherDecisionEngineReadyInitMessage),
 	)
 
 	instance.Status.Conditions.Init(&cl)
@@ -967,6 +980,86 @@ func (r *WatcherReconciler) ensureApplier(
 
 	return applierDeployment, op, nil
 
+}
+
+func (r *WatcherReconciler) ensureDecisionEngine(
+	ctx context.Context,
+	instance *watcherv1beta1.Watcher,
+	secretName string,
+) (*watcherv1beta1.WatcherDecisionEngine, controllerutil.OperationResult, error) {
+	Log := r.GetLogger(ctx)
+	Log.Info(fmt.Sprintf("Creating WatcherDecisionEngine '%s'", instance.Name))
+
+	watcherDecisionEngineSpec := watcherv1beta1.WatcherDecisionEngineSpec{
+		Secret: secretName,
+		WatcherCommon: watcherv1beta1.WatcherCommon{
+			ServiceUser:         instance.Spec.ServiceUser,
+			PasswordSelectors:   instance.Spec.PasswordSelectors,
+			MemcachedInstance:   instance.Spec.MemcachedInstance,
+			NodeSelector:        instance.Spec.DecisionEngineServiceTemplate.NodeSelector,
+			PreserveJobs:        instance.Spec.PreserveJobs,
+			CustomServiceConfig: instance.Spec.DecisionEngineServiceTemplate.CustomServiceConfig,
+		},
+		WatcherSubCrsCommon: watcherv1beta1.WatcherSubCrsCommon{
+			ContainerImage: instance.Spec.DecisionEngineContainerImageURL,
+			Resources:      instance.Spec.DecisionEngineServiceTemplate.Resources,
+			ServiceAccount: "watcher-" + instance.Name,
+		},
+		Replicas: instance.Spec.DecisionEngineServiceTemplate.Replicas,
+	}
+
+	// If NodeSelector is not specified in Watcher DecisionEngineServiceTemplate, the current
+	// DecisionEngine instance inherits the value from the top-level Watcher CR.
+	if watcherDecisionEngineSpec.NodeSelector == nil {
+		watcherDecisionEngineSpec.NodeSelector = instance.Spec.NodeSelector
+	}
+
+	// We need to have TLS defined in SubCRs to have some values available
+	watcherDecisionEngineSpec.TLS = instance.Spec.TLS
+
+	// We need to have the PrometheusSecret in watcherdecisionengine
+	watcherDecisionEngineSpec.PrometheusSecret = instance.Spec.PrometheusSecret
+
+	decisionengineDeployment := &watcherv1beta1.WatcherDecisionEngine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-decision-engine", instance.Name),
+			Namespace: instance.Namespace,
+		},
+	}
+
+	op, err := controllerutil.CreateOrPatch(ctx, r.Client, decisionengineDeployment, func() error {
+		decisionengineDeployment.Spec = watcherDecisionEngineSpec
+		err := controllerutil.SetControllerReference(instance, decisionengineDeployment, r.Scheme)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+
+	if err != nil {
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			watcherv1beta1.WatcherDecisionEngineReadyCondition,
+			condition.ErrorReason,
+			condition.SeverityError,
+			watcherv1beta1.WatcherDecisionEngineReadyErrorMessage,
+			err.Error()))
+		return nil, op, err
+	}
+	if op != controllerutil.OperationResultNone {
+		Log.Info(fmt.Sprintf("WatcherDecisionEngine %s , WatcherDecisionEngine.Name %s.", string(op), decisionengineDeployment.Name))
+	}
+
+	if decisionengineDeployment.Generation == decisionengineDeployment.Status.ObservedGeneration {
+		c := decisionengineDeployment.Status.Conditions.Mirror(watcherv1beta1.WatcherDecisionEngineReadyCondition)
+		// NOTE(gibi): it can be nil if the WatcherDecisionEngine CR is created but no
+		// reconciliation is run on it to initialize the ReadyCondition yet.
+		if c != nil {
+			instance.Status.Conditions.Set(c)
+		}
+		instance.Status.DecisionEngineServiceReadyCount = decisionengineDeployment.Status.ReadyCount
+	}
+
+	return decisionengineDeployment, op, nil
 }
 
 func (r *WatcherReconciler) reconcileDelete(ctx context.Context, instance *watcherv1beta1.Watcher, helper *helper.Helper) (ctrl.Result, error) {

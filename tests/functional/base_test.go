@@ -60,6 +60,12 @@ func GetNonDefaultWatcherSpec() map[string]interface{} {
 			"nodeSelector":        map[string]string{"foo": "bar"},
 			"customServiceConfig": "# Service config Applier",
 		},
+		"decisionengineContainerImageURL": "fake-DecisionEngine-Container-URL",
+		"decisionengineServiceTemplate": map[string]interface{}{
+			"replicas":            1,
+			"nodeSelector":        map[string]string{"foo": "bar"},
+			"customServiceConfig": "# Service config DecisionEngine",
+		},
 	}
 }
 

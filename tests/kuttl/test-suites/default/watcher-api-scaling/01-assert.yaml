@@ -23,9 +23,13 @@ spec:
   applierServiceTemplate:
     replicas: 1
     resources: {}
+  decisionengineServiceTemplate:
+    replicas: 1
+    resources: {}
 status:
   apiServiceReadyCount: 2
   applierServiceReadyCount: 1
+  decisionengineServiceReadyCount: 1
   conditions:
   - message: Setup complete
     reason: Ready
@@ -75,6 +79,10 @@ status:
     reason: Ready
     status: "True"
     type: WatcherApplierReady
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: WatcherDecisionEngineReady
   - message: WatcherRabbitMQTransportURL successfully created
     reason: Ready
     status: "True"
@@ -403,6 +411,76 @@ spec:
   containers:
   - name: watcher-applier
     image: quay.io/podified-master-centos9/openstack-watcher-applier:current-podified
+status:
+  phase: Running
+---
+apiVersion: watcher.openstack.org/v1beta1
+kind: WatcherDecisionEngine
+metadata:
+  finalizers:
+  - openstack.org/watcherdecisionengine
+  name: watcher-kuttl-decision-engine
+spec:
+  containerImage: quay.io/podified-master-centos9/openstack-watcher-decision-engine:current-podified
+  memcachedInstance: memcached
+  passwordSelectors:
+    service: WatcherPassword
+  preserveJobs: false
+  replicas: 1
+  resources: {}
+  secret: watcher-kuttl
+  serviceAccount: watcher-watcher-kuttl
+  serviceUser: watcher
+status:
+  conditions:
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: Ready
+  - message: Deployment completed
+    reason: Ready
+    status: "True"
+    type: DeploymentReady
+  - message: Input data complete
+    reason: Ready
+    status: "True"
+    type: InputReady
+  - message: " Memcached instance has been provisioned"
+    reason: Ready
+    status: "True"
+    type: MemcachedReady
+  - message: Service config create completed
+    reason: Ready
+    status: "True"
+    type: ServiceConfigReady
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: watcher-kuttl-decision-engine
+  labels:
+    service: watcher-decision-engine
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+      - name: watcher-decision-engine
+        image: quay.io/podified-master-centos9/openstack-watcher-decision-engine:current-podified
+status:
+  readyReplicas: 1
+  replicas: 1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    service: watcher-decision-engine
+  name: watcher-kuttl-decision-engine-0
+spec:
+  containers:
+  - name: watcher-decision-engine
+    image: quay.io/podified-master-centos9/openstack-watcher-decision-engine:current-podified
 status:
   phase: Running
 ---

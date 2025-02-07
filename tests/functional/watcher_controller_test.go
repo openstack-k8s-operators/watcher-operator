@@ -276,6 +276,9 @@ var _ = Describe("Watcher controller", func() {
 			// Simulate WatcherApplier deployment
 			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherApplierStatefulSet)
 
+			// Simulate WatcherDecisionEngine deployment
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherDecisionEngineStatefulSet)
+
 			th.ExpectCondition(
 				watcherTest.Instance,
 				ConditionGetterFunc(WatcherConditionGetter),
@@ -343,6 +346,14 @@ var _ = Describe("Watcher controller", func() {
 				corev1.ConditionTrue,
 			)
 
+			// Get WatcherDecisionEngine Ready condition
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				watcherv1beta1.WatcherDecisionEngineReadyCondition,
+				corev1.ConditionTrue,
+			)
+
 			// Global status Ready
 			th.ExpectCondition(
 				watcherTest.Instance,
@@ -375,7 +386,6 @@ var _ = Describe("Watcher controller", func() {
 
 			// Check WatcherAPI is created
 			WatcherAPI := GetWatcherAPI(watcherTest.WatcherAPI)
-			//Expect(WatcherAPI.Spec.Replicas).To(Equal(int(1)))
 			Expect(WatcherAPI.Spec.ContainerImage).To(Equal(watcherv1beta1.WatcherAPIContainerImage))
 			Expect(WatcherAPI.Spec.Secret).To(Equal("watcher"))
 			Expect(WatcherAPI.Spec.ServiceAccount).To(Equal("watcher-watcher"))
@@ -411,6 +421,23 @@ var _ = Describe("Watcher controller", func() {
 
 			prometheusSecret := th.GetSecret(types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: "metric-storage-prometheus-endpoint"})
 			Expect(prometheusSecret.Finalizers).To(ContainElement("openstack.org/watcher"))
+			// Check WatcherDecisionEngine is created
+			WatcherDecisionEngine := GetWatcherDecisionEngine(watcherTest.WatcherDecisionEngine)
+			Expect(WatcherDecisionEngine.Spec.ContainerImage).To(Equal(watcherv1beta1.WatcherDecisionEngineContainerImage))
+			Expect(WatcherDecisionEngine.Spec.Secret).To(Equal("watcher"))
+			Expect(WatcherDecisionEngine.Spec.ServiceAccount).To(Equal("watcher-watcher"))
+			Expect(int(*WatcherDecisionEngine.Spec.Replicas)).To(Equal(1))
+			Expect(WatcherDecisionEngine.Spec.NodeSelector).To(BeNil())
+			Expect(WatcherDecisionEngine.Spec.CustomServiceConfig).To(Equal(""))
+			Expect(WatcherDecisionEngine.Spec.PrometheusSecret).Should(Equal("metric-storage-prometheus-endpoint"))
+
+			// Assert that the Watcher DecisionEngine statefulset is created
+			decisionengineStatefulSet := th.GetStatefulSet(watcherTest.WatcherDecisionEngineStatefulSet)
+			Expect(decisionengineStatefulSet.Spec.Template.Spec.ServiceAccountName).To(Equal("watcher-watcher"))
+			Expect(int(*decisionengineStatefulSet.Spec.Replicas)).To(Equal(1))
+			Expect(decisionengineStatefulSet.Spec.Template.Spec.Volumes).To(HaveLen(3))
+			Expect(decisionengineStatefulSet.Spec.Template.Spec.Containers).To(HaveLen(1))
+			Expect(decisionengineStatefulSet.Spec.Selector.MatchLabels).To(Equal(map[string]string{"service": "watcher-decision-engine"}))
 		})
 
 		It("Should fail to register watcher service to keystone when has not the expected secret", func() {
@@ -718,6 +745,9 @@ var _ = Describe("Watcher controller", func() {
 			// Simulate WatcherApplier deployment
 			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherApplierStatefulSet)
 
+			// Simulate WatcherDecisionEngine deployment
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherDecisionEngineStatefulSet)
+
 			// We validate the full Watcher CR readiness status here
 			// DB Ready
 			th.ExpectCondition(
@@ -784,6 +814,14 @@ var _ = Describe("Watcher controller", func() {
 				watcherTest.Instance,
 				ConditionGetterFunc(WatcherConditionGetter),
 				watcherv1beta1.WatcherApplierReadyCondition,
+				corev1.ConditionTrue,
+			)
+
+			// WatcherDecisionEngine Ready condition
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				watcherv1beta1.WatcherDecisionEngineReadyCondition,
 				corev1.ConditionTrue,
 			)
 
@@ -907,8 +945,48 @@ var _ = Describe("Watcher controller", func() {
 			Expect(createdConfigSecret).ShouldNot(BeNil())
 			Expect(createdConfigSecret.Data["01-global-custom.conf"]).Should(Equal([]byte("# Global config")))
 			Expect(createdConfigSecret.Data["02-service-custom.conf"]).Should(Equal([]byte("# Service config Applier")))
-		})
 
+			// Check WatcherDecisionEngine
+			watcherDecisionEngine := &watcherv1beta1.WatcherDecisionEngine{}
+			Expect(k8sClient.Get(ctx,
+				types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: watcherTest.Instance.Name + "-decision-engine"},
+				watcherDecisionEngine)).Should(Succeed())
+
+			// Check the config-data volume of watcherDecisionEngine has expected info
+			decisionengineConfigSecret := th.GetSecret(
+				types.NamespacedName{
+					Name:      watcherTest.Instance.Name + "-decision-engine-config-data",
+					Namespace: watcherTest.Instance.Namespace,
+				},
+			)
+			Expect(decisionengineConfigSecret).ShouldNot(BeNil())
+			Expect(decisionengineConfigSecret.Data["my.cnf"]).To(Equal([]byte("[client]\nssl=0")))
+
+			WatcherDecisionEngine := GetWatcherDecisionEngine(watcherTest.WatcherDecisionEngine)
+			Expect(WatcherDecisionEngine.Spec.ContainerImage).To(Equal("fake-DecisionEngine-Container-URL"))
+			Expect(WatcherDecisionEngine.Spec.Secret).To(Equal("watcher"))
+			Expect(WatcherDecisionEngine.Spec.ServiceAccount).To(Equal("watcher-watcher"))
+			Expect(int(*WatcherDecisionEngine.Spec.Replicas)).To(Equal(1))
+			Expect(*WatcherDecisionEngine.Spec.NodeSelector).To(Equal(map[string]string{"foo": "bar"}))
+			Expect(WatcherDecisionEngine.Spec.TLS.CaBundleSecretName).Should(Equal("combined-ca-bundle"))
+			Expect(WatcherDecisionEngine.Spec.CustomServiceConfig).Should(Equal("# Service config DecisionEngine"))
+			Expect(WatcherDecisionEngine.Spec.PrometheusSecret).Should(Equal("custom-prometheus-config"))
+
+			// Assert the DecisionEngine StatefuleSet is created
+			decisionEngineStatefulSet := th.GetStatefulSet(watcherTest.WatcherDecisionEngineStatefulSet)
+			Expect(decisionEngineStatefulSet.Spec.Template.Spec.ServiceAccountName).To(Equal("watcher-watcher"))
+			Expect(int(*decisionEngineStatefulSet.Spec.Replicas)).To(Equal(1))
+			Expect(decisionEngineStatefulSet.Spec.Template.Spec.Volumes).To(HaveLen(5))
+			Expect(decisionEngineStatefulSet.Spec.Template.Spec.Containers).To(HaveLen(1))
+			Expect(decisionEngineStatefulSet.Spec.Selector.MatchLabels).To(Equal(map[string]string{"service": "watcher-decision-engine"}))
+
+			// Assert that the required custom configuration is applied in the config secret
+			// assert that the top level secret is created with proper content
+			createdConfigSecret = th.GetSecret(types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: watcherTest.Instance.Name + "-decision-engine-config-data"})
+			Expect(createdConfigSecret).ShouldNot(BeNil())
+			Expect(createdConfigSecret.Data["01-global-custom.conf"]).Should(Equal([]byte("# Global config")))
+			Expect(createdConfigSecret.Data["02-service-custom.conf"]).Should(Equal([]byte("# Service config DecisionEngine")))
+		})
 	})
 
 	When("The prometheus secret does not exist", func() {

@@ -111,6 +111,11 @@ type WatcherTemplate struct {
 	// +kubebuilder:default={replicas:1}
 	// WatcherApplierTemplate - define the watcher-applier service
 	ApplierServiceTemplate WatcherApplierTemplate `json:"applierServiceTemplate"`
+
+	// +kubebuilder:validation:Required
+	// +kubebuilder:default={replicas:1}
+	// DecisionEngineServiceTemplate - define the watcher-decision-engine service
+	DecisionEngineServiceTemplate WatcherDecisionEngineTemplate `json:"decisionengineServiceTemplate"`
 }
 
 // PasswordSelector to identify the DB and AdminUser password from the Secret
