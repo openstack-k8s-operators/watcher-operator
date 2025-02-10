@@ -52,9 +52,16 @@ spec:
       kind: Watcher
       name: watchers.watcher.openstack.org
       specDescriptors:
+      - description: APIOverride, provides the ability to override the generated manifest
+          of several child resources.
+        displayName: APIOverride
+        path: apiOverride
+      - description: TLS - overrides tls parameters for public endpoint
+        displayName: TLS
+        path: apiOverride.tls
       - description: TLS - Parameters related to the TLS
         displayName: TLS
-        path: tls
+        path: apiServiceTemplate.tls
       version: v1beta1
   description: The Watcher Operator project
   displayName: Watcher Operator

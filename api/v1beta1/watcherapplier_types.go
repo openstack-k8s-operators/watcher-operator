@@ -18,6 +18,7 @@ package v1beta1
 
 import (
 	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/tls"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -43,6 +44,11 @@ type WatcherApplierSpec struct {
 	// +kubebuilder:validation:Minimum=0
 	// Replicas of Watcher service to run
 	Replicas *int32 `json:"replicas"`
+
+	// +kubebuilder:validation:Optional
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
+	// TLS - Parameters related to the TLS
+	TLS tls.Ca `json:"tls,omitempty"`
 }
 
 // WatcherApplierStatus defines the observed state of WatcherApplier

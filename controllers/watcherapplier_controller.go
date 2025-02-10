@@ -347,7 +347,7 @@ func (r *WatcherApplierReconciler) generateServiceConfigs(
 	}
 	// customData hold any customization for the service.
 	var tlsCfg *tls.Service
-	if instance.Spec.TLS.Ca.CaBundleSecretName != "" {
+	if instance.Spec.TLS.CaBundleSecretName != "" {
 		tlsCfg = &tls.Service{}
 	}
 	// customData hold any customization for the service.

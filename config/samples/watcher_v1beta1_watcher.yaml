@@ -10,5 +10,6 @@ metadata:
   name: watcher
 spec:
   databaseInstance: "openstack"
-  tls:
-    caBundleSecretName: "combined-ca-bundle"
+  apiServiceTemplate:
+    tls:
+      caBundleSecretName: "combined-ca-bundle"

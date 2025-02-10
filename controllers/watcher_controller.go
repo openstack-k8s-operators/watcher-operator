@@ -704,7 +704,7 @@ func (r *WatcherReconciler) generateServiceConfigDBSync(
 	Log.Info("generateServiceConfigs - reconciling config for Watcher CR")
 
 	var tlsCfg *tls.Service
-	if instance.Spec.TLS.Ca.CaBundleSecretName != "" {
+	if instance.Spec.APIServiceTemplate.TLS.Ca.CaBundleSecretName != "" {
 		tlsCfg = &tls.Service{}
 	}
 	// customData hold any customization for the service.
@@ -847,6 +847,7 @@ func (r *WatcherReconciler) ensureAPI(
 		},
 		Replicas: instance.Spec.APIServiceTemplate.Replicas,
 		Override: instance.Spec.APIServiceTemplate.Override,
+		TLS:      instance.Spec.APIServiceTemplate.TLS,
 	}
 
 	// If NodeSelector is not specified in Watcher APIServiceTemplate, the current
@@ -854,9 +855,6 @@ func (r *WatcherReconciler) ensureAPI(
 	if watcherAPISpec.NodeSelector == nil {
 		watcherAPISpec.NodeSelector = instance.Spec.NodeSelector
 	}
-
-	// We need to have TLS defined in SubCRs to have some values available
-	watcherAPISpec.TLS = instance.Spec.TLS
 
 	// We need to have the PrometheusSecret in watcherapi
 	watcherAPISpec.PrometheusSecret = instance.Spec.PrometheusSecret
@@ -928,6 +926,7 @@ func (r *WatcherReconciler) ensureApplier(
 			ServiceAccount: "watcher-" + instance.Name,
 		},
 		Replicas: instance.Spec.ApplierServiceTemplate.Replicas,
+		TLS:      instance.Spec.APIServiceTemplate.TLS.Ca,
 	}
 
 	// If NodeSelector is not specified in Watcher ApplierServiceTemplate,
@@ -935,9 +934,6 @@ func (r *WatcherReconciler) ensureApplier(
 	if watcherApplierSpec.NodeSelector == nil {
 		watcherApplierSpec.NodeSelector = instance.Spec.NodeSelector
 	}
-
-	// We need to have TLS defined in SubCRs to have some values available
-	watcherApplierSpec.TLS = instance.Spec.TLS
 
 	applierDeployment := &watcherv1beta1.WatcherApplier{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1006,6 +1002,7 @@ func (r *WatcherReconciler) ensureDecisionEngine(
 			ServiceAccount: "watcher-" + instance.Name,
 		},
 		Replicas: instance.Spec.DecisionEngineServiceTemplate.Replicas,
+		TLS:      instance.Spec.APIServiceTemplate.TLS.Ca,
 	}
 
 	// If NodeSelector is not specified in Watcher DecisionEngineServiceTemplate, the current
@@ -1013,9 +1010,6 @@ func (r *WatcherReconciler) ensureDecisionEngine(
 	if watcherDecisionEngineSpec.NodeSelector == nil {
 		watcherDecisionEngineSpec.NodeSelector = instance.Spec.NodeSelector
 	}
-
-	// We need to have TLS defined in SubCRs to have some values available
-	watcherDecisionEngineSpec.TLS = instance.Spec.TLS
 
 	// We need to have the PrometheusSecret in watcherdecisionengine
 	watcherDecisionEngineSpec.PrometheusSecret = instance.Spec.PrometheusSecret

@@ -17,7 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
-	"github.com/openstack-k8s-operators/lib-common/modules/common/tls"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/route"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/util"
 
 	corev1 "k8s.io/api/core/v1"
@@ -68,11 +68,6 @@ type WatcherCommon struct {
 	// +kubebuilder:default=metric-storage-prometheus-endpoint
 	// Secret containing prometheus connection parameters
 	PrometheusSecret string `json:"prometheusSecret"`
-
-	// +kubebuilder:validation:Optional
-	// +operator-sdk:csv:customresourcedefinitions:type=spec
-	// TLS - Parameters related to the TLS
-	TLS tls.API `json:"tls,omitempty"`
 }
 
 // WatcherTemplate defines the fields used in the top level CR
@@ -116,6 +111,32 @@ type WatcherTemplate struct {
 	// +kubebuilder:default={replicas:1}
 	// DecisionEngineServiceTemplate - define the watcher-decision-engine service
 	DecisionEngineServiceTemplate WatcherDecisionEngineTemplate `json:"decisionengineServiceTemplate"`
+
+	// +kubebuilder:validation:Optional
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
+	// APIOverride, provides the ability to override the generated
+	// manifest of several child resources.
+	APIOverride Override `json:"apiOverride,omitempty"`
+}
+
+type Override struct {
+	// +kubebuilder:validation:Optional
+	// Route overrides to use when creating the public service endpoint
+	Route *route.OverrideSpec `json:"route,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
+	// TLS - overrides tls parameters for public endpoint
+	TLS *TLSServiceOverride `json:"tls,omitempty"`
+}
+
+// TLSServiceOverride overrides tls parameters for public endpoint
+type TLSServiceOverride struct {
+	// +kubebuilder:validation:Optional
+	// Name of a Secret in the same Namespace as the service, containing the server's private key, public certificate
+	// and CA certificate for TLS.
+	// The Secret must store these as tls.key, tls.crt and ca.crt respectively.
+	SecretName string `json:"secretName,omitempty"`
 }
 
 // PasswordSelector to identify the DB and AdminUser password from the Secret
