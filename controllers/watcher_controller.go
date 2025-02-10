@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -642,7 +641,6 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		return ctrl.Result{}, err
 	}
 
-	oldSpec := instance.DeepCopy().Spec.APIServiceTemplate
 	ctrlResult, err = r.exposeEndpoints(
 		ctx,
 		helper,
@@ -665,13 +663,6 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 			condition.ExposeServiceReadyRunningMessage,
 		))
 		return ctrlResult, nil
-	}
-	// check if the APIServiceTemplate has changed while calling
-	// exposeEndpoints, if so we need to reconcile the WatcherAPI again to
-	// ensure the services reflect the right TLS configuration
-	if !reflect.DeepEqual(oldSpec, instance.Spec.APIServiceTemplate) {
-		err := r.Client.Update(ctx, instance)
-		return ctrl.Result{}, err
 	}
 
 	instance.Status.Conditions.MarkTrue(condition.ExposeServiceReadyCondition, condition.ExposeServiceReadyMessage)
@@ -1570,8 +1561,6 @@ func (r *WatcherReconciler) exposeEndpoints(
 
 		endpointDetails.EndpointDetails[ed.Type] = ed
 	}
-	// set service overrides
-	instance.Spec.APIServiceTemplate.Override.Service = endpointDetails.GetEndpointServiceOverrides()
 
 	return ctrl.Result{}, nil
 }
