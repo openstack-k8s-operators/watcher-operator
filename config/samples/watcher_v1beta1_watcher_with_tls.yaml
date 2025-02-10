@@ -14,6 +14,12 @@ spec:
     tls:
       secretName: cert-watcher-public-route
   apiServiceTemplate:
+    override:
+      service:
+        public:
+          # this needs to be adjusted by changing 'openstack' to
+          # name of the namespace it's being deployed into
+          endpointURL: https://watcher-public-openstack.apps-crc.testing
     tls:
       caBundleSecretName: "combined-ca-bundle"
       api:

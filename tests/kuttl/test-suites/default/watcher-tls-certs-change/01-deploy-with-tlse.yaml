@@ -63,6 +63,10 @@ spec:
     tls:
       secretName: cert-watcher-public-route
   apiServiceTemplate:
+    override:
+      service:
+        public:
+          endpointURL: https://watcher-public-watcher-kuttl-default.apps-crc.testing
     tls:
       caBundleSecretName: "combined-ca-bundle"
       api:

@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -626,7 +625,6 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		return ctrl.Result{}, err
 	}
 
-	oldSpec := instance.DeepCopy().Spec.APIServiceTemplate
 	ctrlResult, err = r.exposeEndpoints(
 		ctx,
 		helper,
@@ -649,13 +647,6 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 			condition.ExposeServiceReadyRunningMessage,
 		))
 		return ctrlResult, nil
-	}
-	// check if the APIServiceTemplate has changed while calling
-	// exposeEndpoints, if so we need to reconcile the WatcherAPI again to
-	// ensure the services reflect the right TLS configuration
-	if !reflect.DeepEqual(oldSpec, instance.Spec.APIServiceTemplate) {
-		err := r.Client.Update(ctx, instance)
-		return ctrl.Result{}, err
 	}
 
 	instance.Status.Conditions.MarkTrue(condition.ExposeServiceReadyCondition, condition.ExposeServiceReadyMessage)
@@ -1559,23 +1550,6 @@ func (r *WatcherReconciler) exposeEndpoints(
 			if err != nil || (ctrlResult != ctrl.Result{}) {
 				return ctrlResult, err
 			}
-		} else if ed.Type == service.EndpointInternal {
-			// check if we have a secretName for the internal
-			// endpoint defined
-			hasInternalServiceSecretName := instance.Spec.APIServiceTemplate.TLS.API.Internal.SecretName != nil &&
-				*instance.Spec.APIServiceTemplate.TLS.API.Internal.SecretName != ""
-			if hasInternalServiceSecretName {
-				ed.Service.TLS.Enabled = true
-				ed.Service.TLS.CertName = fmt.Sprintf("%s-svc", ed.Name)
-				ed.Service.TLS.SecretName = instance.Spec.APIServiceTemplate.TLS.API.Internal.SecretName
-			} else {
-				ed.Service.TLS.Enabled = false
-			}
-		}
-
-		// update override for the service with the endpoint url
-		if ed.EndpointURL != "" {
-			ed.Service.OverrideSpec.EndpointURL = &ed.EndpointURL
 		}
 	}
 
