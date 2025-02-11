@@ -35,6 +35,10 @@ status:
     reason: Ready
     status: "True"
     type: Ready
+  - message: CronJob completed
+    reason: Ready
+    status: "True"
+    type: CronJobReady
   - message: DB create completed
     reason: Ready
     status: "True"
@@ -197,6 +201,11 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: watcher-kuttl-config-data
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: watcher-kuttl-scripts
 ---
 apiVersion: watcher.openstack.org/v1beta1
 kind: WatcherAPI
