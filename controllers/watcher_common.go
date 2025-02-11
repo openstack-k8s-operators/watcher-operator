@@ -236,16 +236,22 @@ func GenerateConfigsGeneric(
 	scripts bool,
 ) error {
 
+	extraTemplates := map[string]string{
+		"00-default.conf":    "/00-default.conf",
+		"watcher-blank.conf": "/watcher-blank.conf",
+	}
+
 	cms := []util.Template{
 		// Templates where the watcher config is stored
 		{
-			Name:          fmt.Sprintf("%s-config-data", instance.GetName()),
-			Namespace:     instance.GetNamespace(),
-			Type:          util.TemplateTypeConfig,
-			InstanceType:  instance.GetObjectKind().GroupVersionKind().Kind,
-			ConfigOptions: templateParameters,
-			CustomData:    customData,
-			Labels:        cmLabels,
+			Name:               fmt.Sprintf("%s-config-data", instance.GetName()),
+			Namespace:          instance.GetNamespace(),
+			Type:               util.TemplateTypeConfig,
+			InstanceType:       instance.GetObjectKind().GroupVersionKind().Kind,
+			ConfigOptions:      templateParameters,
+			CustomData:         customData,
+			Labels:             cmLabels,
+			AdditionalTemplate: extraTemplates,
 		},
 	}
 	if scripts {
