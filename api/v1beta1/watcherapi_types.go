@@ -97,6 +97,8 @@ type WatcherAPITemplate struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.conditions[0].status",description="Status"
+//+kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.conditions[0].message",description="Message"
 
 // WatcherAPI is the Schema for the watcherapis API
 type WatcherAPI struct {
