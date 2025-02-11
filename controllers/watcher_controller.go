@@ -351,6 +351,14 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 
 	// End of Watcher DecisionEngine creation
 
+	// Deploy Watcher Applier
+	_, _, err = r.ensureApplier(ctx, instance, subLevelSecretName)
+
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	// End of Watcher Applier deploy
+
 	//
 	// remove finalizers from unused MariaDBAccount records
 	// this assumes all database-depedendent deployments are up and
@@ -361,14 +369,6 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-
-	// Deploy Watcher Applier
-	_, _, err = r.ensureApplier(ctx, instance, subLevelSecretName)
-
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	// End of Watcher Applier deploy
 
 	// We reached the end of the Reconcile, update the Ready condition based on
 	// the sub conditions
