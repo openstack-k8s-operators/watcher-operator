@@ -399,6 +399,29 @@ func (r *WatcherApplierReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}); err != nil {
 		return err
 	}
+	// index prometheusSecretField
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &watcherv1beta1.WatcherApplier{}, prometheusSecretField, func(rawObj client.Object) []string {
+		// Extract the secret name from the spec, if one is provided
+		cr := rawObj.(*watcherv1beta1.WatcherApplier)
+		if cr.Spec.PrometheusSecret == "" {
+			return nil
+		}
+		return []string{cr.Spec.PrometheusSecret}
+	}); err != nil {
+		return err
+	}
+	// index caBundleSecretNameField
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &watcherv1beta1.WatcherApplier{}, caBundleSecretNameField, func(rawObj client.Object) []string {
+		// Extract the secret name from the spec, if one is provided
+		cr := rawObj.(*watcherv1beta1.WatcherApplier)
+
+		if cr.Spec.TLS.CaBundleSecretName == "" {
+			return nil
+		}
+		return []string{cr.Spec.TLS.CaBundleSecretName}
+	}); err != nil {
+		return err
+	}
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&watcherv1beta1.WatcherApplier{}).

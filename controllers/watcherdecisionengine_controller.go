@@ -311,6 +311,18 @@ func (r *WatcherDecisionEngineReconciler) SetupWithManager(mgr ctrl.Manager) err
 	}); err != nil {
 		return err
 	}
+	// index caBundleSecretNameField
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &watcherv1beta1.WatcherDecisionEngine{}, caBundleSecretNameField, func(rawObj client.Object) []string {
+		// Extract the secret name from the spec, if one is provided
+		cr := rawObj.(*watcherv1beta1.WatcherDecisionEngine)
+
+		if cr.Spec.TLS.CaBundleSecretName == "" {
+			return nil
+		}
+		return []string{cr.Spec.TLS.CaBundleSecretName}
+	}); err != nil {
+		return err
+	}
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&watcherv1beta1.WatcherDecisionEngine{}).
@@ -329,7 +341,7 @@ func (r *WatcherDecisionEngineReconciler) findObjectsForSrc(ctx context.Context,
 
 	l := log.FromContext(ctx).WithName("Controllers").WithName("WatcherDecisionEngine")
 
-	for _, field := range apiWatchFields {
+	for _, field := range decisionEngineWatchFields {
 		crList := &watcherv1beta1.WatcherDecisionEngineList{}
 		listOps := &client.ListOptions{
 			FieldSelector: fields.OneTermEqualSelector(field, src.GetName()),

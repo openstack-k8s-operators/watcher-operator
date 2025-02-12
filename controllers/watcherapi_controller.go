@@ -382,7 +382,12 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 	for _, endpt := range []service.Endpoint{service.EndpointInternal, service.EndpointPublic} {
 		endptConfig := map[string]interface{}{}
 		endptConfig["ServerName"] = fmt.Sprintf("%s-%s.%s.svc", watcher.ServiceName, endpt.String(), instance.Namespace)
-		endptConfig["TLS"] = false // default TLS to false, and set it below when implemented
+		endptConfig["TLS"] = false // default TLS to false, and set it below to true if enabled
+		if instance.Spec.TLS.API.Enabled(endpt) {
+			endptConfig["TLS"] = true
+			endptConfig["SSLCertificateFile"] = fmt.Sprintf("/etc/pki/tls/certs/%s.crt", endpt.String())
+			endptConfig["SSLCertificateKeyFile"] = fmt.Sprintf("/etc/pki/tls/private/%s.key", endpt.String())
+		}
 		endptConfig["Port"] = fmt.Sprintf("%d", watcher.WatcherPublicPort)
 		httpdVhostConfig[endpt.String()] = endptConfig
 	}
@@ -693,6 +698,40 @@ func (r *WatcherAPIReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}); err != nil {
 		return err
 	}
+	// index tlsAPIInternalField
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &watcherv1beta1.WatcherAPI{}, tlsAPIInternalField, func(rawObj client.Object) []string {
+		// Extract the secret name from the spec, if one is provided
+		cr := rawObj.(*watcherv1beta1.WatcherAPI)
+		if cr.Spec.TLS.API.Internal.SecretName == nil {
+			return nil
+		}
+		return []string{*cr.Spec.TLS.API.Internal.SecretName}
+	}); err != nil {
+		return err
+	}
+	// index tlsAPIPublicField
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &watcherv1beta1.WatcherAPI{}, tlsAPIPublicField, func(rawObj client.Object) []string {
+		// Extract the secret name from the spec, if one is provided
+		cr := rawObj.(*watcherv1beta1.WatcherAPI)
+		if cr.Spec.TLS.API.Public.SecretName == nil {
+			return nil
+		}
+		return []string{*cr.Spec.TLS.API.Public.SecretName}
+	}); err != nil {
+		return err
+	}
+	// index caBundleSecretNameField
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &watcherv1beta1.WatcherAPI{}, caBundleSecretNameField, func(rawObj client.Object) []string {
+		// Extract the secret name from the spec, if one is provided
+		cr := rawObj.(*watcherv1beta1.WatcherAPI)
+
+		if cr.Spec.TLS.CaBundleSecretName == "" {
+			return nil
+		}
+		return []string{cr.Spec.TLS.CaBundleSecretName}
+	}); err != nil {
+		return err
+	}
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&watcherv1beta1.WatcherAPI{}).
@@ -761,10 +800,4 @@ func (r *WatcherAPIReconciler) createHashOfInputHashes(
 		Log.Info(fmt.Sprintf("Input maps hash %s - %s", common.InputHashName, hash))
 	}
 	return hash, changed, nil
-}
-
-func getAPIServiceLabels() map[string]string {
-	return map[string]string{
-		common.AppSelector: WatcherAPILabelPrefix,
-	}
 }
