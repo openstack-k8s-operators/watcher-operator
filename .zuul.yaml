@@ -67,6 +67,18 @@
           source: "{{ watcher_hook }}"
           extra_vars:
             watcher_catalog_image: "{{ content_provider_registry_ip }}:5001/openstack-k8s-operators/watcher-operator-index:{{ zuul.patchset }}"
+      cifmw_tempest_tempestconf_config:
+        overrides: |
+          compute.min_microversion 2.56
+          compute.min_compute_nodes 2
+          placement.min_microversion 1.29
+          compute-feature-enabled.live_migration true
+          compute-feature-enabled.block_migration_for_live_migration true
+          service_available.sg_core true
+          telemetry_services.metric_backends prometheus
+          telemetry.disable_ssl_certificate_validation true
+          telemetry.ceilometer_polling_interval 15
+          optimize.datasource ''
 
 - job:
     name: watcher-operator-validation
