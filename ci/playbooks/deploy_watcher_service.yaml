@@ -35,9 +35,9 @@
         script: make watcher
         extra_args:
           CATALOG_IMAGE: "{{ watcher_catalog_image | default('quay.io/openstack-k8s-operators/watcher-operator-index:latest') }}"
-          WATCHER_API_IMAGE_URL_DEFAULT: "{{ _registry_url }}/openstack-watcher-api:{{ _tag }}"
-          WATCHER_DECISION_ENGINE_IMAGE_URL_DEFAULT: "{{ _registry_url }}/openstack-watcher-decision-engine:{{ _tag }}"
-          WATCHER_APPLIER_IMAGE_URL_DEFAULT: "{{ _registry_url }}/openstack-watcher-applier:{{ _tag }}"
+          RELATED_IMAGE_WATCHER_API_IMAGE_URL_DEFAULT: "{{ _registry_url }}/openstack-watcher-api:{{ _tag }}"
+          RELATED_IMAGE_WATCHER_DECISION_ENGINE_IMAGE_URL_DEFAULT: "{{ _registry_url }}/openstack-watcher-decision-engine:{{ _tag }}"
+          RELATED_IMAGE_WATCHER_APPLIER_IMAGE_URL_DEFAULT: "{{ _registry_url }}/openstack-watcher-applier:{{ _tag }}"
 
     - name: Deploy Watcher service
       when: deploy_watcher_service | default('true') | bool

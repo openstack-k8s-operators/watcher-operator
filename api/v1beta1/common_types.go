@@ -218,9 +218,9 @@ func (r *WatcherImages) Default(defaults WatcherDefaults) {
 func SetupDefaults() {
 	// Acquire environmental defaults and initialize Watcher defaults with them
 	watcherDefaults := WatcherDefaults{
-		APIContainerImageURL:            util.GetEnvVar("WATCHER_API_IMAGE_URL_DEFAULT", WatcherAPIContainerImage),
-		ApplierContainerImageURL:        util.GetEnvVar("WATCHER_APPLIER_IMAGE_URL_DEFAULT", WatcherApplierContainerImage),
-		DecisionEngineContainerImageURL: util.GetEnvVar("WATCHER_DECISION_ENGINE_IMAGE_URL_DEFAULT", WatcherDecisionEngineContainerImage),
+		APIContainerImageURL:            util.GetEnvVar("RELATED_IMAGE_WATCHER_API_IMAGE_URL_DEFAULT", WatcherAPIContainerImage),
+		ApplierContainerImageURL:        util.GetEnvVar("RELATED_IMAGE_WATCHER_APPLIER_IMAGE_URL_DEFAULT", WatcherApplierContainerImage),
+		DecisionEngineContainerImageURL: util.GetEnvVar("RELATED_IMAGE_WATCHER_DECISION_ENGINE_IMAGE_URL_DEFAULT", WatcherDecisionEngineContainerImage),
 	}
 	SetupWatcherDefaults(watcherDefaults)
 }

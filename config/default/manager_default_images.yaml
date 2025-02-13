@@ -11,9 +11,9 @@ spec:
       containers:
       - name: manager
         env:
-        - name: WATCHER_API_IMAGE_URL_DEFAULT
+        - name: RELATED_IMAGE_WATCHER_API_IMAGE_URL_DEFAULT
           value: quay.io/podified-master-centos9/openstack-watcher-api:current-podified
-        - name: WATCHER_DECISION_ENGINE_IMAGE_URL_DEFAULT
+        - name: RELATED_IMAGE_WATCHER_DECISION_ENGINE_IMAGE_URL_DEFAULT
           value: quay.io/podified-master-centos9/openstack-watcher-decision-engine:current-podified
-        - name: WATCHER_APPLIER_IMAGE_URL_DEFAULT
+        - name: RELATED_IMAGE_WATCHER_APPLIER_IMAGE_URL_DEFAULT
           value: quay.io/podified-master-centos9/openstack-watcher-applier:current-podified
