@@ -329,7 +329,7 @@ func (r *WatcherDecisionEngineReconciler) findObjectsForSrc(ctx context.Context,
 
 	l := log.FromContext(ctx).WithName("Controllers").WithName("WatcherDecisionEngine")
 
-	for _, field := range apiWatchFields {
+	for _, field := range decisionEngineWatchFields {
 		crList := &watcherv1beta1.WatcherDecisionEngineList{}
 		listOps := &client.ListOptions{
 			FieldSelector: fields.OneTermEqualSelector(field, src.GetName()),
