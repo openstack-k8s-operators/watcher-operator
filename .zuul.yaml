@@ -138,6 +138,7 @@
 ##########################################################
 - job:
     name: openstack-meta-content-provider-master
+    override-checkout: main
     description: |
       A zuul job building content from OpenDev master release.
     parent: openstack-meta-content-provider
@@ -150,6 +151,7 @@
 
 - job:
     name: watcher-operator-validation-master
+    override-checkout: main
     parent: watcher-operator-base
     description: |
       A Zuul job consuming content from openstack-meta-content-provider-master
@@ -173,6 +175,17 @@
       EDPM job with master opendev and github operator
       content.
     github-check:
+      jobs:
+        - openstack-meta-content-provider-master
+        - watcher-operator-validation-master
+
+- project-template:
+    name: opendev-watcher-edpm-pipeline
+    description: |
+      Project template to run meta content provider and
+      EDPM job with master opendev and github operator
+      content in openstack-experimental pipeline.
+    openstack-experimental:
       jobs:
         - openstack-meta-content-provider-master
         - watcher-operator-validation-master
