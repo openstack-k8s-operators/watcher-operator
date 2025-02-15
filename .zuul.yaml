@@ -23,11 +23,16 @@
       watcher_hook: "{{ watcher_repo }}/ci/playbooks/deploy_watcher_service.yaml"
       watcher_coo_hook: "{{ watcher_repo }}/ci/playbooks/deploy_cluster_observability_operator.yaml"
       run_tempest: false
-      # Based on current testing, https://github.com/openstack-k8s-operators/watcher-operator/pull/47#issuecomment-2607474033
-      # We need decision engine and applier CRD to ready to run
-      # whole test suite
+      cifmw_test_operator_concurrency: 1
       cifmw_test_operator_tempest_include_list: |
-        watcher_tempest_plugin.tests.api.admin.test_api_discovery.TestApiDiscovery
+        watcher_tempest_plugin.*
+      # We need to exclude client_functional tests until we have watcherclient installed in the
+      # tempest container.
+      # Some strategies execution tests are failing. Excluding until the work on the watcher-tempest-plugin
+      # is finished upstream.
+      cifmw_test_operator_tempest_exclude_list: |
+        watcher_tempest_plugin.*client_functional.*
+        watcher_tempest_plugin.tests.scenario(?!.*\b(?:test_execute_workload_balancing|test_execute_host_maintenance|test_execute_vm_workload_consolidation)\b).*
       # Donot use openstack services containers from meta content provider master
       # job.
       cifmw_update_containers_openstack: false
@@ -67,6 +72,22 @@
           source: "{{ watcher_hook }}"
           extra_vars:
             watcher_catalog_image: "{{ content_provider_registry_ip }}:5001/openstack-k8s-operators/watcher-operator-index:{{ zuul.patchset }}"
+      cifmw_tempest_tempestconf_config:
+        overrides: |
+          compute.min_microversion 2.56
+          compute.min_compute_nodes 2
+          placement.min_microversion 1.29
+          compute-feature-enabled.live_migration true
+          compute-feature-enabled.block_migration_for_live_migration true
+          service_available.sg_core true
+          telemetry_services.metric_backends prometheus
+          telemetry.disable_ssl_certificate_validation true
+          telemetry.ceilometer_polling_interval 15
+          optimize.datasource ''
+      cifmw_test_operator_tempest_external_plugin:
+        - repository: "https://opendev.org/openstack/watcher-tempest-plugin.git"
+          changeRepository: "https://review.opendev.org/openstack/watcher-tempest-plugin"
+          changeRefspec: "refs/heads/master"
 
 - job:
     name: watcher-operator-validation

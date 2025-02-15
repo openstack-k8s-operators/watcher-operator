@@ -45,3 +45,5 @@
         output_dir: "{{ cifmw_basedir }}/artifacts"
         chdir: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator"
         script: make watcher_deploy
+        extra_args:
+          WATCHER_SAMPLE_CR_PATH: "{{ watcher_cr_file | default('ci/watcher_v1beta1_watcher.yaml') }}"

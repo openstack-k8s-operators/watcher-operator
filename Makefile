@@ -380,6 +380,8 @@ WATCHER_API_IMAGE_URL_DEFAULT_MASTER ?= quay.io/podified-master-centos9/openstac
 WATCHER_DECISION_ENGINE_IMAGE_URL_DEFAULT_MASTER ?= quay.io/podified-master-centos9/openstack-watcher-decision-engine:current-podified
 WATCHER_APPLIER_IMAGE_URL_DEFAULT_MASTER ?= quay.io/podified-master-centos9/openstack-watcher-applier:current-podified
 
+WATCHER_SAMPLE_CR_PATH ?= config/samples/watcher_v1beta1_watcher.yaml
+
 .PHONY: watcher
 watcher: export WATCHER_API_IMAGE=${WATCHER_API_IMAGE_URL_DEFAULT_MASTER}
 watcher: export WATCHER_DECISION_ENGINE_IMAGE=${WATCHER_DECISION_ENGINE_IMAGE_URL_DEFAULT_MASTER}
@@ -393,7 +395,7 @@ watcher: ## Install watcher operator via olm
 
 .PHONY: watcher_deploy
 watcher_deploy: ## Deploy watcher service
-	oc apply -f config/samples/watcher_v1beta1_watcher.yaml
+	oc apply -f ${WATCHER_SAMPLE_CR_PATH}
 	oc wait watcher watcher --for condition=Ready --timeout=600s
 
 .PHONY: watcher_deploy_cleanup
