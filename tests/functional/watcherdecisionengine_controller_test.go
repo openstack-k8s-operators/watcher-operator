@@ -217,7 +217,11 @@ endpoint_type=internalURL`, `
 [nova_client]
 endpoint_type=internalURL`, `
 [placement_client]
-endpoint_type=internalURL`,
+endpoint_type=internalURL`, `
+[watcher_cluster_data_model_collectors]
+compute = 900
+baremetal = 900
+storage = 900`,
 			}
 			for _, val := range expectedSections {
 				Expect(string(configData)).Should(ContainSubstring(val))
