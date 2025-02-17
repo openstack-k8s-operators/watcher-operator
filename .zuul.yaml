@@ -104,10 +104,11 @@
       deploy_watcher_service: false
       # Do not fetch dlrn md5 hash
       fetch_dlrn_hash: false
-      # run the hook to install watcher at the end of the cifmw infra playbook. If we try to run it
+      # run the hook to install watcher after installing openstack-operator.
+      # If we try to run the hook
       # as a standalone plabyook, it tries to load the cifmw ci_script action
       # plugin from the zuul executor and doesn't find it
-      post_infra:
+      post_install_operators_kuttl_from_operator:
         - name: Deploy watcher service
           type: playbook
           source: "{{ watcher_hook }}"
