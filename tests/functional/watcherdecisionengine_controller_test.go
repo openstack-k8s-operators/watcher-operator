@@ -221,7 +221,13 @@ endpoint_type = internal`, `
 [nova_client]
 endpoint_type = internal`, `
 [placement_client]
-interface = internal`,
+interface = internal`, `
+[watcher_cluster_data_model_collectors.compute]
+period = 900`, `
+[watcher_cluster_data_model_collectors.baremetal]
+period = 900`, `
+[watcher_cluster_data_model_collectors.storage]
+period = 900`,
 			}
 			for _, val := range expectedSections {
 				Expect(string(configData)).Should(ContainSubstring(val))
