@@ -176,8 +176,9 @@ metadata:
 spec:
   databaseInstance: "openstack"
   secret: <name of the secret with the credentials of the ControlPlane deploy>
-  tls:
-    caBundleSecretName: "combined-ca-bundle"
+  apiServiceTemplate:
+    tls:
+      caBundleSecretName: "combined-ca-bundle"
 ----
 +
 For more information about how to define an OpenStackControlPlane custom resource (CR), see link:https://docs.redhat.com/en/documentation/red_hat_openstack_services_on_openshift/18.0/html/deploying_red_hat_openstack_services_on_openshift/assembly_creating-the-control-plane#proc_creating-the-control-plane_controlplane[Creating the control plane].
