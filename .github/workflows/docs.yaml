@@ -32,6 +32,7 @@ jobs:
         run: |
           make docs
           cp docs_build/watcher-operator/index.html index.html
+          cp -r docs_build/watcher-operator/images images
 
       - name: Prepare gh-pages branch
         run: |
@@ -45,6 +46,7 @@ jobs:
       - name: Commit asciidoc docs
         run: |
           git add index.html
+          git add images
           git commit -m "Rendered docs"
 
       - name: Push rendered docs to gh-pages
