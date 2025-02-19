@@ -98,7 +98,7 @@
       During watcher deployment, It will fetch master current-podified hash and pull
       openstack watcher services containers from meta content provider.
       It will test current-podified control plane EDPM deployment with openstack watcher
-      master content.
+      master content. It deploys watcher using TLSe, and creates the certificates to use.
     extra-vars:
       # Override zuul meta content provider provided content_provider_dlrn_md5_hash
       # var. As returned dlrn md5 hash comes from master release but job is using
@@ -108,6 +108,7 @@
       # Donot use openstack services containers from meta content provider master
       # job.
       cifmw_update_containers_openstack: false
+      watcher_cr_file: "ci/watcher_v1beta1_watcher_tlse.yaml"
 
 - job:
     name: watcher-operator-kuttl
