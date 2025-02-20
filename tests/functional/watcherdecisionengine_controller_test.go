@@ -190,6 +190,44 @@ var _ = Describe("WatcherDecisionEngine controller", func() {
 				corev1.ConditionTrue,
 			)
 		})
+		It("should have cretaed the config secrete with the expected content", func() {
+			th.ExpectCondition(
+				watcherTest.WatcherDecisionEngine,
+				ConditionGetterFunc(WatcherDecisionEngineConditionGetter),
+				condition.ServiceConfigReadyCondition,
+				corev1.ConditionTrue,
+			)
+			// assert that the top level secret is created with proper content
+			createdSecret := th.GetSecret(watcherTest.WatcherDecisionEngineSecret)
+			Expect(createdSecret).ShouldNot(BeNil())
+			Expect(createdSecret.Data["00-default.conf"]).ShouldNot(BeNil())
+
+			// extract default config data
+			configData := createdSecret.Data["00-default.conf"]
+			Expect(configData).ShouldNot(BeNil())
+
+			// indentaion is forced by use of raw literal
+			expectedSections := []string{`
+[glance_client]
+endpoint_type=internalURL`, `
+[ironic_client]
+endpoint_type=internalURL`, `
+[neutron_client]
+endpoint_type=internalURL`, `
+[nova_client]
+endpoint_type=internalURL`, `
+[placement_client]
+endpoint_type=internalURL`, `
+[watcher_cluster_data_model_collectors]
+compute = 900
+baremetal = 900
+storage = 900`,
+			}
+			for _, val := range expectedSections {
+				Expect(string(configData)).Should(ContainSubstring(val))
+			}
+
+		})
 		It("creates a statefulset for the watcher-decision-engine service", func() {
 			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherDecisionEngineStatefulSet)
 			th.ExpectCondition(
