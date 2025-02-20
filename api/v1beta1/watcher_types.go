@@ -63,6 +63,21 @@ type WatcherStatus struct {
 	DecisionEngineServiceReadyCount int32 `json:"decisionengineServiceReadyCount,omitempty"`
 }
 
+type WatcherDBPurge struct {
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default="0 1 * * *"
+	// Schedule defines when to run the Watcher DB Purge job in a cron format.
+	// By default it runs everyday at 01:00.
+	Schedule *string `json:"schedule"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=90
+	// +kubebuilder:validation:Minimum=1
+	// PurgeAge defines the minimum age of soft-deleted records in days that can be
+	// deleted from the shadow tables
+	PurgeAge *int `json:"purgeAge"`
+}
+
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.conditions[0].status",description="Status"

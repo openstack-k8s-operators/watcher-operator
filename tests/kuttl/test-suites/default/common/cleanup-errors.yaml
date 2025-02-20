@@ -97,6 +97,13 @@ kind: KeystoneEndpoint
 metadata:
   name: watcher
 ---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  labels:
+    service: watcher
+  name: watcher-kuttl-db-purge
+---
 apiVersion: watcher.openstack.org/v1beta1
 kind: WatcherApplier
 metadata:

@@ -41,6 +41,7 @@ import (
 	keystonev1 "github.com/openstack-k8s-operators/keystone-operator/api/v1beta1"
 	"github.com/openstack-k8s-operators/lib-common/modules/common"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/cronjob"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/env"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/helper"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/job"
@@ -90,6 +91,7 @@ func (r *WatcherReconciler) GetLogger(ctx context.Context) logr.Logger {
 //+kubebuilder:rbac:groups=keystone.openstack.org,resources=keystoneendpoints,verbs=get;list;watch;create;update;patch;delete;
 //+kubebuilder:rbac:groups="",resources=pods,verbs=create;delete;get;list;patch;update;watch
 //+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete;
+// +kubebuilder:rbac:groups=batch,resources=cronjobs,verbs=get;list;watch;create;update;patch;delete;
 
 // service account, role, rolebinding
 //+kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch
@@ -312,7 +314,7 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	// Generate config for dbsync
 	configVars := make(map[string]env.Setter)
 
-	err = r.generateServiceConfigDBSync(ctx, instance, db, &transporturlSecret, helper, &configVars)
+	err = r.generateServiceConfigDBJobs(ctx, instance, db, &transporturlSecret, helper, &configVars)
 	if err != nil {
 		instance.Status.Conditions.Set(condition.FalseCondition(
 			condition.ServiceConfigReadyCondition,
@@ -326,7 +328,18 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	instance.Status.Conditions.MarkTrue(condition.ServiceConfigReadyCondition, condition.ServiceConfigReadyMessage)
 	// End of config generation for dbsync
 
+	// Create dbsync job
 	ctrlResult, err := r.ensureDBSync(ctx, helper, instance, serviceLabels)
+	if err != nil {
+		return ctrl.Result{}, err
+	} else if (ctrlResult != ctrl.Result{}) {
+		return ctrlResult, nil
+	}
+
+	// End of creation of job for dbsync
+
+	// Create DBPurge CronJob
+	err = r.ensureDBPurgeCronJob(ctx, helper, instance, serviceLabels)
 	if err != nil {
 		return ctrlResult, err
 	} else if (ctrlResult != ctrl.Result{}) {
@@ -456,6 +469,10 @@ func (r *WatcherReconciler) initConditions(instance *watcherv1beta1.Watcher) err
 			watcherv1beta1.WatcherDecisionEngineReadyCondition,
 			condition.InitReason,
 			watcherv1beta1.WatcherDecisionEngineReadyInitMessage),
+		condition.UnknownCondition(
+			condition.CronJobReadyCondition,
+			condition.InitReason,
+			condition.CronJobReadyInitMessage),
 	)
 
 	instance.Status.Conditions.Init(&cl)
@@ -692,7 +709,7 @@ func (r *WatcherReconciler) ensureKeystoneSvc(
 	return ctrlResult, nil
 }
 
-func (r *WatcherReconciler) generateServiceConfigDBSync(
+func (r *WatcherReconciler) generateServiceConfigDBJobs(
 	ctx context.Context,
 	instance *watcherv1beta1.Watcher,
 	db *mariadbv1.Database,
@@ -728,7 +745,7 @@ func (r *WatcherReconciler) generateServiceConfigDBSync(
 		"APIPublicPort": fmt.Sprintf("%d", watcher.WatcherPublicPort),
 	}
 
-	return GenerateConfigsGeneric(ctx, helper, instance, envVars, templateParameters, customData, labels, false)
+	return GenerateConfigsGeneric(ctx, helper, instance, envVars, templateParameters, customData, labels, true)
 }
 
 func (r *WatcherReconciler) ensureDBSync(
@@ -1056,6 +1073,32 @@ func (r *WatcherReconciler) ensureDecisionEngine(
 	return decisionengineDeployment, op, nil
 }
 
+func (r *WatcherReconciler) ensureDBPurgeCronJob(
+	ctx context.Context,
+	h *helper.Helper,
+	instance *watcherv1beta1.Watcher,
+	serviceLabels map[string]string,
+) error {
+
+	cronDef := watcher.DBPurgeCronJob(instance, serviceLabels, nil)
+	cronjob := cronjob.NewCronJob(cronDef, r.RequeueTimeout)
+
+	_, err := cronjob.CreateOrPatch(ctx, h)
+	if err != nil {
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			condition.CronJobReadyCondition,
+			condition.ErrorReason,
+			condition.SeverityWarning,
+			condition.CronJobReadyErrorMessage,
+			err.Error()))
+		return err
+	}
+
+	instance.Status.Conditions.MarkTrue(
+		condition.CronJobReadyCondition, condition.CronJobReadyMessage)
+	return nil
+}
+
 func (r *WatcherReconciler) reconcileDelete(ctx context.Context, instance *watcherv1beta1.Watcher, helper *helper.Helper) (ctrl.Result, error) {
 	Log := r.GetLogger(ctx)
 	Log.Info(fmt.Sprintf("Reconcile Service '%s' delete started", instance.Name))
@@ -1151,6 +1194,7 @@ func (r *WatcherReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&rbacv1.Role{}).
 		Owns(&rbacv1.RoleBinding{}).
 		Owns(&batchv1.Job{}).
+		Owns(&batchv1.CronJob{}).
 		Owns(&corev1.Secret{}).
 		Watches(
 			&corev1.Secret{},

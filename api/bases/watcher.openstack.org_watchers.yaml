@@ -578,6 +578,24 @@ spec:
                   MariaDB instance name
                   Required to use the mariadb-operator instance to create the DB and user
                 type: string
+              dbPurge:
+                description: DBPurge defines the parameters for the Watcher DB purging
+                  cron job
+                properties:
+                  purgeAge:
+                    default: 90
+                    description: |-
+                      PurgeAge defines the minimum age of soft-deleted records in days that can be
+                      deleted from the shadow tables
+                    minimum: 1
+                    type: integer
+                  schedule:
+                    default: 0 1 * * *
+                    description: |-
+                      Schedule defines when to run the Watcher DB Purge job in a cron format.
+                      By default it runs everyday at 01:00.
+                    type: string
+                type: object
               decisionengineContainerImageURL:
                 description: DecisionEngineContainerImageURL
                 type: string
@@ -719,6 +737,7 @@ spec:
             - applierContainerImageURL
             - applierServiceTemplate
             - databaseInstance
+            - dbPurge
             - decisionengineContainerImageURL
             - decisionengineServiceTemplate
             - rabbitMqClusterName

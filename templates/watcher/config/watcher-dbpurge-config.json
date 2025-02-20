@@ -1,0 +1,25 @@
+{
+    "command": "/bin/dbpurge.sh",
+
+    "config_files": [
+        {
+            "source": "/var/lib/config-data/default/00-default.conf",
+            "dest": "/etc/watcher/watcher.conf.d/00-default.conf",
+            "owner": "watcher",
+            "perm": "0600"
+          },
+          {
+            "source": "/var/lib/config-data/default/01-global-custom.conf",
+            "dest": "/etc/watcher/watcher.conf.d/01-global-custom.conf",
+            "owner": "watcher",
+            "perm": "0600",
+            "optional": true
+          },
+        {
+            "source": "/var/lib/openstack/bin/dbpurge.sh",
+            "dest": "/bin/",
+            "owner": "watcher",
+            "perm": "0700"
+        }
+    ]
+}
