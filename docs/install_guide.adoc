@@ -138,7 +138,17 @@ watcher-operator.v0.0.1   Watcher Operator   0.0.1                Succeeded
 
 == Deploying the Watcher Service
 
-Now, you will need to create a Watcher Custom Resource based on the `Watcher CRD`.
+Now, you will need to create a Watcher Custom Resource based on the `Watcher CRD` in the same project where your
+OpenStackControlPlane CR is created. Typically, this is `openstack` project but you can check it with:
+
+[,console]
+----
+$ oc get OpenStackControlPlane --all-namespaces
+NAMESPACE   NAME                     STATUS   MESSAGE
+openstack   openstack-controlplane   True     Setup complete
+
+----
+
 
 .Procedure
 
@@ -165,7 +175,9 @@ $ oc describe secret osp-secret -n openstack | grep Watcher
 WatcherPassword:                  9 bytes
 ----
 +
-. Create a file on your workstation named `watcher.yaml` to define the Watcher CR. Your file should contain parameters similar to the example below:
+. Create a file on your workstation named `watcher.yaml` to define the Watcher CR. Although the exact parameters of your
+file may depend on your specific environment customization, a Watcher CR similar to the example below would work in
+a typical deployment:
 +
 [source,yaml]
 ----
@@ -179,6 +191,48 @@ spec:
   apiServiceTemplate:
     tls:
       caBundleSecretName: "combined-ca-bundle"
+----
++
+There are certain fields of the Watcher CR spec that need to match with the values used in the existing OpenStackControlplane:
++
+* *databaseInstance* parameter value must match to the name of the galera database created in the existing Control Plane. By default, this value is `openstack` but you can find it by running (ignore any galera having `cell` in its name):
++
+[,console]
+----
+$ oc get galeras -n openstack
+NAME              READY   MESSAGE
+openstack         True    Setup complete
+
+----
++
+* *rabbitMqClusterName* parameter value should be the name of the existing Rabbitmq cluster, which can be found with the command (ignore any rabbitmq having `cell` in its name). By default, it is `rabbitmq`.
++
+[,console]
+----
+$ oc get rabbitmq -n openstack
+NAME             ALLREPLICASREADY   RECONCILESUCCESS   AGE
+rabbitmq         True               True               6d15h
+
+----
++
+* *memcachedInstance* must contain the name of the existing memcached CR in the same project (`memcached` by default). you can find it with:
++
+[,console]
+----
+$ oc get memcached -n openstack
+NAME        READY   MESSAGE
+memcached   True    Setup complete
+
+----
++
+* *caBundleSecretName* under apiServiceTemplate.tls section must match the value found in command:
++
+[,console]
+----
+$ oc get OpenStackControlPlane openstack-controlplane -n openstack \
+  -o jsonpath='{.status.tls.caBundleSecretName}'
+combined-ca-bundle
+
 ----
 +
 For more information about how to define an OpenStackControlPlane custom resource (CR), see link:https://docs.redhat.com/en/documentation/red_hat_openstack_services_on_openshift/18.0/html/deploying_red_hat_openstack_services_on_openshift/assembly_creating-the-control-plane#proc_creating-the-control-plane_controlplane[Creating the control plane].
