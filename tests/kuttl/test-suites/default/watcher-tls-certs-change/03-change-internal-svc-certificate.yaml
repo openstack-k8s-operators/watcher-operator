@@ -1,0 +1,5 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: |
+      oc patch Certificate -n $NAMESPACE watcher-internal-svc --type='json' -p='[{"op": "replace", "path": "/spec/dnsNames", "value":['watcher-internal.watcher-kuttl-default.svc', 'watcher-internal.watcher-kuttl-default.svc.cluster.local']}]'
