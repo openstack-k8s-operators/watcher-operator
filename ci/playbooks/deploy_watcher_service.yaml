@@ -24,7 +24,9 @@
         # When there is no Depends-On from opendev, then content_provider_os_registry_url will return null
         # value to child job. In that case, we need to set default to quay registry.
         _registry_url: >-
-          {%- if content_provider_os_registry_url is defined and content_provider_os_registry_url == 'null' -%}
+          {%- if watcher_registry_url is defined -%}
+          {{ watcher_registry_url }}
+          {%- elif content_provider_os_registry_url is defined and content_provider_os_registry_url == 'null' -%}
           quay.io/podified-master-centos9
           {%- else -%}
           {{ content_provider_os_registry_url | default('quay.io/podified-master-centos9') }}

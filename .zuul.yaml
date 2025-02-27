@@ -14,7 +14,6 @@
 - job:
     name: watcher-operator-base
     parent: podified-multinode-edpm-deployment-crc-2comp
-    dependencies: ["openstack-meta-content-provider-master"]
     description: |
       A multinode EDPM Zuul job which has one ansible controller, one
       extracted crc and two computes. It will be used for testing watcher-operator.
@@ -35,7 +34,6 @@
         watcher_tempest_plugin.tests.scenario.test_execute_strategies.TestExecuteStrategies.test_execute_storage_capacity_balance_strategy
       # Donot use openstack services containers from meta content provider master
       # job.
-      cifmw_update_containers_openstack: false
       # controlplane customization to deploy telemetry service
       cifmw_edpm_prepare_timeout: 60
       cifmw_edpm_prepare_kustomizations:
@@ -84,12 +82,6 @@
         - name: Deploy cluster-observability-operator
           type: playbook
           source: "{{ watcher_coo_hook }}"
-      post_deploy:
-        - name: Deploy watcher service
-          type: playbook
-          source: "{{ watcher_hook }}"
-          extra_vars:
-            watcher_catalog_image: "{{ content_provider_registry_ip }}:5001/openstack-k8s-operators/watcher-operator-index:{{ zuul.patchset }}"
       cifmw_tempest_tempestconf_config:
         overrides: |
           compute.min_microversion 2.56
@@ -110,14 +102,35 @@
           optimize.prometheus_ssl_cert_dir /etc/prometheus/secrets/combined-ca-bundle
           optimize.podified_kubeconfig_path /home/zuul/.crc/machines/crc/kubeconfig
           optimize.podified_namespace openstack
+
+- job:
+    name: watcher-operator-validation-base
+    parent: watcher-operator-base
+    abstract: true
+    dependencies: ["openstack-meta-content-provider-master"]
+    description: |
+      A intermediate base job to set config that is needed for jobs running
+      in the operator check pipeline but will not be used for other jobs
+      inherting from watcher-operator-base, like the one running in the
+      master pipeline.
+    vars:
       cifmw_test_operator_tempest_external_plugin:
         - repository: "https://opendev.org/openstack/watcher-tempest-plugin.git"
           changeRepository: "https://review.opendev.org/openstack/watcher-tempest-plugin"
           changeRefspec: "refs/heads/master"
+      # Donot use openstack services containers from meta content provider master
+      # job.
+      cifmw_update_containers_openstack: false
+      post_deploy:
+        - name: Deploy watcher service
+          type: playbook
+          source: "{{ watcher_hook }}"
+          extra_vars:
+            watcher_catalog_image: "{{ content_provider_registry_ip }}:5001/openstack-k8s-operators/watcher-operator-index:{{ zuul.patchset }}"
 
 - job:
     name: watcher-operator-validation
-    parent: watcher-operator-base
+    parent: watcher-operator-validation-base
     description: |
       A zuul job to validate the watcher operator and its service deployment.
       It will deploy podified and EDPM using current-podified antelope content.
@@ -201,7 +214,7 @@
 - job:
     name: watcher-operator-validation-master
     override-checkout: main
-    parent: watcher-operator-base
+    parent: watcher-operator-validation-base
     description: |
       A Zuul job consuming content from openstack-meta-content-provider-master
       and deploying EDPM with master content.
