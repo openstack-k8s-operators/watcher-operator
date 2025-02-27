@@ -18,90 +18,15 @@
       A multinode EDPM Zuul job which has one ansible controller, one
       extracted crc and two computes. It will be used for testing watcher-operator.
     vars:
-      watcher_repo: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator"
-      watcher_hook: "{{ watcher_repo }}/ci/playbooks/deploy_watcher_service.yaml"
-      watcher_coo_hook: "{{ watcher_repo }}/ci/playbooks/deploy_cluster_observability_operator.yaml"
-      run_tempest: false
-      cifmw_test_operator_concurrency: 1
-      cifmw_test_operator_tempest_include_list: |
-        watcher_tempest_plugin.*
-      # We need to exclude client_functional tests until we have watcherclient installed in the
-      # tempest container.
-      # Some strategies execution tests are failing. Excluding until the work on the watcher-tempest-plugin
-      # is finished upstream.
-      cifmw_test_operator_tempest_exclude_list: |
-        watcher_tempest_plugin.*client_functional.*
-        watcher_tempest_plugin.tests.scenario.test_execute_strategies.TestExecuteStrategies.test_execute_storage_capacity_balance_strategy
-      # Donot use openstack services containers from meta content provider master
-      # job.
-      # controlplane customization to deploy telemetry service
-      cifmw_edpm_prepare_timeout: 60
-      cifmw_edpm_prepare_kustomizations:
-        - apiVersion: kustomize.config.k8s.io/v1beta1
-          kind: Kustomization
-          namespace: openstack
-          patches:
-          - patch: |-
-              apiVersion: core.openstack.org/v1beta1
-              kind: OpenStackControlPlane
-              metadata:
-                name: unused
-              spec:
-                telemetry:
-                  enabled: true
-                  template:
-                    metricStorage:
-                      enabled: true
-                      customMonitoringStack:
-                        alertmanagerConfig:
-                          disabled: true
-                        prometheusConfig:
-                          replicas: 1
-                          enableRemoteWriteReceiver: true
-                          scrapeInterval: 30s
-                          persistentVolumeClaim:
-                            resources:
-                              requests:
-                                storage: 20G
-                        resourceSelector:
-                          matchLabels:
-                            service: metricStorage
-                        retention: 24h
-            target:
-              kind: OpenStackControlPlane
-          - patch: |-
-              - op: remove
-                path: /spec/telemetry/template/metricStorage/monitoringStack
-            target:
-              kind: OpenStackControlPlane
-      cifmw_install_yamls_whitelisted_vars: &install_yamls_whitelist
-        - 'WATCHER_REPO'
-        - 'WATCHER_BRANCH'
-        - 'OUTPUT_DIR'
-      pre_deploy_create_coo_subscription:
-        - name: Deploy cluster-observability-operator
-          type: playbook
-          source: "{{ watcher_coo_hook }}"
-      cifmw_tempest_tempestconf_config:
-        overrides: |
-          compute.min_microversion 2.56
-          compute.min_compute_nodes 2
-          placement.min_microversion 1.29
-          compute-feature-enabled.live_migration true
-          compute-feature-enabled.block_migration_for_live_migration true
-          service_available.sg_core true
-          telemetry_services.metric_backends prometheus
-          telemetry.disable_ssl_certificate_validation true
-          telemetry.ceilometer_polling_interval 15
-          optimize.datasource prometheus
-          optimize.openstack_type podified
-          optimize.proxy_host_address {{ hostvars['controller']['ansible_host'] }}
-          optimize.proxy_host_user zuul
-          optimize.prometheus_host metric-storage-prometheus.openstack.svc
-          optimize.prometheus_ssl_enabled true
-          optimize.prometheus_ssl_cert_dir /etc/prometheus/secrets/combined-ca-bundle
-          optimize.podified_kubeconfig_path /home/zuul/.crc/machines/crc/kubeconfig
-          optimize.podified_namespace openstack
+      cifmw_extras:
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
+           src_dir }}/scenarios/centos-9/multinode-ci.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
+           src_dir }}/scenarios/centos-9/horizon.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/scenarios/edpm.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/tests/watcher-master.yml"
 
 - job:
     name: watcher-operator-validation-base
@@ -111,9 +36,10 @@
     description: |
       A intermediate base job to set config that is needed for jobs running
       in the operator check pipeline but will not be used for other jobs
-      inherting from watcher-operator-base, like the one running in the
+      inheriting from watcher-operator-base, like the one running in the
       master pipeline.
     vars:
+      # Use watcher-tempest-plugin with latest content from master branch
       cifmw_test_operator_tempest_external_plugin:
         - repository: "https://opendev.org/openstack/watcher-tempest-plugin.git"
           changeRepository: "https://review.opendev.org/openstack/watcher-tempest-plugin"
@@ -121,12 +47,8 @@
       # Donot use openstack services containers from meta content provider master
       # job.
       cifmw_update_containers_openstack: false
-      post_deploy:
-        - name: Deploy watcher service
-          type: playbook
-          source: "{{ watcher_hook }}"
-          extra_vars:
-            watcher_catalog_image: "{{ content_provider_registry_ip }}:5001/openstack-k8s-operators/watcher-operator-index:{{ zuul.patchset }}"
+      deploy_watcher_service_extra_vars:
+        watcher_catalog_image: "{{ content_provider_registry_ip }}:5001/openstack-k8s-operators/watcher-operator-index:{{ zuul.patchset }}"
 
 - job:
     name: watcher-operator-validation
@@ -147,7 +69,8 @@
       # Donot use openstack services containers from meta content provider master
       # job.
       cifmw_update_containers_openstack: false
-      watcher_cr_file: "ci/watcher_v1beta1_watcher_tlse.yaml"
+      deploy_watcher_service_extra_vars:
+        watcher_cr_file: "ci/watcher_v1beta1_watcher_tlse.yaml"
 
 - job:
     name: watcher-operator-kuttl
@@ -158,23 +81,14 @@
       It will pull operator images from meta content provider. There is no
       change in openstack services container images.
     vars:
-      operator_name: watcher-operator
-      cifmw_install_yamls_whitelisted_vars: *install_yamls_whitelist
-      watcher_repo: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator"
-      watcher_hook: "{{ watcher_repo }}/ci/playbooks/deploy_watcher_service.yaml"
-      deploy_watcher_service: false
       # Do not fetch dlrn md5 hash
       fetch_dlrn_hash: false
-      # run the hook to install watcher after installing openstack-operator.
-      # If we try to run the hook
-      # as a standalone plabyook, it tries to load the cifmw ci_script action
-      # plugin from the zuul executor and doesn't find it
-      post_install_operators_kuttl_from_operator:
-        - name: Deploy watcher service
-          type: playbook
-          source: "{{ watcher_hook }}"
-          extra_vars:
-            watcher_catalog_image: "{{ content_provider_registry_ip }}:5001/openstack-k8s-operators/watcher-operator-index:{{ zuul.patchset }}"
+      deploy_watcher_service_extra_vars:
+        watcher_catalog_image: "{{ content_provider_registry_ip }}:5001/openstack-k8s-operators/watcher-operator-index:{{ zuul.patchset }}"
+        deploy_watcher_service: false
+      cifmw_extras:
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/scenarios/kuttl.yml"
     extra-vars:
       # Override zuul meta content provider provided content_provider_dlrn_md5_hash
       # var. As returned dlrn md5 hash comes from master release but job is using

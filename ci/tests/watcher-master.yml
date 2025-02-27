@@ -1,0 +1,33 @@
+# # Tempest and test-operator configurations
+cifmw_tempest_tempestconf_config:
+  overrides: |
+    compute.min_microversion 2.56
+    compute.min_compute_nodes 2
+    placement.min_microversion 1.29
+    compute-feature-enabled.live_migration true
+    compute-feature-enabled.block_migration_for_live_migration true
+    service_available.sg_core true
+    telemetry_services.metric_backends prometheus
+    telemetry.disable_ssl_certificate_validation true
+    telemetry.ceilometer_polling_interval 15
+    optimize.datasource prometheus
+    optimize.openstack_type podified
+    optimize.proxy_host_address {{ hostvars['controller']['ansible_host'] }}
+    optimize.proxy_host_user zuul
+    optimize.prometheus_host metric-storage-prometheus.openstack.svc
+    optimize.prometheus_ssl_enabled true
+    optimize.prometheus_ssl_cert_dir /etc/prometheus/secrets/combined-ca-bundle
+    optimize.podified_kubeconfig_path /home/zuul/.crc/machines/crc/kubeconfig
+    optimize.podified_namespace openstack
+
+run_tempest: false
+cifmw_test_operator_concurrency: 1
+cifmw_test_operator_tempest_include_list: |
+  watcher_tempest_plugin.*
+# We need to exclude client_functional tests until we have watcherclient installed in the
+# tempest container.
+# Some strategies execution tests are failing. Excluding until the work on the watcher-tempest-plugin
+# is finished upstream.
+cifmw_test_operator_tempest_exclude_list: |
+  watcher_tempest_plugin.*client_functional.*
+  watcher_tempest_plugin.tests.scenario.test_execute_strategies.TestExecuteStrategies.test_execute_storage_capacity_balance_strategy
