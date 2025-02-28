@@ -31,7 +31,7 @@
           {%- endif -%}
       cifmw.general.ci_script:
         output_dir: "{{ cifmw_basedir }}/artifacts"
-        chdir: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator"
+        chdir: "{{ watcher_repo }}"
         script: make watcher
         extra_args:
           CATALOG_IMAGE: "{{ watcher_catalog_image | default('quay.io/openstack-k8s-operators/watcher-operator-index:latest') }}"
@@ -43,7 +43,7 @@
       when: deploy_watcher_service | default('true') | bool
       cifmw.general.ci_script:
         output_dir: "{{ cifmw_basedir }}/artifacts"
-        chdir: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator"
+        chdir: "{{ watcher_repo }}"
         script: make watcher_deploy
         extra_args:
           WATCHER_SAMPLE_CR_PATH: "{{ watcher_cr_file | default('ci/watcher_v1beta1_watcher.yaml') }}"
