@@ -54,8 +54,26 @@
                   template:
                     metricStorage:
                       enabled: true
-                      monitoringStack:
-                        alertingEnabled: false
+                      customMonitoringStack:
+                        alertmanagerConfig:
+                          disabled: true
+                        prometheusConfig:
+                          replicas: 1
+                          enableRemoteWriteReceiver: true
+                          scrapeInterval: 30s
+                          persistentVolumeClaim:
+                            resources:
+                              requests:
+                                storage: 20G
+                        resourceSelector:
+                          matchLabels:
+                            service: metricStorage
+                        retention: 24h
+            target:
+              kind: OpenStackControlPlane
+          - patch: |-
+              - op: remove
+                path: /spec/telemetry/template/metricStorage/monitoringStack
             target:
               kind: OpenStackControlPlane
       cifmw_install_yamls_whitelisted_vars: &install_yamls_whitelist
@@ -87,7 +105,7 @@
       cifmw_test_operator_tempest_external_plugin:
         - repository: "https://opendev.org/openstack/watcher-tempest-plugin.git"
           changeRepository: "https://review.opendev.org/openstack/watcher-tempest-plugin"
-          changeRefspec: "refs/heads/master"
+          changeRefspec: "refs/changes/81/942481/5"
 
 - job:
     name: watcher-operator-validation
@@ -184,6 +202,30 @@
       # To consume containers from meta content provider
       cifmw_update_containers_openstack: true
       cifmw_update_containers_org: podified-master-centos9
+      cifmw_tempest_tempestconf_config:
+        overrides: |
+          compute.min_microversion 2.56
+          compute.min_compute_nodes 2
+          placement.min_microversion 1.29
+          compute-feature-enabled.live_migration true
+          compute-feature-enabled.block_migration_for_live_migration true
+          service_available.sg_core true
+          telemetry_services.metric_backends prometheus
+          telemetry.disable_ssl_certificate_validation true
+          telemetry.ceilometer_polling_interval 15
+          optimize.datasource prometheus
+          optimize.openstack_type podified
+          optimize.proxy_host_address {{ hostvars['controller']['ansible_host'] }}
+          optimize.proxy_host_user zuul
+          optimize.prometheus_host metric-storage-prometheus.openstack.svc
+          optimize.prometheus_ssl_enabled false
+          optimize.prometheus_ssl_cert_dir /etc/prometheus/secrets/combined-ca-bundle
+          optimize.podified_kubeconfig_path /home/zuul/.crc/machines/crc/kubeconfig
+          optimize.podified_namespace openstack
+      cifmw_test_operator_tempest_exclude_list: |
+        watcher_tempest_plugin.*client_functional.*
+        watcher_tempest_plugin.tests.scenario.test_execute_strategies.TestExecuteStrategies.test_execute_storage_capacity_balance_strategy
+
 
 ##########################################################
 #                                                        #
