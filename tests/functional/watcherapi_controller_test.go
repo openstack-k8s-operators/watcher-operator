@@ -708,7 +708,7 @@ var _ = Describe("WatcherAPI controller", func() {
 				condition.TLSInputReadyCondition,
 				corev1.ConditionFalse,
 				condition.ErrorReason,
-				"TLSInput error occured in TLS sources field tls.key not found in Secret "+watcherTest.WatcherAPI.Namespace+"/cert-watcher-internal-svc",
+				"TLSInput error occured in TLS sources field not found in Secret: field tls.key not found in Secret "+watcherTest.WatcherAPI.Namespace+"/cert-watcher-internal-svc",
 			)
 		})
 	})
@@ -784,7 +784,7 @@ var _ = Describe("WatcherAPI controller", func() {
 				condition.TLSInputReadyCondition,
 				corev1.ConditionFalse,
 				condition.ErrorReason,
-				"TLSInput error occured in TLS sources field tls-ca-bundle.pem not found in Secret "+watcherTest.WatcherAPI.Namespace+"/combined-ca-bundle",
+				"TLSInput error occured in TLS sources field not found in Secret: field tls-ca-bundle.pem not found in Secret "+watcherTest.WatcherAPI.Namespace+"/combined-ca-bundle",
 			)
 		})
 	})
