@@ -175,9 +175,96 @@ $ oc describe secret osp-secret -n openstack | grep Watcher
 WatcherPassword:                  9 bytes
 ----
 +
-. Create a file on your workstation named `watcher.yaml` to define the Watcher CR. Although the exact parameters of your
-file may depend on your specific environment customization, a Watcher CR similar to the example below would work in
-a typical deployment:
+. To expose the watcher services over https, three certificates are needed.
+One will be used to configure TLS on the openshift route, one for the
+watcher internal endpoint and the last one for the watcher public endpoint.
+Watcher does not support creating certificates for TLS, but assumes that the
+user has created them beforehand. To create the certificates, use the Cert-Manager Operator
+installed by the Openstack Operator and create `Certificate` objects.
++
+Before creating the certificates, note the project where the openstack
+controlplane is deployed, which by default is __openstack__. When creating the
+certificates, you will need to set the name of the project in the DNS names
+section. Also, replace the `example.com` domain in the `watcher-public-route`
+certificate DNS names with you cluster's domain. The domain can be obtained
+running `oc get ingresses.config/cluster -o jsonpath={.spec.domain}`.
++
+With the right project and domain, create a `watcher-certificates.yaml` file:
++
+[source,yaml]
+----
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: watcher-internal-svc
+spec:
+  dnsNames:
+  - watcher-internal.openstack.svc
+  - watcher-internal.openstack.svc.cluster.local
+  duration: 43800h0m0s
+  issuerRef:
+    group: cert-manager.io
+    kind: Issuer
+    name: rootca-internal
+  secretName: cert-watcher-internal-svc
+  usages:
+  - key encipherment
+  - digital signature
+  - server auth
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: watcher-public-route
+spec:
+  dnsNames:
+  - watcher-public-openstack.example.com
+  issuerRef:
+    group: cert-manager.io
+    kind: Issuer
+    name: rootca-public
+  secretName: cert-watcher-public-route
+  usages:
+  - key encipherment
+  - digital signature
+  - server auth
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: watcher-public-svc
+spec:
+  dnsNames:
+  - watcher-public.openstack.svc
+  - watcher-public.openstack.svc.cluster.local
+  duration: 43800h0m0s
+  issuerRef:
+    group: cert-manager.io
+    kind: Issuer
+    name: rootca-public
+  secretName: cert-watcher-public-svc
+  usages:
+  - key encipherment
+  - digital signature
+  - server auth
+----
++
+. `oc apply` the file to create the certificates:
++
+[,console]
+----
+$ oc apply -f watcher-certificates.yaml
+certificate.cert-manager.io/watcher-internal-svc created
+certificate.cert-manager.io/watcher-public-route created
+certificate.cert-manager.io/watcher-public-svc created
+----
++
+. Create a file on your workstation named `watcher.yaml` to define the Watcher
+  CR. Replace the `example.com` domain in the `endpointURL` field with your
+  cluster domain. Although the exact parameters of your file may depend on your
+  specific environment customization, a Watcher CR similar to the example below
+  would work in a typical deployment:
 +
 [source,yaml]
 ----
@@ -189,8 +276,17 @@ spec:
   databaseInstance: "openstack"
   secret: <name of the secret with the credentials of the ControlPlane deploy>
   apiServiceTemplate:
+    override:
+      service:
+        public:
+          endpointURL: https://watcher-public-openstack.example.com
     tls:
       caBundleSecretName: "combined-ca-bundle"
+      api:
+        internal:
+          secretName: cert-watcher-internal-svc
+        public:
+          secretName: cert-watcher-public-svc
 ----
 +
 There are certain fields of the Watcher CR spec that need to match with the values used in the existing OpenStackControlplane:
@@ -271,4 +367,32 @@ $ oc rsh openstackclient openstack service list
 | db60453eca65409bbb0b61f4295c66ec | placement  | placement   |
 | fa717124fbcb4d708ba4c41c9109df81 | keystone   | identity    |
 +----------------------------------+------------+-------------+
+----
++
+. Check that the openstack cloud can communicate with the watcher endpoints:
++
+[,console]
+----
+$ oc rsh openstackclient openstack optimize service list
++----+-------------------------+---------------------------+--------+
+| ID | Name                    | Host                      | Status |
++----+-------------------------+---------------------------+--------+
+|  1 | watcher-applier         | watcher-applier-0         | ACTIVE |
+|  2 | watcher-decision-engine | watcher-decision-engine-0 | ACTIVE |
++----+-------------------------+---------------------------+--------+
+----
++
+This confirms that the openstackclient pod could communicate with the watcher
+services.
+. Check that the endpoints use HTTPS:
++
+[,console]
+----
+$ oc rsh openstackclient openstack endpoint list --service infra-optim -c 'Service Name' -c 'Interface' -c 'URL'
++--------------+-----------+---------------------------------------------------------------+
+| Service Name | Interface | URL                                                           |
++--------------+-----------+---------------------------------------------------------------+
+| watcher      | public    | https://watcher-public-watcher-kuttl-default.example.com      |
+| watcher      | internal  | https://watcher-internal.watcher-kuttl-default.svc:9322       |
++--------------+-----------+---------------------------------------------------------------+
 ----
