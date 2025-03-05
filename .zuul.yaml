@@ -247,7 +247,8 @@
       Project template to run meta content provider and
       EDPM job with master opendev and github operator
       content in openstack-experimental pipeline.
-    openstack-experimental:
+    openstack-check:
+      debug: true
       jobs:
         - openstack-meta-content-provider-master
         - watcher-operator-validation-master
