@@ -29,6 +29,33 @@
            src_dir }}/ci/tests/watcher-master.yml"
 
 - job:
+    name: periodic-watcher-operator-validation-master
+    parent: watcher-operator-base
+    description: |
+      A multinode EDPM Zuul job which has one ansible controller, one
+      extracted crc and two computes. It will be used for testing watcher
+      in the master promotion RDO pipeline.
+    vars:
+      cifmw_repo_setup_branch: master
+      cifmw_repo_setup_promotion: podified-ci-testing
+      cifmw_dlrn_report_result: true
+      cifmw_update_containers_openstack: true
+      cifmw_extras:
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
+           src_dir }}/scenarios/centos-9/multinode-ci.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
+           src_dir }}/scenarios/centos-9/edpm_periodic.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
+           src_dir }}/scenarios/centos-9/horizon.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/scenarios/edpm.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/tests/watcher-master.yml"
+      fetch_dlrn_hash: true
+      watcher_dlrn_tag: "{{ cifmw_repo_setup_promotion }}"
+      watcher_registry_url: quay.rdoproject.org/podified-master-centos9
+
+- job:
     name: watcher-operator-validation-base
     parent: watcher-operator-base
     abstract: true
