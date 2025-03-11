@@ -275,6 +275,9 @@ metadata:
 spec:
   databaseInstance: "openstack"
   secret: <name of the secret with the credentials of the ControlPlane deploy>
+  apiOverride:
+    tls:
+      secretName: cert-watcher-public-route
   apiServiceTemplate:
     override:
       service:
