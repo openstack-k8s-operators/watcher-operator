@@ -66,16 +66,11 @@
       inheriting from watcher-operator-base, like the one running in the
       master pipeline.
     vars:
-      # Use watcher-tempest-plugin with latest content from master branch
-      cifmw_test_operator_tempest_external_plugin:
-        - repository: "https://opendev.org/openstack/watcher-tempest-plugin.git"
-          changeRepository: "https://review.opendev.org/openstack/watcher-tempest-plugin"
-          changeRefspec: "refs/heads/master"
       # Donot use openstack services containers from meta content provider master
       # job.
       cifmw_update_containers_openstack: false
       deploy_watcher_service_extra_vars:
-        watcher_catalog_image: "{{ content_provider_registry_ip }}:5001/openstack-k8s-operators/watcher-operator-index:{{ zuul.patchset }}"
+        watcher_catalog_image: "{{ cifmw_operator_build_output['operators']['watcher-operator'].image_catalog }}"
 
 - job:
     name: watcher-operator-validation
@@ -93,6 +88,11 @@
       # antelope content.
       content_provider_dlrn_md5_hash: ''
     vars:
+      # Use watcher-tempest-plugin with latest content from master branch
+      cifmw_test_operator_tempest_external_plugin:
+        - repository: "https://opendev.org/openstack/watcher-tempest-plugin.git"
+          changeRepository: "https://review.opendev.org/openstack/watcher-tempest-plugin"
+          changeRefspec: "refs/heads/master"
       # Donot use openstack services containers from meta content provider master
       # job.
       cifmw_update_containers_openstack: false
@@ -111,7 +111,7 @@
       # Do not fetch dlrn md5 hash
       fetch_dlrn_hash: false
       deploy_watcher_service_extra_vars:
-        watcher_catalog_image: "{{ content_provider_registry_ip }}:5001/openstack-k8s-operators/watcher-operator-index:{{ zuul.patchset }}"
+        watcher_catalog_image: "{{ cifmw_operator_build_output['operators']['watcher-operator'].image_catalog }}"
         deploy_watcher_service: false
       cifmw_extras:
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
