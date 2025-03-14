@@ -24,10 +24,37 @@ run_tempest: false
 cifmw_test_operator_concurrency: 1
 cifmw_test_operator_tempest_include_list: |
   watcher_tempest_plugin.*
-# We need to exclude client_functional tests until we have watcherclient installed in the
-# tempest container.
 # Some strategies execution tests are failing. Excluding until the work on the watcher-tempest-plugin
 # is finished upstream.
 cifmw_test_operator_tempest_exclude_list: |
-  watcher_tempest_plugin.*client_functional.*
   watcher_tempest_plugin.tests.scenario.test_execute_strategies.TestExecuteStrategies.test_execute_storage_capacity_balance_strategy
+
+# Tempest images
+cifmw_test_operator_tempest_registry: >-
+  {%- if content_provider_os_registry_url != 'null' and cifmw_repo_setup_release == 'master' -%}
+  {{ content_provider_os_registry_url | split('/') | first }}
+  {%- else -%}
+  quay.io
+  {%- endif -%}
+cifmw_test_operator_tempest_namespace: >-
+  {%- if content_provider_os_registry_url != 'null' and cifmw_repo_setup_release == 'master' -%}
+  {{ content_provider_os_registry_url | split('/') | last }}
+  {%- else -%}
+  {{ cifmw_build_containers_registry_namespace }}
+  {%- endif -%}
+cifmw_test_operator_tempest_image_tag: >-
+  {%- if content_provider_os_registry_url != 'null' and cifmw_repo_setup_release == 'master' -%}
+  {{ content_provider_dlrn_md5_hash }}
+  {%- else -%}
+  current-podified
+  {%- endif -%}
+
+# Use watcher-tempest-plugin with latest content from master branch
+cifmw_test_operator_tempest_external_plugin: >-
+  {%- if content_provider_os_registry_url == 'null' -%}
+  - repository: "https://opendev.org/openstack/watcher-tempest-plugin.git"
+    changeRepository: "https://review.opendev.org/openstack/watcher-tempest-plugin"
+    changeRefspec: "refs/heads/master"
+  {%- else -%}
+  []
+  {%- endif -%}
