@@ -261,8 +261,10 @@ certificate.cert-manager.io/watcher-public-svc created
 ----
 +
 . Create a file on your workstation named `watcher.yaml` to define the Watcher
-  CR. Replace the `example.com` domain in the `endpointURL` field with your
-  cluster domain. Although the exact parameters of your file may depend on your
+  CR. In the `endpointURL` field, replace the `example.com` domain with your
+  cluster domain and the `openstack` with the name of the project you are
+  deploying in (if it's different than the `openstack` default).
+  Although the exact parameters of your file may depend on your
   specific environment customization, a Watcher CR similar to the example below
   would work in a typical deployment:
 +
@@ -395,7 +397,7 @@ $ oc rsh openstackclient openstack endpoint list --service infra-optim -c 'Servi
 +--------------+-----------+---------------------------------------------------------------+
 | Service Name | Interface | URL                                                           |
 +--------------+-----------+---------------------------------------------------------------+
-| watcher      | public    | https://watcher-public-watcher-kuttl-default.example.com      |
-| watcher      | internal  | https://watcher-internal.watcher-kuttl-default.svc:9322       |
+| watcher      | public    | https://watcher-public-openstack.example.com                  |
+| watcher      | internal  | https://watcher-internal.openstack.svc:9322                   |
 +--------------+-----------+---------------------------------------------------------------+
 ----
