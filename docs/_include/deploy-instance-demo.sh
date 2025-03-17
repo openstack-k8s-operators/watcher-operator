@@ -47,7 +47,7 @@ openstack project show demo || \
 openstack role add --user admin --project demo member
 
 openstack network show public || openstack network create public --external --provider-network-type flat --provider-physical-network datacentre
-openstack subnet create public_subnet --subnet-range <PUBLIC SUBNET CIDR> --allocation-pool start=<START PUBLIC SUBNET ADDRESSES RANGE>,end=<END PUBLIC SUBNET ADDRESSES RANGE> --gateway <PUBLIC NETWORK GATEWAY IP> --dhcp --network public
+openstack subnet show public_subnet || openstack subnet create public_subnet --subnet-range <PUBLIC SUBNET CIDR> --allocation-pool start=<START PUBLIC SUBNET ADDRESSES RANGE>,end=<END PUBLIC SUBNET ADDRESSES RANGE> --gateway <PUBLIC NETWORK GATEWAY IP> --dhcp --network public
 
 # Create flavor
 openstack flavor show m1.small || \

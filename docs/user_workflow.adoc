@@ -24,16 +24,13 @@ shown with the example commands below:
 
 [,console]
 ----
-rm -f temp/deploy-instance-demo.sh
-cp deploy-instance-demo.sh temp/deploy-instance-demo.sh
-
 # Modify the openstack subnet create public_subnet command options
 # to your particular environment.
 
 # This example uses 8 instances.
 # Adjust the number per the number of instances to be used
 # in the test environment
-oc cp temp/deploy-instance-demo.sh openstackclient:/home/cloud-admin
+oc cp deploy-instance-demo.sh openstackclient:/home/cloud-admin
 oc rsh openstackclient bash /home/cloud-admin/deploy-instance-demo.sh 8
 ----
 
