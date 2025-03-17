@@ -35,8 +35,6 @@ $ oc rsh openstackclient openstack endpoint list -c 'ID' -c 'Service Name' -c 'E
 | 0bada656064a4d409bc5fed610654edd | neutron      | True    |
 | 17453066f8dc40bfa0f8584007cffc9a | cinderv3     | True    |
 | 22768bf3e9a34fefa57b96c20d405cfe | keystone     | True    |
-| 284fd13676ed4bb095b602a004b4a0f2 | watcher      | True    |
-| 48602a17288f442a98c300931f82244a | watcher      | True    |
 | 54e3d48cdda84263b7f1c65c924f3e3a | glance       | True    |
 | 74345a18262740eb952d2b6b7220ceeb | keystone     | True    |
 | 789a2d6048174b849a7c7243421675b4 | placement    | True    |

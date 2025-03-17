@@ -342,14 +342,7 @@ for the new Audit. Given the low usage of resources in the instances created for
 workflows, the initial `Action Plan` will not have real actions.
 
 . Increase CPU consumption in one of the created instances (VMs).
-You can find the CPU usage of each instance at the example URL:
-https://metric-storage-prometheus-openstack.apps-crc.testing/graph?g0.expr=clamp_max((avg%20by%20(resource)(rate(ceilometer_cpu%5B150s%5D))%2F10e%2B8)%20*(100%2F1)%2C%20100)&g0.tab=0&g0.display_mode=lines&g0.show_exemplars=0&g0.range_input=1h[Prometheus Metrics]
-+
-
-image::prometheus_metrics.png[]
-
-+
-View the list of instances in `Horizon` by selecting the *Instances* panel from the menus:
+You can view the list of instances in `Horizon` by selecting the *Instances* panel from the menus:
 *Admin* -> *Compute* -> *Instances*.
 Click on the name of one of the instances, and go to the *Console* tab for that instance.
 Log in with `cirros` user and the `gocubsgo` password, and run following command:
