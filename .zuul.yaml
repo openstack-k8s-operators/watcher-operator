@@ -2,6 +2,7 @@
 - project:
     name: openstack-k8s-operators/watcher-operator
     default-branch: main
+    merge-mode: rebase
     templates:
       - opendev-master-watcher-operator-pipeline
     github-check:
@@ -173,21 +174,12 @@
 
 - project-template:
     name: opendev-master-watcher-operator-pipeline
-    description: |
-      Project template to run meta content provider and
-      EDPM job with master opendev and github operator
-      content.
     github-check:
       jobs:
         - openstack-meta-content-provider-master
         - watcher-operator-validation-master
 
 - project-template:
-    name: opendev-watcher-edpm-pipeline
-    description: |
-      Project template to run meta content provider and
-      EDPM job with master opendev and github operator
-      content in openstack-check pipeline.
     openstack-check:
       jobs:
         - openstack-meta-content-provider-master
