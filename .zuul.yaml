@@ -2,6 +2,7 @@
 - project:
     name: openstack-k8s-operators/watcher-operator
     default-branch: main
+    merge-mode: rebase
     templates:
       - opendev-master-watcher-operator-pipeline
     github-check:
