@@ -24,10 +24,52 @@ run_tempest: false
 cifmw_test_operator_concurrency: 1
 cifmw_test_operator_tempest_include_list: |
   watcher_tempest_plugin.*
-# We need to exclude client_functional tests until we have watcherclient installed in the
-# tempest container.
 # Some strategies execution tests are failing. Excluding until the work on the watcher-tempest-plugin
 # is finished upstream.
+# TODO(chandankumar): Drop watcher_tempest_plugin.*client_functional.* from here and also remove it
+# from watcher-tempest-plugin by openstack release 2024.2 eol.
 cifmw_test_operator_tempest_exclude_list: |
   watcher_tempest_plugin.*client_functional.*
   watcher_tempest_plugin.tests.scenario.test_execute_strategies.TestExecuteStrategies.test_execute_storage_capacity_balance_strategy
+
+# Tempest images cases
+# content_provider_os_registry_url is not null, It means an opendev depends-on is used
+# in the change. In this case, tempest image url should be content_provider_os_registry_url
+# tempest all container should be used for master branch.
+#
+# When content_provider_os_registry_url is null, in that case tempest image will be pulled
+# from quay.io/podified-master-centos9 for master branch.
+#
+# For antelope branch, In all cases, we will use tempest container from quay.io/podified-antelope-centos9
+# namespace and install watcher-tempest-plugin from master branch.
+#
+# For periodic case, watcher_registry_url will provide the proper tempest registry and namespace
+# watcher_dlrn_tag is defined then use repo-setup var cifmw_repo_setup_full_hash to get proper
+# hash.
+
+cifmw_test_operator_tempest_registry: >-
+  {%- if content_provider_os_registry_url is defined and content_provider_os_registry_url != 'null' and cifmw_repo_setup_release == 'master' -%}
+  {{ content_provider_os_registry_url | split('/') | first }}
+  {%- elif watcher_registry_url is defined -%}
+  {{ watcher_registry_url | split('/') | first }}
+  {%- else -%}
+  quay.io
+  {%- endif -%}
+cifmw_test_operator_tempest_namespace: >-
+  {%- if content_provider_os_registry_url is defined and content_provider_os_registry_url != 'null' and cifmw_repo_setup_release == 'master' -%}
+  {{ content_provider_os_registry_url | split('/') | last }}
+  {%- elif content_provider_os_registry_url is defined and content_provider_os_registry_url == 'null' and cifmw_repo_setup_release == 'master' -%}
+  podified-master-centos9
+  {%- elif watcher_registry_url is defined -%}
+  {{ watcher_registry_url | split('/') | last }}
+  {%- else -%}
+  podified-antelope-centos9
+  {%- endif -%}
+cifmw_test_operator_tempest_image_tag: >-
+  {%- if content_provider_os_registry_url is defined and content_provider_os_registry_url != 'null' and cifmw_repo_setup_release == 'master' -%}
+  {{ content_provider_dlrn_md5_hash }}
+  {%- elif watcher_dlrn_tag is defined -%}
+  {{ cifmw_repo_setup_full_hash }}
+  {%- else -%}
+  current-podified
+  {%- endif -%}
