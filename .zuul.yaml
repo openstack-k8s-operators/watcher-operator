@@ -11,9 +11,34 @@
         - watcher-operator-validation
         - watcher-operator-kuttl
 
+# TODO(rlandy): Temp nodeset - Replace with standard nodeset when
+# https://github.com/openstack-k8s-operators/ci-framework/pull/2819/
+# is merged
+- nodeset:
+    name: centos-9-medium-2x-centos-9-crc-extracted-2-48-0-xxl-temp
+    nodes:
+      - name: controller
+        label: cloud-centos-9-stream-tripleo-medium
+        # Note(Chandan Kumar): Switch to xxl nodeset once RHOSZUUL-1940 resolves
+      - name: compute-0
+        label: cloud-centos-9-stream-tripleo
+      - name: compute-1
+        label: cloud-centos-9-stream-tripleo
+      - name: crc
+        label: coreos-crc-extracted-2-48-0-3xl
+    groups:
+      - name: computes
+        nodes:
+          - compute-0
+          - compute-1
+      - name: ocps
+        nodes:
+          - crc
+
 - job:
     name: watcher-operator-base
     parent: podified-multinode-edpm-deployment-crc-2comp
+    nodeset: centos-9-medium-2x-centos-9-crc-extracted-2-48-0-xxl-temp
     description: |
       A multinode EDPM Zuul job which has one ansible controller, one
       extracted crc and two computes. It will be used for testing watcher-operator.
@@ -100,6 +125,13 @@
         watcher_cr_file: "ci/watcher_v1beta1_watcher_tlse.yaml"
 
 - job:
+    name: watcher-operator-validation-ocp4-16
+    parent: watcher-operator-validation
+    description: |
+      watcher-operator-validation qualification with OCP 4.16
+    nodeset: centos-9-medium-2x-centos-9-crc-extracted-2-39-0-xxl
+
+- job:
     name: watcher-operator-kuttl
     dependencies: ["openstack-meta-content-provider-master"]
     parent: cifmw-multinode-kuttl-operator-target
@@ -181,6 +213,7 @@
       jobs:
         - openstack-meta-content-provider-master
         - watcher-operator-validation-master
+        - watcher-operator-validation-ocp4-16
 
 - project-template:
     name: opendev-watcher-edpm-pipeline
