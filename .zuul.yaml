@@ -52,6 +52,8 @@
            src_dir }}/ci/scenarios/edpm.yml"
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
            src_dir }}/ci/tests/watcher-master.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/tests/watcher-master-real-data.yml"
 
 - job:
     name: periodic-watcher-operator-validation-master
@@ -76,6 +78,8 @@
            src_dir }}/ci/scenarios/edpm.yml"
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
            src_dir }}/ci/tests/watcher-master.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/tests/watcher-master-real-data.yml"
       fetch_dlrn_hash: true
       watcher_dlrn_tag: "{{ cifmw_repo_setup_promotion }}"
       watcher_registry_url: quay.rdoproject.org/podified-master-centos9
@@ -117,7 +121,7 @@
       cifmw_test_operator_tempest_external_plugin:
         - repository: "https://opendev.org/openstack/watcher-tempest-plugin.git"
           changeRepository: "https://review.opendev.org/openstack/watcher-tempest-plugin"
-          changeRefspec: "refs/heads/master"
+          changeRefspec: "refs/changes/13/945613/9"
       # Donot use openstack services containers from meta content provider master
       # job.
       cifmw_update_containers_openstack: false
