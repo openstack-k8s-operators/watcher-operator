@@ -206,10 +206,6 @@
 
 - project-template:
     name: opendev-master-watcher-operator-pipeline
-    description: |
-      Project template to run meta content provider and
-      EDPM job with master opendev and github operator
-      content.
     github-check:
       jobs:
         - openstack-meta-content-provider-master
@@ -218,10 +214,6 @@
 
 - project-template:
     name: opendev-watcher-edpm-pipeline
-    description: |
-      Project template to run meta content provider and
-      EDPM job with master opendev and github operator
-      content in openstack-check pipeline.
     openstack-check:
       jobs:
         - openstack-meta-content-provider-master
