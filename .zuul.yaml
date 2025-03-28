@@ -83,6 +83,7 @@
 
 - job:
     name: watcher-operator-validation-base
+    override-checkout: main
     parent: watcher-operator-base
     abstract: true
     dependencies: ["openstack-meta-content-provider-master"]
@@ -134,6 +135,7 @@
 
 - job:
     name: watcher-operator-kuttl
+    override-checkout: main
     dependencies: ["openstack-meta-content-provider-master"]
     parent: cifmw-multinode-kuttl-operator-target
     description: |
