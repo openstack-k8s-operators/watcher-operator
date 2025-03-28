@@ -1,17 +1,4 @@
 ---
-- project:
-    name: openstack-k8s-operators/watcher-operator
-    default-branch: main
-    merge-mode: rebase
-    templates:
-      - opendev-master-watcher-operator-pipeline
-    github-check:
-      jobs:
-        - noop
-        - watcher-operator-doc-preview
-        - watcher-operator-validation
-        - watcher-operator-kuttl
-
 # TODO(rlandy): Temp nodeset - Replace with standard nodeset when
 # https://github.com/openstack-k8s-operators/ci-framework/pull/2819/
 # is merged
@@ -85,7 +72,7 @@
     name: watcher-operator-validation-base
     parent: watcher-operator-base
     abstract: true
-    dependencies: ["openstack-meta-content-provider-master"]
+    dependencies: ["openstack-meta-content-provider"]
     description: |
       A intermediate base job to set config that is needed for jobs running
       in the operator check pipeline but will not be used for other jobs
@@ -212,9 +199,70 @@
         - watcher-operator-validation-master
         - watcher-operator-validation-ocp4-16
 
+- pragma:
+    implied-branch-matchers: True
+    implied-branches:
+      - master
+      - main
+
+
+- job:
+    name: watcher-operator-tempest-multinode
+    parent: podified-multinode-edpm-deployment-crc-3comp
+    dependencies: ["openstack-meta-content-provider"]
+    nodeset: centos-9-medium-3x-centos-9-crc-extracted-2-39-0-3xl
+    vars:
+      cifmw_extras:
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
+           src_dir }}/scenarios/centos-9/multinode-ci.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
+           src_dir }}/scenarios/centos-9/horizon.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/scenarios/edpm.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/tests/watcher-master.yml"
+      deploy_watcher_service_extra_vars:
+        watcher_catalog_image: "{{ cifmw_operator_build_output['operators']['watcher-operator'].image_catalog }}"
+
 - project-template:
     name: opendev-watcher-edpm-pipeline
-    openstack-check:
+    openstack-experimental:
+      debug: true
       jobs:
-        - openstack-meta-content-provider-master
-        - watcher-operator-validation-master
+        - noop
+        - openstack-meta-content-provider:
+            # override-checkout: main is required because opendev
+            # changes to master will have implied branch master.
+            # for parent job of this job tehy will not have a master variant
+            # so this enables it to fall back to the main vairiant.
+            override-checkout: main
+            # required porject for the operator repo is needed to allow
+            # opendev repos to depend on unmerged operator changes and have
+            # that operator content build into the containers
+            required-projects:
+              - github.com/openstack-k8s-operators/watcher-operator
+            vars:
+              cifmw_bop_openstack_release: master
+              cifmw_bop_dlrn_baseurl: "https://trunk.rdoproject.org/centos9-master"
+              cifmw_repo_setup_branch: master
+        - watcher-operator-tempest-multinode:
+            override-checkout: main
+            # when run from nova we need to ensure we list the nova-operator
+            # so that it will be built by the meta content provider
+            required-projects:
+              - github.com/openstack-k8s-operators/watcher-operator
+            vars:
+              cifmw_repo_setup_branch: master
+
+- project:
+    name: openstack-k8s-operators/watcher-operator
+    default-branch: main
+    merge-mode: rebase
+    #templates:
+    #  - opendev-master-watcher-operator-pipeline
+    github-check:
+      jobs:
+        - noop
+        #- watcher-operator-doc-preview
+        #- watcher-operator-validation
+        #- watcher-operator-kuttl
