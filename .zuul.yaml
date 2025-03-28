@@ -9,8 +9,14 @@
       jobs:
         - noop
         - watcher-operator-doc-preview
-        - watcher-operator-validation
-        - watcher-operator-kuttl
+        - watcher-operator-validation:
+            required-projects:
+              - name: openstack-k8s-operators/ci-framework
+                override-checkout: main
+        - watcher-operator-kuttl:
+            required-projects:
+              - name: openstack-k8s-operators/ci-framework
+                override-checkout: main
 
 # TODO(rlandy): Temp nodeset - Replace with standard nodeset when
 # https://github.com/openstack-k8s-operators/ci-framework/pull/2819/
@@ -208,8 +214,7 @@
 - pragma:
     implied-branch-matchers: True
     implied-branches:
-      - master
-      - main
+      - 18.0-fr2
 
 ##########################################################
 #                                                        #
@@ -221,9 +226,18 @@
     name: opendev-master-watcher-operator-pipeline
     github-check:
       jobs:
-        - openstack-meta-content-provider-master
-        - watcher-operator-validation-master
-        - watcher-operator-validation-ocp4-16
+        - openstack-meta-content-provider-master:
+            required-projects:
+              - name: openstack-k8s-operators/ci-framework
+                override-checkout: main
+        - watcher-operator-validation-master:
+            required-projects:
+              - name: openstack-k8s-operators/ci-framework
+                override-checkout: main
+        - watcher-operator-validation-ocp4-16:
+            required-projects:
+              - name: openstack-k8s-operators/ci-framework
+                override-checkout: main
 
 - project-template:
     name: opendev-watcher-edpm-pipeline
