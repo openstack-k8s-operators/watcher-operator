@@ -215,6 +215,16 @@
 - project-template:
     name: opendev-watcher-edpm-pipeline
     openstack-check:
+      debug: true
       jobs:
-        - openstack-meta-content-provider-master
-        - watcher-operator-validation-master
+        - openstack-meta-content-provider-master:
+            # Note(chandankumar): Add override checkout at project template
+            # pipeline so that RDO zuul discovers the job and complete the job
+            # graph in order to run the job.
+            override-checkout: main
+            required-projects:
+              - github.com/openstack-k8s-operators/watcher-operator
+        - watcher-operator-validation-master:
+            override-checkout: main
+            required-projects:
+              - github.com/openstack-k8s-operators/watcher-operator
