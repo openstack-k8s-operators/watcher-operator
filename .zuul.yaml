@@ -174,7 +174,6 @@
 ##########################################################
 - job:
     name: openstack-meta-content-provider-master
-    override-checkout: main
     description: |
       A zuul job building content from OpenDev master release.
     parent: openstack-meta-content-provider
@@ -187,7 +186,6 @@
 
 - job:
     name: watcher-operator-validation-master
-    override-checkout: main
     parent: watcher-operator-validation-base
     description: |
       A Zuul job consuming content from openstack-meta-content-provider-master
@@ -197,6 +195,21 @@
       # To consume containers from meta content provider
       cifmw_update_containers_openstack: true
       cifmw_update_containers_org: podified-master-centos9
+
+##########################################################
+#                                                        #
+#               Zuul Pragma to alter Zuul Config         #
+#                                                        #
+##########################################################
+
+  # Note(Chandan Kumar): Keep Zuul Pragma config only in
+  # main branch. Whenever we create FR* branch, We should
+  # delete Pragma config manually from FR* branch.
+- pragma:
+    implied-branch-matchers: True
+    implied-branches:
+      - master
+      - main
 
 ##########################################################
 #                                                        #
@@ -216,5 +229,21 @@
     name: opendev-watcher-edpm-pipeline
     openstack-check:
       jobs:
-        - openstack-meta-content-provider-master
-        - watcher-operator-validation-master
+        - openstack-meta-content-provider-master:
+            # Note(chandankumar): Add override checkout at project template
+            # pipeline so that RDO zuul discovers the job and complete the job
+            # graph in order to run the job.
+            override-checkout: main
+            required-projects:
+              - github.com/openstack-k8s-operators/watcher-operator
+            # Build watcher-operator always in meta content provider
+            vars:
+              cifmw_operator_build_operators:
+                - name: watcher-operator
+                  src: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator"
+                - name: openstack-operator
+                  src: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/openstack-operator"
+        - watcher-operator-validation-master:
+            override-checkout: main
+            required-projects:
+              - github.com/openstack-k8s-operators/watcher-operator
