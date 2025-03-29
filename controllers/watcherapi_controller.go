@@ -304,8 +304,8 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			condition.ErrorReason,
 			condition.SeverityWarning,
 			condition.ServiceConfigReadyErrorMessage,
-			err.Error()))
-		return ctrl.Result{}, err
+			errorHash.Error()))
+		return ctrl.Result{}, errorHash
 	} else if hashChanged {
 		// Hash changed and instance status should be updated (which will be done by main defer func),
 		// so we need to return and reconcile again
