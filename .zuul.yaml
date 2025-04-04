@@ -230,6 +230,7 @@
     openstack-check:
       jobs:
         - openstack-meta-content-provider-master:
+            branches: master
             # Note(chandankumar): Add override checkout at project template
             # pipeline so that RDO zuul discovers the job and complete the job
             # graph in order to run the job.
@@ -244,6 +245,7 @@
                 - name: openstack-operator
                   src: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/openstack-operator"
         - watcher-operator-validation-master:
+            branches: master
             override-checkout: main
             required-projects:
               - github.com/openstack-k8s-operators/watcher-operator
