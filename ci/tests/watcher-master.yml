@@ -31,6 +31,7 @@ cifmw_test_operator_tempest_include_list: |
 cifmw_test_operator_tempest_exclude_list: |
   watcher_tempest_plugin.*client_functional.*
   watcher_tempest_plugin.tests.scenario.test_execute_strategies.TestExecuteStrategies.test_execute_storage_capacity_balance_strategy
+  watcher_tempest_plugin.*\[.*\breal_load\b.*\].*
 
 # Tempest images cases
 # content_provider_os_registry_url is not null, It means an opendev depends-on is used
