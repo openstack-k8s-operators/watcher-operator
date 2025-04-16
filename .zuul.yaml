@@ -212,6 +212,18 @@
             override-checkout: main
             required-projects:
               - github.com/openstack-k8s-operators/watcher-operator
+            irrelevant-files: &irrelevant_files_watcher
+            # From watcher irrelevant_files from watcher-grenade job job: https://github.com/openstack/watcher/blob/master/.zuul.yaml#L151
+            # - ^(test-|)requirements.txt$ It is needed to find dependency issue while building packages in content provider.
+              - ^.*\.rst$
+              - ^api-ref/.*$
+              - ^doc/.*$
+              - ^watcher/hacking/.*$
+              - ^watcher/tests/.*$
+              - ^releasenotes/.*$
+              - ^setup.cfg$
+              - ^tools/.*$
+              - ^tox.ini$
             # Build watcher-operator always in meta content provider
             vars:
               cifmw_operator_build_operators:
@@ -222,5 +234,6 @@
         - watcher-operator-validation-master:
             branches: master
             override-checkout: main
+            irrelevant-files: *irrelevant_files_watcher
             required-projects:
               - github.com/openstack-k8s-operators/watcher-operator
