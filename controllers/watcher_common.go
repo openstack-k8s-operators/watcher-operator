@@ -1,7 +1,9 @@
+// Package controllers contains the Kubernetes controllers for managing Watcher components
 package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -29,7 +31,7 @@ import (
 const (
 	passwordSecretField     = ".spec.secret"
 	prometheusSecretField   = ".spec.prometheusSecret"
-	caBundleSecretNameField = ".spec.tls.caBundleSecretName"
+	caBundleSecretNameField = ".spec.tls.caBundleSecretName" //nolint:gosec // G101: Not actual credentials, just field path
 	tlsAPIInternalField     = ".spec.tls.api.internal.secretName"
 	tlsAPIPublicField       = ".spec.tls.api.public.secretName"
 	topologyField           = ".spec.topologyRef.Name"
@@ -77,16 +79,18 @@ const (
 	DatabaseAccount = "database_account"
 	// DatabaseUsername is the name of key in the secret for the user name used to login to the database
 	DatabaseUsername = "database_username"
-	// DatabaseUsername is the name of key in the secret for the password used to login to the database
+	// DatabasePassword is the name of key in the secret for the password used to login to the database
 	DatabasePassword = "database_password"
-	// DatabaseUsername is the name of key in the secret for the database
-	// hostname
+	// DatabaseHostname is the name of key in the secret for the database hostname
 	DatabaseHostname = "database_hostname"
-	// Prometheus configuration keys in prometheusSecret
-	PrometheusHost         = "host"
-	PrometheusPort         = "port"
+	// PrometheusHost is the key for the Prometheus host in prometheusSecret
+	PrometheusHost = "host"
+	// PrometheusPort is the key for the Prometheus port in prometheusSecret
+	PrometheusPort = "port"
+	// PrometheusCaCertSecret is the key for the Prometheus CA certificate secret in prometheusSecret
 	PrometheusCaCertSecret = "ca_secret"
-	PrometheusCaCertKey    = "ca_key"
+	// PrometheusCaCertKey is the key for the Prometheus CA certificate key in prometheusSecret
+	PrometheusCaCertKey = "ca_key"
 
 	// WatcherAPILabelPrefix - a unique, service binary specific prefix for the
 	// labels the WatcherAPI controller uses on children objects
@@ -97,6 +101,33 @@ const (
 	// WatcherDecisionEngineLabelPrefix - a unique, service binary specific prefix
 	// for the labels the WatcherDecisionEngine controller uses on child objects
 	WatcherDecisionEngineLabelPrefix = "watcher-decision-engine"
+)
+
+// Static error variables for err113 compliance
+var (
+	// ErrSecretFieldNotFound indicates that a required field was not found in a secret
+	ErrSecretFieldNotFound = errors.New("field not found in secret")
+
+	// ErrMemcachedNotFound indicates that the memcached instance was not found
+	ErrMemcachedNotFound = errors.New("memcached not found")
+
+	// ErrMemcachedNotReady indicates that the memcached instance is not ready
+	ErrMemcachedNotReady = errors.New("memcached is not ready")
+
+	// ErrRetrievingSecretData indicates an error retrieving required data from a secret
+	ErrRetrievingSecretData = errors.New("error retrieving required data from secret")
+
+	// ErrRetrievingNotificationURLSecretData indicates an error retrieving required data from notificationURL secret
+	ErrRetrievingNotificationURLSecretData = errors.New("error retrieving required data from notificationURL secret")
+
+	// ErrRetrievingTransportURLSecretData indicates an error retrieving required data from transporturl secret
+	ErrRetrievingTransportURLSecretData = errors.New("error retrieving required data from transporturl secret")
+
+	// ErrRetrievingPrometheusSecretData indicates an error retrieving required data from prometheus secret
+	ErrRetrievingPrometheusSecretData = errors.New("error retrieving required data from prometheus secret")
+
+	// ErrTransportURLFieldMissing indicates that the TransportURL secret does not have the 'transport_url' field
+	ErrTransportURLFieldMissing = errors.New("the TransportURL secret does not have 'transport_url' field")
 )
 
 // GetLogger returns a logger object with a prefix of "controller.name" and additional controller context fields
@@ -228,7 +259,7 @@ func ensureSecret(
 	for _, field := range expectedFields {
 		val, ok := secret.Data[field]
 		if !ok {
-			err := fmt.Errorf("field '%s' not found in secret/%s", field, secretName.Name)
+			err := fmt.Errorf("%w: '%s' in secret/%s", ErrSecretFieldNotFound, field, secretName.Name)
 			conditionUpdater.Set(condition.FalseCondition(
 				condition.InputReadyCondition,
 				condition.ErrorReason,
@@ -254,6 +285,7 @@ func ensureSecret(
 	return hash, ctrl.Result{}, *secret, nil
 }
 
+// GenerateConfigsGeneric generates configuration files for watcher components
 func GenerateConfigsGeneric(
 	ctx context.Context, helper *helper.Helper,
 	instance client.Object,
@@ -311,7 +343,7 @@ func ensureMemcached(
 				condition.RequestedReason,
 				condition.SeverityInfo,
 				condition.MemcachedReadyWaitingMessage))
-			return nil, fmt.Errorf("memcached %s not found", memcachedName)
+			return nil, fmt.Errorf("%w: %s", ErrMemcachedNotFound, memcachedName)
 		}
 		conditionUpdater.Set(condition.FalseCondition(
 			condition.MemcachedReadyCondition,
@@ -328,7 +360,7 @@ func ensureMemcached(
 			condition.RequestedReason,
 			condition.SeverityInfo,
 			condition.MemcachedReadyWaitingMessage))
-		return nil, fmt.Errorf("memcached %s is not ready", memcachedName)
+		return nil, fmt.Errorf("%w: %s", ErrMemcachedNotReady, memcachedName)
 	}
 	conditionUpdater.MarkTrue(condition.MemcachedReadyCondition, condition.MemcachedReadyMessage)
 

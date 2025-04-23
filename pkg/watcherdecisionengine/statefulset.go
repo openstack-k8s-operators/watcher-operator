@@ -1,3 +1,4 @@
+// Package watcherdecisionengine provides functionality for managing Watcher Decision Engine StatefulSet resources
 package watcherdecisionengine
 
 import (
@@ -24,6 +25,7 @@ const (
 	ComponentName = watcher.ServiceName + "-decision-engine"
 )
 
+// StatefulSet creates a StatefulSet for the Watcher Decision Engine component
 func StatefulSet(
 	instance *watcherv1beta1.WatcherDecisionEngine,
 	configHash string,

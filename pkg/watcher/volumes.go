@@ -111,6 +111,7 @@ func GetKollaConfigVolumeMount(serviceName string) corev1.VolumeMount {
 	}
 }
 
+// GetScriptVolumeMount returns the volume mount for scripts
 func GetScriptVolumeMount() corev1.VolumeMount {
 	return corev1.VolumeMount{
 		Name:      scriptVolume,
@@ -119,6 +120,7 @@ func GetScriptVolumeMount() corev1.VolumeMount {
 	}
 }
 
+// GetScriptVolume returns the volume for scripts using the specified secret
 func GetScriptVolume(secretName string) corev1.Volume {
 	var scriptMode int32 = 0740
 	return corev1.Volume{

@@ -603,7 +603,7 @@ var _ = Describe("Watcher controller", func() {
 				condition.InputReadyCondition,
 				corev1.ConditionFalse,
 				condition.ErrorReason,
-				"Input data error occurred field 'WatcherPassword' not found in secret/test-osp-secret",
+				"Input data error occurred field not found in secret: 'WatcherPassword' in secret/test-osp-secret",
 			)
 
 			th.ExpectCondition(
@@ -674,9 +674,9 @@ var _ = Describe("Watcher controller", func() {
 	When("Watcher is created with container images defined in CR and env variables contains fake values", func() {
 		BeforeEach(func() {
 			// Set environment variables
-			os.Setenv("RELATED_IMAGE_WATCHER_API_IMAGE_URL_DEFAULT", "watcher-api-custom-image-env")
-			os.Setenv("RELATED_IMAGE_WATCHER_DECISION_ENGINE_IMAGE_URL_DEFAULT", "watcher-decision-engine-custom-image-env")
-			os.Setenv("RELATED_IMAGE_WATCHER_APPLIER_IMAGE_URL_DEFAULT", "watcher-applier-custom-image-env")
+			_ = os.Setenv("RELATED_IMAGE_WATCHER_API_IMAGE_URL_DEFAULT", "watcher-api-custom-image-env")
+			_ = os.Setenv("RELATED_IMAGE_WATCHER_DECISION_ENGINE_IMAGE_URL_DEFAULT", "watcher-decision-engine-custom-image-env")
+			_ = os.Setenv("RELATED_IMAGE_WATCHER_APPLIER_IMAGE_URL_DEFAULT", "watcher-applier-custom-image-env")
 			DeferCleanup(th.DeleteInstance, CreateWatcher(watcherTest.Instance, MinimalWatcherContainerSpec))
 		})
 
@@ -690,9 +690,9 @@ var _ = Describe("Watcher controller", func() {
 
 	When("Watcher is created with no container images defined in CR and env variables contains fake value", func() {
 		BeforeEach(func() {
-			os.Setenv("RELATED_IMAGE_WATCHER_API_IMAGE_URL_DEFAULT", "watcher-api-custom-image-env")
-			os.Setenv("RELATED_IMAGE_WATCHER_DECISION_ENGINE_IMAGE_URL_DEFAULT", "watcher-decision-engine-custom-image-env")
-			os.Setenv("RELATED_IMAGE_WATCHER_APPLIER_IMAGE_URL_DEFAULT", "watcher-applier-custom-image-env")
+			_ = os.Setenv("RELATED_IMAGE_WATCHER_API_IMAGE_URL_DEFAULT", "watcher-api-custom-image-env")
+			_ = os.Setenv("RELATED_IMAGE_WATCHER_DECISION_ENGINE_IMAGE_URL_DEFAULT", "watcher-decision-engine-custom-image-env")
+			_ = os.Setenv("RELATED_IMAGE_WATCHER_APPLIER_IMAGE_URL_DEFAULT", "watcher-applier-custom-image-env")
 			DeferCleanup(th.DeleteInstance, CreateWatcher(watcherTest.Instance, MinimalWatcherSpec))
 		})
 
