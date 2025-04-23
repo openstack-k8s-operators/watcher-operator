@@ -18,7 +18,6 @@ package controllers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -198,7 +197,7 @@ func (r *WatcherDecisionEngineReconciler) Reconcile(ctx context.Context, req ctr
 			condition.RequestedReason,
 			condition.SeverityWarning,
 			watcherv1beta1.WatcherPrometheusSecretErrorMessage))
-		return ctrl.Result{}, errors.New("error retrieving required data from prometheus secret")
+		return ctrl.Result{}, ErrRetrievingPrometheusSecretData
 	}
 
 	configVars[*instance.Spec.PrometheusSecret] = env.SetValue(hashPrometheus)

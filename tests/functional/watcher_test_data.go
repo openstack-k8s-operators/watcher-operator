@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
+// APIType represents the type of API being tested
 type APIType string
 
 // WatcherTestData is the data structure used to provide input data to envTest

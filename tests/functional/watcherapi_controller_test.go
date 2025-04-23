@@ -344,17 +344,13 @@ transport_url =`
 			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, GetDefaultWatcherAPISpec()))
 		})
 		It("should have input false", func() {
-			errorString := fmt.Sprintf(
-				condition.InputReadyErrorMessage,
-				"field 'WatcherPassword' not found in secret/test-osp-secret",
-			)
 			th.ExpectConditionWithDetails(
 				watcherTest.WatcherAPI,
 				ConditionGetterFunc(WatcherAPIConditionGetter),
 				condition.InputReadyCondition,
 				corev1.ConditionFalse,
 				condition.ErrorReason,
-				errorString,
+				"Input data error occurred field not found in secret: 'WatcherPassword' in secret/test-osp-secret",
 			)
 		})
 		It("should have config service input unknown", func() {
