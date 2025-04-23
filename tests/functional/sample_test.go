@@ -30,7 +30,7 @@ const SamplesDir = "../../config/samples/"
 func ReadSample(sampleFileName string) map[string]interface{} {
 	rawSample := make(map[string]interface{})
 
-	bytes, err := os.ReadFile(filepath.Join(SamplesDir, sampleFileName))
+	bytes, err := os.ReadFile(filepath.Join(SamplesDir, sampleFileName)) //nolint:gosec // G304: File path is sanitized and controlled in test environment
 	Expect(err).ShouldNot(HaveOccurred())
 	Expect(yaml.Unmarshal(bytes, rawSample)).Should(Succeed())
 

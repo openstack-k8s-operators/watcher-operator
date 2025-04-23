@@ -13,10 +13,11 @@ import (
 )
 
 const (
-	// DBSyncCommand -
+	// ServiceCommand is the command used to start the service
 	ServiceCommand = "/usr/local/bin/kolla_start"
 )
 
+// DBPurgeCronJob creates a CronJob for database purging operations
 func DBPurgeCronJob(
 	instance *watcherv1beta1.Watcher,
 	labels map[string]string,
