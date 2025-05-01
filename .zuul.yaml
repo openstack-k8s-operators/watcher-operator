@@ -5,6 +5,7 @@
     merge-mode: rebase
     templates:
       - opendev-master-watcher-operator-pipeline
+      - opendev-epoxy-watcher-operator-pipeline
     github-check:
       jobs:
         - noop
@@ -144,6 +145,61 @@
 
 ##########################################################
 #                                                        #
+#               Epoxy Zuul Jobs                          #
+#                                                        #
+##########################################################
+- job:
+    name: openstack-meta-content-provider-epoxy
+    description: |
+      A zuul job building content from OpenDev epoxy release.
+    parent: openstack-meta-content-provider
+    pre-run:
+      - ci/playbooks/copy_container_files.yaml
+    vars:
+      cifmw_operator_build_meta_build: false
+      cifmw_bop_openstack_release: epoxy
+      cifmw_bop_dlrn_baseurl: "https://trunk.rdoproject.org/centos9-epoxy"
+      cifmw_repo_setup_branch: epoxy
+      cifmw_build_containers_registry_namespace: podified-epoxy-centos9
+      cifmw_build_containers_config_file: "{{ ansible_user_dir }}/containers.yaml"
+      cifmw_repo_setup_promotion: podified-ci-testing
+      cifmw_build_containers_force: true
+      cifmw_build_containers_image_tag: watcher_latest
+
+- job:
+    name: watcher-operator-validation-epoxy
+    parent: watcher-operator-validation-base
+    dependencies: ["openstack-meta-content-provider-epoxy"]
+    description: |
+      A zuul job to validate the watcher operator and its service deployment.
+      It will deploy podified and EDPM using current-podified antelope content.
+      During watcher deployment, It will fetch epoxy current hash and pull
+      openstack watcher services containers from meta content provider.
+      It will test current-podified control plane EDPM deployment with openstack watcher
+      master content. It deploys watcher using TLSe, and creates the certificates to use.
+    extra-vars:
+      # Override zuul meta content provider provided content_provider_dlrn_md5_hash
+      # var. As returned dlrn md5 hash comes from master release but job is using
+      # antelope content.
+      content_provider_dlrn_md5_hash: ''
+    vars:
+      # Donot use openstack services containers from meta content provider master
+      # job.
+      cifmw_update_containers_openstack: false
+      # current dlrn hash changes frequently. In meta content provider, containers
+      # are tagged with watcher_latest, let's use the same here.
+      fetch_dlrn_hash: false
+      watcher_services_tag: watcher_latest
+      deploy_watcher_service_extra_vars:
+        watcher_cr_file: "ci/watcher_v1beta1_watcher_tlse.yaml"
+      # tempest vars
+      cifmw_test_operator_tempest_registry: "{{ content_provider_os_registry_url | split('/') | first }}"
+      cifmw_test_operator_tempest_namespace: "{{ content_provider_os_registry_url | split('/') | last }}"
+      cifmw_test_operator_tempest_image_tag: watcher_latest
+
+
+##########################################################
+#                                                        #
 #               Master Zuul Jobs                         #
 #                                                        #
 ##########################################################
@@ -199,6 +255,13 @@
         - openstack-meta-content-provider-master
         - watcher-operator-validation-master
         - watcher-operator-validation-ocp4-16
+
+- project-template:
+    name: opendev-epoxy-watcher-operator-pipeline
+    github-check:
+      jobs:
+        - openstack-meta-content-provider-epoxy
+        - watcher-operator-validation-epoxy
 
 - project-template:
     name: opendev-watcher-edpm-pipeline

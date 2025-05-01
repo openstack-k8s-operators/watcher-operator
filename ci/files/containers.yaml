@@ -1,0 +1,5 @@
+container_images:
+- imagename: quay.io/podified-master-centos9/openstack-watcher-api:current-podified
+- imagename: quay.io/podified-master-centos9/openstack-watcher-applier:current-podified
+- imagename: quay.io/podified-master-centos9/openstack-watcher-decision-engine:current-podified
+- imagename: quay.io/podified-master-centos9/openstack-tempest-all:current-podified
