@@ -33,6 +33,7 @@ import (
 
 	"github.com/go-logr/logr"
 	memcachedv1 "github.com/openstack-k8s-operators/infra-operator/apis/memcached/v1beta1"
+	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
 	keystonev1 "github.com/openstack-k8s-operators/keystone-operator/api/v1beta1"
 	"github.com/openstack-k8s-operators/lib-common/modules/common"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
@@ -81,6 +82,7 @@ func (r *WatcherAPIReconciler) GetLogger(ctx context.Context) logr.Logger {
 //+kubebuilder:rbac:groups=memcached.openstack.org,resources=memcacheds,verbs=get;list;watch;update;patch
 //+kubebuilder:rbac:groups=memcached.openstack.org,resources=memcacheds/finalizers,verbs=update;patch
 //+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete;
+//+kubebuilder:rbac:groups=topology.openstack.org,resources=topologies,verbs=get;list;watch;update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -232,6 +234,29 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	Log.Info(fmt.Sprintf("[API] Getting input hash '%s'", instance.Name))
 
 	//
+	// Handle Topology
+	//
+
+	topology, err := ensureTopology(
+		ctx,
+		helper,
+		instance,      // topologyHandler
+		instance.Name, // finalizer
+		&instance.Status.Conditions,
+		labels.GetLabelSelector(getAPIServiceLabels()),
+	)
+
+	if err != nil {
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			condition.TopologyReadyCondition,
+			condition.ErrorReason,
+			condition.SeverityWarning,
+			condition.TopologyReadyErrorMessage,
+			err.Error()))
+		return ctrl.Result{}, fmt.Errorf("waiting for Topology requirements: %w", err)
+	}
+
+	//
 	// TLS input validation
 	//
 	// Validate the CA cert secret if provided
@@ -314,7 +339,7 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	instance.Status.Conditions.MarkTrue(condition.ServiceConfigReadyCondition, condition.ServiceConfigReadyMessage)
 
-	result, err = r.ensureDeployment(ctx, helper, instance, prometheusSecret, inputHash)
+	result, err = r.ensureDeployment(ctx, helper, instance, prometheusSecret, inputHash, topology)
 	if (err != nil || result != ctrl.Result{}) {
 		return result, err
 	}
@@ -461,6 +486,7 @@ func (r *WatcherAPIReconciler) ensureDeployment(
 	instance *watcherv1beta1.WatcherAPI,
 	prometheusSecret corev1.Secret,
 	configHash string,
+	topology *topologyv1.Topology,
 ) (ctrl.Result, error) {
 	Log := r.GetLogger(ctx)
 	Log.Info(fmt.Sprintf("Defining WatcherAPI deployment '%s'", instance.Name))
@@ -478,7 +504,7 @@ func (r *WatcherAPIReconciler) ensureDeployment(
 	}
 
 	// define a new StatefulSet object
-	statefulSetDef, err := watcherapi.StatefulSet(instance, configHash, prometheusCaCert, getAPIServiceLabels())
+	statefulSetDef, err := watcherapi.StatefulSet(instance, configHash, prometheusCaCert, getAPIServiceLabels(), topology)
 	if err != nil {
 		Log.Error(err, "Defining statefulSet failed")
 		instance.Status.Conditions.Set(condition.FalseCondition(
@@ -748,6 +774,16 @@ func (r *WatcherAPIReconciler) reconcileDelete(ctx context.Context, instance *wa
 		}
 	}
 
+	// Remove finalizer on the Topology CR
+	if ctrlResult, err := topologyv1.EnsureDeletedTopologyRef(
+		ctx,
+		helper,
+		instance.Status.LastAppliedTopology,
+		instance.Name,
+	); err != nil {
+		return ctrlResult, err
+	}
+
 	controllerutil.RemoveFinalizer(instance, helper.GetFinalizer())
 	Log.Info(fmt.Sprintf("Reconciled Service '%s' delete successfully", instance.Name))
 	return ctrl.Result{}, nil
@@ -769,6 +805,12 @@ func (r *WatcherAPIReconciler) initStatus(instance *watcherv1beta1.WatcherAPI) e
 		condition.UnknownCondition(condition.CreateServiceReadyCondition, condition.InitReason, condition.CreateServiceReadyInitMessage),
 		condition.UnknownCondition(condition.KeystoneEndpointReadyCondition, condition.InitReason, "KeystoneEndpoint not created"),
 	)
+
+	// Init Topology condition if there's a reference
+	if instance.Spec.TopologyRef != nil {
+		c := condition.UnknownCondition(condition.TopologyReadyCondition, condition.InitReason, condition.TopologyReadyInitMessage)
+		cl.Set(c)
+	}
 
 	instance.Status.Conditions.Init(&cl)
 
@@ -804,6 +846,18 @@ func (r *WatcherAPIReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			return nil
 		}
 		return []string{cr.Spec.PrometheusSecret}
+	}); err != nil {
+		return err
+	}
+
+	// index topologyField
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &watcherv1beta1.WatcherAPI{}, topologyField, func(rawObj client.Object) []string {
+		// Extract the topology name from the spec, if one is provided
+		cr := rawObj.(*watcherv1beta1.WatcherAPI)
+		if cr.Spec.TopologyRef == nil {
+			return nil
+		}
+		return []string{cr.Spec.TopologyRef.Name}
 	}); err != nil {
 		return err
 	}
@@ -854,6 +908,9 @@ func (r *WatcherAPIReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(r.findObjectsForSrc),
 			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		).
+		Watches(&topologyv1.Topology{},
+			handler.EnqueueRequestsFromMapFunc(r.findObjectsForSrc),
+			builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Complete(r)
 }
 

@@ -3,6 +3,7 @@ package watcherapi
 import (
 	"path/filepath"
 
+	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
 	"github.com/openstack-k8s-operators/lib-common/modules/common"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/affinity"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/env"
@@ -29,6 +30,7 @@ func StatefulSet(
 	configHash string,
 	prometheusCaCertSecret map[string]string,
 	labels map[string]string,
+	topology *topologyv1.Topology,
 ) (*appsv1.StatefulSet, error) {
 
 	var config0644AccessMode int32 = 0644
@@ -191,16 +193,6 @@ func StatefulSet(
 							LivenessProbe:  livenessProbe,
 						},
 					},
-					// If possible two pods of the same service should not run
-					// on the same worker node. Of this is not possible they
-					// will still be created on the same worker node
-					Affinity: affinity.DistributePods(
-						common.AppSelector,
-						[]string{
-							labels[common.AppSelector],
-						},
-						corev1.LabelHostname,
-					),
 				},
 			},
 		},
@@ -214,5 +206,21 @@ func StatefulSet(
 	if instance.Spec.NodeSelector != nil {
 		statefulSet.Spec.Template.Spec.NodeSelector = *instance.Spec.NodeSelector
 	}
+
+	if topology != nil {
+		topology.ApplyTo(&statefulSet.Spec.Template)
+	} else {
+		// If possible two pods of the same service should not
+		// run on the same worker node. If this is not possible
+		// the get still created on the same worker node.
+		statefulSet.Spec.Template.Spec.Affinity = affinity.DistributePods(
+			common.AppSelector,
+			[]string{
+				instance.Name,
+			},
+			corev1.LabelHostname,
+		)
+	}
+
 	return statefulSet, nil
 }
