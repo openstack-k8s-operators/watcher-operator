@@ -1,0 +1,27 @@
+---
+apiVersion: topology.openstack.org/v1beta1
+kind: Topology
+metadata:
+  name: watcher-api
+  namespace: watcher-kuttl-default
+spec:
+  topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: "kubernetes.io/hostname"
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        service: watcher-api
+---
+apiVersion: watcher.openstack.org/v1beta1
+kind: Watcher
+metadata:
+  name: watcher-kuttl
+  namespace: watcher-kuttl-default
+spec:
+  databaseInstance: "openstack"
+  apiServiceTemplate:
+    topologyRef:
+      name: watcher-api
+    tls:
+      caBundleSecretName: "combined-ca-bundle"
