@@ -1,6 +1,9 @@
 package watcherapplier
 
 import (
+	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
+	"github.com/openstack-k8s-operators/lib-common/modules/common"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/affinity"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/env"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -24,6 +27,7 @@ func StatefulSet(
 	instance *watcherv1beta1.WatcherApplier,
 	configHash string,
 	labels map[string]string,
+	topology *topologyv1.Topology,
 ) *appsv1.StatefulSet {
 	var config0644AccessMode int32 = 0644
 
@@ -130,8 +134,6 @@ func StatefulSet(
 							LivenessProbe:  livenessProbe,
 						},
 					},
-					// NOTE(dviroel): distribute pods when replicas > 1 is enabled
-					// Affinity: watcher.GetPodAffinity(ComponentName),
 				},
 			},
 		},
@@ -144,6 +146,21 @@ func StatefulSet(
 
 	if instance.Spec.NodeSelector != nil {
 		statefulset.Spec.Template.Spec.NodeSelector = *instance.Spec.NodeSelector
+	}
+
+	if topology != nil {
+		topology.ApplyTo(&statefulset.Spec.Template)
+	} else {
+		// If possible two pods of the same service should not
+		// run on the same worker node. If this is not possible
+		// the get still created on the same worker node.
+		statefulset.Spec.Template.Spec.Affinity = affinity.DistributePods(
+			common.AppSelector,
+			[]string{
+				instance.Name,
+			},
+			corev1.LabelHostname,
+		)
 	}
 
 	return statefulset

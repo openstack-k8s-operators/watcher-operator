@@ -7,3 +7,6 @@ delete:
 - apiVersion: v1
   kind: Secret
   name: custom-prometheus-config
+- apiVersion: topology.openstack.org/v1beta1
+  kind: Topology
+  name: watcher-api

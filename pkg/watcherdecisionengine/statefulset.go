@@ -1,6 +1,9 @@
 package watcherdecisionengine
 
 import (
+	"path/filepath"
+
+	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
 	"github.com/openstack-k8s-operators/lib-common/modules/common"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/affinity"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/env"
@@ -10,7 +13,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
-	"path/filepath"
 )
 
 const (
@@ -26,6 +28,7 @@ func StatefulSet(
 	configHash string,
 	prometheusCaCertSecret map[string]string,
 	labels map[string]string,
+	topology *topologyv1.Topology,
 ) *appsv1.StatefulSet {
 
 	// This allows the pod to start up slowly. The pod will only be killed
@@ -157,16 +160,20 @@ func StatefulSet(
 		},
 	}
 
-	// If possible two pods of the same service should not
-	// run on the same worker node. If this is not possible
-	// the get still created on the same worker node.
-	statefulset.Spec.Template.Spec.Affinity = affinity.DistributePods(
-		common.AppSelector,
-		[]string{
-			watcher.ServiceName,
-		},
-		corev1.LabelHostname,
-	)
+	if topology != nil {
+		topology.ApplyTo(&statefulset.Spec.Template)
+	} else {
+		// If possible two pods of the same service should not
+		// run on the same worker node. If this is not possible
+		// the get still created on the same worker node.
+		statefulset.Spec.Template.Spec.Affinity = affinity.DistributePods(
+			common.AppSelector,
+			[]string{
+				instance.Name,
+			},
+			corev1.LabelHostname,
+		)
+	}
 
 	statefulset.Spec.Template.Spec.Volumes = append(watcher.GetVolumes(
 		instance.Name,

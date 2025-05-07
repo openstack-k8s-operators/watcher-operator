@@ -20,6 +20,8 @@ import (
 	"github.com/openstack-k8s-operators/lib-common/modules/common/route"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/util"
 
+	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
+
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -68,6 +70,11 @@ type WatcherCommon struct {
 	// +kubebuilder:default=metric-storage-prometheus-endpoint
 	// Secret containing prometheus connection parameters
 	PrometheusSecret string `json:"prometheusSecret"`
+
+	// +kubebuilder:validation:Optional
+	// TopologyRef to apply the Topology defined by the associated CR referenced
+	// by name
+	TopologyRef *topologyv1.TopoRef `json:"topologyRef,omitempty"`
 }
 
 // WatcherTemplate defines the fields used in the top level CR
@@ -185,6 +192,11 @@ type WatcherSubCrsTemplate struct {
 	// or overwrite rendered information using raw OpenStack config format. The content gets added to
 	// to /etc/<service>/<service>.conf.d directory as a custom config file.
 	CustomServiceConfig string `json:"customServiceConfig,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// TopologyRef to apply the Topology defined by the associated CR referenced
+	// by name
+	TopologyRef *topologyv1.TopoRef `json:"topologyRef,omitempty"`
 }
 
 type WatcherImages struct {

@@ -1149,6 +1149,12 @@ func (r *WatcherReconciler) ensureAPI(
 	Log := r.GetLogger(ctx)
 	Log.Info(fmt.Sprintf("Creating WatcherAPI '%s'", instance.Name))
 
+	// If no TopologyRef is included in the APIServiceTemplate, override it with the
+	// top level one.
+	if instance.Spec.APIServiceTemplate.TopologyRef == nil {
+		instance.Spec.APIServiceTemplate.TopologyRef = instance.Spec.TopologyRef
+	}
+
 	watcherAPISpec := watcherv1beta1.WatcherAPISpec{
 		Secret: secretName,
 		WatcherCommon: watcherv1beta1.WatcherCommon{
@@ -1158,6 +1164,7 @@ func (r *WatcherReconciler) ensureAPI(
 			NodeSelector:        instance.Spec.APIServiceTemplate.NodeSelector,
 			PreserveJobs:        instance.Spec.PreserveJobs,
 			CustomServiceConfig: instance.Spec.APIServiceTemplate.CustomServiceConfig,
+			TopologyRef:         instance.Spec.APIServiceTemplate.TopologyRef,
 		},
 		WatcherSubCrsCommon: watcherv1beta1.WatcherSubCrsCommon{
 			ContainerImage: instance.Spec.APIContainerImageURL,
@@ -1229,6 +1236,12 @@ func (r *WatcherReconciler) ensureApplier(
 	Log := r.GetLogger(ctx)
 	Log.Info(fmt.Sprintf("Creating WatcherApplier '%s'", instance.Name))
 
+	// If no TopologyRef is included in the ApplierServiceTemplate, override it with the
+	// top level one.
+	if instance.Spec.ApplierServiceTemplate.TopologyRef == nil {
+		instance.Spec.ApplierServiceTemplate.TopologyRef = instance.Spec.TopologyRef
+	}
+
 	watcherApplierSpec := watcherv1beta1.WatcherApplierSpec{
 		Secret: secretName,
 		WatcherCommon: watcherv1beta1.WatcherCommon{
@@ -1238,6 +1251,7 @@ func (r *WatcherReconciler) ensureApplier(
 			NodeSelector:        instance.Spec.ApplierServiceTemplate.NodeSelector,
 			PreserveJobs:        instance.Spec.PreserveJobs,
 			CustomServiceConfig: instance.Spec.ApplierServiceTemplate.CustomServiceConfig,
+			TopologyRef:         instance.Spec.ApplierServiceTemplate.TopologyRef,
 		},
 		WatcherSubCrsCommon: watcherv1beta1.WatcherSubCrsCommon{
 			ContainerImage: instance.Spec.ApplierContainerImageURL,
@@ -1305,6 +1319,12 @@ func (r *WatcherReconciler) ensureDecisionEngine(
 	Log := r.GetLogger(ctx)
 	Log.Info(fmt.Sprintf("Creating WatcherDecisionEngine '%s'", instance.Name))
 
+	// If no TopologyRef is included in the DecisionEngineServiceTemplate, override it with the
+	// top level one.
+	if instance.Spec.DecisionEngineServiceTemplate.TopologyRef == nil {
+		instance.Spec.DecisionEngineServiceTemplate.TopologyRef = instance.Spec.TopologyRef
+	}
+
 	watcherDecisionEngineSpec := watcherv1beta1.WatcherDecisionEngineSpec{
 		Secret: secretName,
 		WatcherCommon: watcherv1beta1.WatcherCommon{
@@ -1314,6 +1334,7 @@ func (r *WatcherReconciler) ensureDecisionEngine(
 			NodeSelector:        instance.Spec.DecisionEngineServiceTemplate.NodeSelector,
 			PreserveJobs:        instance.Spec.PreserveJobs,
 			CustomServiceConfig: instance.Spec.DecisionEngineServiceTemplate.CustomServiceConfig,
+			TopologyRef:         instance.Spec.DecisionEngineServiceTemplate.TopologyRef,
 		},
 		WatcherSubCrsCommon: watcherv1beta1.WatcherSubCrsCommon{
 			ContainerImage: instance.Spec.DecisionEngineContainerImageURL,

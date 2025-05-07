@@ -8,11 +8,14 @@ import (
 
 	//revive:disable-next-line:dot-imports
 	memcachedv1 "github.com/openstack-k8s-operators/infra-operator/apis/memcached/v1beta1"
+	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
 	condition "github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 	. "github.com/openstack-k8s-operators/lib-common/modules/common/test/helpers"
+	"github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 )
 
@@ -300,4 +303,303 @@ period = 900`,
 			)
 		})
 	})
+	When("WatcherDecisionEngine is created with a wrong topologyRef", func() {
+		BeforeEach(func() {
+			secret := th.CreateSecret(
+				watcherTest.InternalTopLevelSecretName,
+				map[string][]byte{
+					"WatcherPassword":       []byte("service-password"),
+					"transport_url":         []byte("url"),
+					"database_username":     []byte("username"),
+					"database_password":     []byte("password"),
+					"database_hostname":     []byte("hostname"),
+					"database_account":      []byte("watcher"),
+					"01-global-custom.conf": []byte(""),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, secret)
+			prometheusSecret := th.CreateSecret(
+				watcherTest.PrometheusSecretName,
+				map[string][]byte{
+					"host": []byte("prometheus.example.com"),
+					"port": []byte("9090"),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, prometheusSecret)
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.WatcherDecisionEngine.Namespace,
+					"openstack",
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+			mariadb.CreateMariaDBAccountAndSecret(
+				watcherTest.WatcherDatabaseAccount,
+				mariadbv1.MariaDBAccountSpec{
+					UserName: "watcher",
+				},
+			)
+			mariadb.CreateMariaDBDatabase(
+				watcherTest.WatcherDecisionEngine.Namespace,
+				"watcher",
+				mariadbv1.MariaDBDatabaseSpec{
+					Name: "watcher",
+				},
+			)
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherDecisionEngine.Namespace))
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.WatcherDecisionEngine.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+			spec := GetDefaultWatcherDecisionEngineSpec()
+			spec["topologyRef"] = map[string]interface{}{"name": "foo"}
+			DeferCleanup(th.DeleteInstance, CreateWatcherDecisionEngine(watcherTest.WatcherDecisionEngine, spec))
+		})
+		It("points to a non existing topology CR", func() {
+			th.ExpectCondition(
+				watcherTest.WatcherDecisionEngine,
+				ConditionGetterFunc(WatcherDecisionEngineConditionGetter),
+				condition.TopologyReadyCondition,
+				corev1.ConditionFalse,
+			)
+			th.ExpectCondition(
+				watcherTest.WatcherDecisionEngine,
+				ConditionGetterFunc(WatcherDecisionEngineConditionGetter),
+				condition.ReadyCondition,
+				corev1.ConditionFalse,
+			)
+		})
+	})
+
+	When("WatcherDecisionEngine is created with topology", func() {
+		var topologyRefDecEng topologyv1.TopoRef
+		var topologyRefAlt topologyv1.TopoRef
+		var expectedTopologySpec []corev1.TopologySpreadConstraint
+		BeforeEach(func() {
+			var topologySpec map[string]interface{}
+			// Build the topology Spec
+			topologySpec, expectedTopologySpec = GetSampleTopologySpec("watcher-decision-engine")
+			_ = expectedTopologySpec
+			// Create Test Topologies
+			_, topologyRefDecEng = infra.CreateTopology(
+				types.NamespacedName{
+					Namespace: namespace,
+					Name:      "watcherdecisionengine"},
+				topologySpec)
+			_, topologyRefAlt = infra.CreateTopology(
+				types.NamespacedName{
+					Namespace: namespace,
+					Name:      "watcher"},
+				topologySpec)
+
+			secret := th.CreateSecret(
+				watcherTest.InternalTopLevelSecretName,
+				map[string][]byte{
+					"WatcherPassword":       []byte("service-password"),
+					"transport_url":         []byte("url"),
+					"database_username":     []byte("username"),
+					"database_password":     []byte("password"),
+					"database_hostname":     []byte("hostname"),
+					"database_account":      []byte("watcher"),
+					"01-global-custom.conf": []byte(""),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, secret)
+			prometheusSecret := th.CreateSecret(
+				watcherTest.PrometheusSecretName,
+				map[string][]byte{
+					"host": []byte("prometheus.example.com"),
+					"port": []byte("9090"),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, prometheusSecret)
+			spec := GetDefaultWatcherDecisionEngineSpec()
+			spec["topologyRef"] = map[string]interface{}{"name": topologyRefDecEng.Name}
+			DeferCleanup(th.DeleteInstance, CreateWatcherDecisionEngine(watcherTest.WatcherDecisionEngine, spec))
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherDecisionEngine.Namespace))
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.WatcherDecisionEngine.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.WatcherDecisionEngine.Namespace,
+					"openstack",
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+			mariadb.CreateMariaDBAccountAndSecret(
+				watcherTest.WatcherDatabaseAccount,
+				v1beta1.MariaDBAccountSpec{
+					UserName: "watcher",
+				},
+			)
+			mariadb.CreateMariaDBDatabase(
+				watcherTest.WatcherDecisionEngine.Namespace,
+				"watcher",
+				v1beta1.MariaDBDatabaseSpec{
+					Name: "watcher",
+				},
+			)
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherDecisionEngineStatefulSet)
+
+		})
+		It("sets lastAppliedTopology field in WatcherDecisionEngine topology .Status", func() {
+
+			WatcherDecisionEngine := GetWatcherDecisionEngine(watcherTest.WatcherDecisionEngine)
+
+			Expect(WatcherDecisionEngine.Status.LastAppliedTopology).ToNot(BeNil())
+			Expect(WatcherDecisionEngine.Status.LastAppliedTopology).To(Equal(&topologyRefDecEng))
+
+			th.ExpectCondition(
+				watcherTest.WatcherDecisionEngine,
+				ConditionGetterFunc(WatcherDecisionEngineConditionGetter),
+				condition.TopologyReadyCondition,
+				corev1.ConditionTrue,
+			)
+
+			Eventually(func(g Gomega) {
+				ss := th.GetStatefulSet(watcherTest.WatcherDecisionEngineStatefulSet)
+				podTemplate := ss.Spec.Template.Spec
+				g.Expect(podTemplate.TopologySpreadConstraints).ToNot(BeNil())
+				// No default Pod Antiaffinity is applied
+				g.Expect(podTemplate.Affinity).To(BeNil())
+			}, timeout, interval).Should(Succeed())
+
+			// Check finalizer
+			Eventually(func(g Gomega) {
+				tp := infra.GetTopology(types.NamespacedName{
+					Name:      topologyRefDecEng.Name,
+					Namespace: topologyRefDecEng.Namespace,
+				})
+				finalizers := tp.GetFinalizers()
+				g.Expect(finalizers).To(ContainElement(
+					fmt.Sprintf("openstack.org/watcherdecisionengine-%s", watcherTest.WatcherDecisionEngine.Name)))
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				tpAlt := infra.GetTopology(types.NamespacedName{
+					Name:      topologyRefAlt.Name,
+					Namespace: topologyRefAlt.Namespace,
+				})
+				finalizers := tpAlt.GetFinalizers()
+				g.Expect(finalizers).ToNot(ContainElement(
+					fmt.Sprintf("openstack.org/watcherdecisionengine-%s", watcherTest.WatcherDecisionEngine.Name)))
+			}, timeout, interval).Should(Succeed())
+		})
+		It("updates lastAppliedTopology in WatcherDecisionEngine .Status", func() {
+			Eventually(func(g Gomega) {
+				WatcherDecisionEngine := GetWatcherDecisionEngine(watcherTest.WatcherDecisionEngine)
+				WatcherDecisionEngine.Spec.TopologyRef.Name = topologyRefAlt.Name
+				g.Expect(k8sClient.Update(ctx, WatcherDecisionEngine)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				WatcherDecisionEngine := GetWatcherDecisionEngine(watcherTest.WatcherDecisionEngine)
+				g.Expect(WatcherDecisionEngine.Status.LastAppliedTopology).ToNot(BeNil())
+				g.Expect(WatcherDecisionEngine.Status.LastAppliedTopology).To(Equal(&topologyRefAlt))
+			}, timeout, interval).Should(Succeed())
+
+			th.ExpectCondition(
+				watcherTest.WatcherDecisionEngine,
+				ConditionGetterFunc(WatcherDecisionEngineConditionGetter),
+				condition.TopologyReadyCondition,
+				corev1.ConditionTrue,
+			)
+
+			Eventually(func(g Gomega) {
+				ss := th.GetStatefulSet(watcherTest.WatcherDecisionEngine)
+				podTemplate := ss.Spec.Template.Spec
+				g.Expect(podTemplate.TopologySpreadConstraints).ToNot(BeNil())
+				// No default Pod Antiaffinity is applied
+				g.Expect(podTemplate.Affinity).To(BeNil())
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				ss := th.GetStatefulSet(watcherTest.WatcherDecisionEngine)
+				podTemplate := ss.Spec.Template.Spec
+				g.Expect(podTemplate.TopologySpreadConstraints).To(Equal(expectedTopologySpec))
+			}, timeout, interval).Should(Succeed())
+
+			// Check finalizer is set to topologyRefAlt and is not set to
+			// topologyRef
+			Eventually(func(g Gomega) {
+				tp := infra.GetTopology(types.NamespacedName{
+					Name:      topologyRefDecEng.Name,
+					Namespace: topologyRefDecEng.Namespace,
+				})
+				finalizers := tp.GetFinalizers()
+				g.Expect(finalizers).ToNot(ContainElement(
+					fmt.Sprintf("openstack.org/watcherdecisionengine-%s", watcherTest.WatcherDecisionEngine.Name)))
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				tpAlt := infra.GetTopology(types.NamespacedName{
+					Name:      topologyRefAlt.Name,
+					Namespace: topologyRefAlt.Namespace,
+				})
+				finalizers := tpAlt.GetFinalizers()
+				g.Expect(finalizers).To(ContainElement(
+					fmt.Sprintf("openstack.org/watcherdecisionengine-%s", watcherTest.WatcherDecisionEngine.Name)))
+			}, timeout, interval).Should(Succeed())
+		})
+		It("removes topologyRef from WatcherDecisionEngine spec", func() {
+			Eventually(func(g Gomega) {
+				WatcherDecisionEngine := GetWatcherDecisionEngine(watcherTest.WatcherDecisionEngine)
+				WatcherDecisionEngine.Spec.TopologyRef = nil
+				g.Expect(k8sClient.Update(ctx, WatcherDecisionEngine)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				WatcherDecisionEngine := GetWatcherDecisionEngine(watcherTest.WatcherDecisionEngine)
+				g.Expect(WatcherDecisionEngine.Status.LastAppliedTopology).Should(BeNil())
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				ss := th.GetStatefulSet(watcherTest.WatcherDecisionEngine)
+				podTemplate := ss.Spec.Template.Spec
+				g.Expect(podTemplate.TopologySpreadConstraints).To(BeNil())
+				// Default Pod AntiAffinity is applied
+				g.Expect(podTemplate.Affinity).ToNot(BeNil())
+			}, timeout, interval).Should(Succeed())
+
+			// Check finalizer is not present anymore
+			Eventually(func(g Gomega) {
+				tp := infra.GetTopology(types.NamespacedName{
+					Name:      topologyRefDecEng.Name,
+					Namespace: topologyRefDecEng.Namespace,
+				})
+				finalizers := tp.GetFinalizers()
+				g.Expect(finalizers).ToNot(ContainElement(
+					fmt.Sprintf("openstack.org/watcherdecisionengine-%s", watcherTest.WatcherDecisionEngine.Name)))
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				tpAlt := infra.GetTopology(types.NamespacedName{
+					Name:      topologyRefAlt.Name,
+					Namespace: topologyRefAlt.Namespace,
+				})
+				finalizers := tpAlt.GetFinalizers()
+				g.Expect(finalizers).ToNot(ContainElement(
+					fmt.Sprintf("openstack.org/watcherdecisionengine-%s", watcherTest.WatcherDecisionEngine.Name)))
+			}, timeout, interval).Should(Succeed())
+		})
+	})
+
 })
