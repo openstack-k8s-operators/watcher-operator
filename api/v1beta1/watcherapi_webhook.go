@@ -17,7 +17,9 @@ limitations under the License.
 package v1beta1
 
 import (
+	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -73,4 +75,16 @@ func (r *WatcherAPI) ValidateDelete() (admission.Warnings, error) {
 
 	// TODO(user): fill in your validation logic upon object deletion.
 	return nil, nil
+}
+
+// ValidateTopology validates the referenced TopoRef.Namespace.
+func (r *WatcherAPITemplate) ValidateTopology(
+	basePath *field.Path,
+	namespace string,
+) field.ErrorList {
+	return topologyv1.ValidateTopologyRef(
+		r.TopologyRef,
+		*basePath.Child("topologyRef"),
+		namespace,
+	)
 }

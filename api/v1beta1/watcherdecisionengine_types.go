@@ -17,6 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
+	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/tls"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -67,6 +68,9 @@ type WatcherDecisionEngineStatus struct {
 
 	// Map of hashes to track e.g. job status
 	Hash map[string]string `json:"hash,omitempty"`
+
+	// LastAppliedTopology - the last applied Topology
+	LastAppliedTopology *topologyv1.TopoRef `json:"lastAppliedTopology,omitempty"`
 }
 
 // WatcherDecisionEngineTemplate defines the input parameters specified by the user to
@@ -107,4 +111,19 @@ type WatcherDecisionEngineList struct {
 
 func init() {
 	SchemeBuilder.Register(&WatcherDecisionEngine{}, &WatcherDecisionEngineList{})
+}
+
+// GetSpecTopologyRef - Returns the TopologyRef defined in the Spec
+func (instance *WatcherDecisionEngine) GetSpecTopologyRef() *topologyv1.TopoRef {
+	return instance.Spec.TopologyRef
+}
+
+// GetLastAppliedTopology - Returns the LastAppliedTopology Set in the Status
+func (instance *WatcherDecisionEngine) GetLastAppliedTopology() *topologyv1.TopoRef {
+	return instance.Status.LastAppliedTopology
+}
+
+// SetLastAppliedTopology - Sets the LastAppliedTopology value in the Status
+func (instance *WatcherDecisionEngine) SetLastAppliedTopology(topologyRef *topologyv1.TopoRef) {
+	instance.Status.LastAppliedTopology = topologyRef
 }

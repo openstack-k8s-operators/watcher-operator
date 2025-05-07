@@ -31,6 +31,7 @@ import (
 
 	"github.com/go-logr/logr"
 	memcachedv1 "github.com/openstack-k8s-operators/infra-operator/apis/memcached/v1beta1"
+	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
 	keystonev1 "github.com/openstack-k8s-operators/keystone-operator/api/v1beta1"
 	"github.com/openstack-k8s-operators/lib-common/modules/common"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/condition"
@@ -74,7 +75,8 @@ func (r *WatcherApplierReconciler) GetLogger(ctx context.Context) logr.Logger {
 //+kubebuilder:rbac:groups=memcached.openstack.org,resources=memcacheds/finalizers,verbs=update;patch
 //+kubebuilder:rbac:groups=keystone.openstack.org,resources=keystoneendpoints,verbs=get;list;watch;create;update;patch;delete;
 //+kubebuilder:rbac:groups=keystone.openstack.org,resources=keystoneapis,verbs=get;list;watch;
-// +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete;
+//+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete;
+//+kubebuilder:rbac:groups=topology.openstack.org,resources=topologies,verbs=get;list;watch;update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -224,7 +226,30 @@ func (r *WatcherApplierReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 
 	instance.Status.Conditions.MarkTrue(condition.ServiceConfigReadyCondition, condition.ServiceConfigReadyMessage)
 
-	result, err = r.ensureDeployment(ctx, helper, instance, inputHash)
+	//
+	// Handle Topology
+	//
+
+	topology, err := ensureTopology(
+		ctx,
+		helper,
+		instance,      // topologyHandler
+		instance.Name, // finalizer
+		&instance.Status.Conditions,
+		labels.GetLabelSelector(getAPIServiceLabels()),
+	)
+
+	if err != nil {
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			condition.TopologyReadyCondition,
+			condition.ErrorReason,
+			condition.SeverityWarning,
+			condition.TopologyReadyErrorMessage,
+			err.Error()))
+		return ctrl.Result{}, fmt.Errorf("waiting for Topology requirements: %w", err)
+	}
+
+	result, err = r.ensureDeployment(ctx, helper, instance, inputHash, topology)
 	if err != nil {
 		return result, err
 	}
@@ -254,6 +279,12 @@ func (r *WatcherApplierReconciler) initStatus(instance *watcherv1beta1.WatcherAp
 		condition.UnknownCondition(condition.DeploymentReadyCondition, condition.InitReason, condition.DeploymentReadyInitMessage),
 	)
 
+	// Init Topology condition if there's a reference
+	if instance.Spec.TopologyRef != nil {
+		c := condition.UnknownCondition(condition.TopologyReadyCondition, condition.InitReason, condition.TopologyReadyInitMessage)
+		cl.Set(c)
+	}
+
 	instance.Status.Conditions.Init(&cl)
 
 	// Update the lastObserved generation before evaluating conditions
@@ -282,6 +313,16 @@ func (r *WatcherApplierReconciler) reconcileDelete(ctx context.Context, instance
 				return ctrl.Result{}, err
 			}
 		}
+	}
+
+	// Remove finalizer on the Topology CR
+	if ctrlResult, err := topologyv1.EnsureDeletedTopologyRef(
+		ctx,
+		helper,
+		instance.Status.LastAppliedTopology,
+		instance.Name,
+	); err != nil {
+		return ctrlResult, err
 	}
 
 	controllerutil.RemoveFinalizer(instance, helper.GetFinalizer())
@@ -423,6 +464,18 @@ func (r *WatcherApplierReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
+	// index topologyField
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &watcherv1beta1.WatcherApplier{}, topologyField, func(rawObj client.Object) []string {
+		// Extract the topology name from the spec, if one is provided
+		cr := rawObj.(*watcherv1beta1.WatcherApplier)
+		if cr.Spec.TopologyRef == nil {
+			return nil
+		}
+		return []string{cr.Spec.TopologyRef.Name}
+	}); err != nil {
+		return err
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&watcherv1beta1.WatcherApplier{}).
 		Owns(&corev1.Secret{}).
@@ -432,6 +485,9 @@ func (r *WatcherApplierReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(r.findObjectsForSrc),
 			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		).
+		Watches(&topologyv1.Topology{},
+			handler.EnqueueRequestsFromMapFunc(r.findObjectsForSrc),
+			builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Complete(r)
 }
 
@@ -480,12 +536,13 @@ func (r *WatcherApplierReconciler) ensureDeployment(
 	helper *helper.Helper,
 	instance *watcherv1beta1.WatcherApplier,
 	inputHash string,
+	topology *topologyv1.Topology,
 ) (ctrl.Result, error) {
 	Log := r.GetLogger(ctx)
 	Log.Info(fmt.Sprintf("Defining WatcherApplier deployment '%s'", instance.Name))
 
 	ss := statefulset.NewStatefulSet(watcherapplier.StatefulSet(
-		instance, inputHash, getApplierServiceLabels()), r.RequeueTimeout)
+		instance, inputHash, getApplierServiceLabels(), topology), r.RequeueTimeout)
 
 	ctrlResult, err := ss.CreateOrPatch(ctx, helper)
 	if err != nil && !k8s_errors.IsNotFound(err) {

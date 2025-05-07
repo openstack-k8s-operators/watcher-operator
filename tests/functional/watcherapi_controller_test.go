@@ -8,6 +8,7 @@ import (
 
 	//revive:disable-next-line:dot-imports
 	memcachedv1 "github.com/openstack-k8s-operators/infra-operator/apis/memcached/v1beta1"
+	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
 	condition "github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 	. "github.com/openstack-k8s-operators/lib-common/modules/common/test/helpers"
 	"github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
@@ -786,6 +787,319 @@ var _ = Describe("WatcherAPI controller", func() {
 				condition.ErrorReason,
 				"TLSInput error occured in TLS sources field not found in Secret: field tls-ca-bundle.pem not found in Secret "+watcherTest.WatcherAPI.Namespace+"/combined-ca-bundle",
 			)
+		})
+	})
+	When("WatcherAPI is created with a wrong topologyRef", func() {
+		BeforeEach(func() {
+			secret := th.CreateSecret(
+				watcherTest.InternalTopLevelSecretName,
+				map[string][]byte{
+					"WatcherPassword":       []byte("service-password"),
+					"transport_url":         []byte("url"),
+					"database_account":      []byte("watcher"),
+					"database_username":     []byte("watcher"),
+					"database_password":     []byte("watcher-password"),
+					"database_hostname":     []byte("db-hostname"),
+					"01-global-custom.conf": []byte(""),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, secret)
+			prometheusSecret := th.CreateSecret(
+				watcherTest.PrometheusSecretName,
+				map[string][]byte{
+					"host": []byte("prometheus.example.com"),
+					"port": []byte("9090"),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, prometheusSecret)
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: "combined-ca-bundle"},
+					map[string][]byte{
+						"random-field": []byte("some-b64-text"),
+					},
+				))
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.WatcherAPI.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.WatcherAPI.Namespace,
+					"openstack",
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+			mariadb.CreateMariaDBAccountAndSecret(
+				watcherTest.WatcherDatabaseAccount,
+				v1beta1.MariaDBAccountSpec{
+					UserName: "watcher",
+				},
+			)
+			mariadb.CreateMariaDBDatabase(
+				watcherTest.WatcherAPI.Namespace,
+				"watcher",
+				v1beta1.MariaDBDatabaseSpec{
+					Name: "watcher",
+				},
+			)
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+
+			spec := GetDefaultWatcherAPISpec()
+			spec["topologyRef"] = map[string]interface{}{"name": "foo"}
+			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, spec))
+		})
+		It("points to a non existing topology CR", func() {
+			th.ExpectCondition(
+				watcherTest.WatcherAPI,
+				ConditionGetterFunc(WatcherAPIConditionGetter),
+				condition.TopologyReadyCondition,
+				corev1.ConditionFalse,
+			)
+			th.ExpectCondition(
+				watcherTest.WatcherAPI,
+				ConditionGetterFunc(WatcherAPIConditionGetter),
+				condition.ReadyCondition,
+				corev1.ConditionFalse,
+			)
+		})
+	})
+
+	When("WatcherAPI is created with topology", func() {
+		var topologyRefAPI topologyv1.TopoRef
+		var topologyRefAlt topologyv1.TopoRef
+		var expectedTopologySpec []corev1.TopologySpreadConstraint
+		BeforeEach(func() {
+			var topologySpec map[string]interface{}
+			// Build the topology Spec
+			topologySpec, expectedTopologySpec = GetSampleTopologySpec("watcher-api")
+			_ = expectedTopologySpec
+			// Create Test Topologies
+			_, topologyRefAPI = infra.CreateTopology(
+				types.NamespacedName{
+					Namespace: namespace,
+					Name:      "watcherapi"},
+				topologySpec)
+			_, topologyRefAlt = infra.CreateTopology(
+				types.NamespacedName{
+					Namespace: namespace,
+					Name:      "watcher"},
+				topologySpec)
+
+			secret := th.CreateSecret(
+				watcherTest.InternalTopLevelSecretName,
+				map[string][]byte{
+					"WatcherPassword":       []byte("service-password"),
+					"transport_url":         []byte("url"),
+					"database_account":      []byte("watcher"),
+					"database_username":     []byte("watcher"),
+					"database_password":     []byte("watcher-password"),
+					"database_hostname":     []byte("db-hostname"),
+					"01-global-custom.conf": []byte(""),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, secret)
+			prometheusSecret := th.CreateSecret(
+				watcherTest.PrometheusSecretName,
+				map[string][]byte{
+					"host": []byte("prometheus.example.com"),
+					"port": []byte("9090"),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, prometheusSecret)
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: "combined-ca-bundle"},
+					map[string][]byte{
+						"random-field": []byte("some-b64-text"),
+					},
+				))
+			spec := GetDefaultWatcherAPISpec()
+			spec["topologyRef"] = map[string]interface{}{"name": topologyRefAPI.Name}
+			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, spec))
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.WatcherAPI.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.WatcherAPI.Namespace,
+					"openstack",
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+			mariadb.CreateMariaDBAccountAndSecret(
+				watcherTest.WatcherDatabaseAccount,
+				v1beta1.MariaDBAccountSpec{
+					UserName: "watcher",
+				},
+			)
+			mariadb.CreateMariaDBDatabase(
+				watcherTest.WatcherAPI.Namespace,
+				"watcher",
+				v1beta1.MariaDBDatabaseSpec{
+					Name: "watcher",
+				},
+			)
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
+
+		})
+		It("sets lastAppliedTopology field in WatcherAPI topology .Status", func() {
+
+			WatcherAPI := GetWatcherAPI(watcherTest.WatcherAPI)
+
+			Expect(WatcherAPI.Status.LastAppliedTopology).ToNot(BeNil())
+			Expect(WatcherAPI.Status.LastAppliedTopology).To(Equal(&topologyRefAPI))
+
+			th.ExpectCondition(
+				watcherTest.WatcherAPI,
+				ConditionGetterFunc(WatcherAPIConditionGetter),
+				condition.TopologyReadyCondition,
+				corev1.ConditionTrue,
+			)
+
+			Eventually(func(g Gomega) {
+				ss := th.GetStatefulSet(watcherTest.WatcherAPIStatefulSet)
+				podTemplate := ss.Spec.Template.Spec
+				g.Expect(podTemplate.TopologySpreadConstraints).ToNot(BeNil())
+				// No default Pod Antiaffinity is applied
+				g.Expect(podTemplate.Affinity).To(BeNil())
+			}, timeout, interval).Should(Succeed())
+
+			// Check finalizer
+			Eventually(func(g Gomega) {
+				tp := infra.GetTopology(types.NamespacedName{
+					Name:      topologyRefAPI.Name,
+					Namespace: topologyRefAPI.Namespace,
+				})
+				finalizers := tp.GetFinalizers()
+				g.Expect(finalizers).To(ContainElement(
+					fmt.Sprintf("openstack.org/watcherapi-%s", watcherTest.WatcherAPI.Name)))
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				tpAlt := infra.GetTopology(types.NamespacedName{
+					Name:      topologyRefAlt.Name,
+					Namespace: topologyRefAlt.Namespace,
+				})
+				finalizers := tpAlt.GetFinalizers()
+				g.Expect(finalizers).ToNot(ContainElement(
+					fmt.Sprintf("openstack.org/watcherapi-%s", watcherTest.WatcherAPI.Name)))
+			}, timeout, interval).Should(Succeed())
+		})
+		It("updates lastAppliedTopology in WatcherAPI .Status", func() {
+			Eventually(func(g Gomega) {
+				WatcherAPI := GetWatcherAPI(watcherTest.WatcherAPI)
+				WatcherAPI.Spec.TopologyRef.Name = topologyRefAlt.Name
+				g.Expect(k8sClient.Update(ctx, WatcherAPI)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				WatcherAPI := GetWatcherAPI(watcherTest.WatcherAPI)
+				g.Expect(WatcherAPI.Status.LastAppliedTopology).ToNot(BeNil())
+				g.Expect(WatcherAPI.Status.LastAppliedTopology).To(Equal(&topologyRefAlt))
+			}, timeout, interval).Should(Succeed())
+
+			th.ExpectCondition(
+				watcherTest.WatcherAPI,
+				ConditionGetterFunc(WatcherAPIConditionGetter),
+				condition.TopologyReadyCondition,
+				corev1.ConditionTrue,
+			)
+
+			Eventually(func(g Gomega) {
+				ss := th.GetStatefulSet(watcherTest.WatcherAPI)
+				podTemplate := ss.Spec.Template.Spec
+				g.Expect(podTemplate.TopologySpreadConstraints).ToNot(BeNil())
+				// No default Pod Antiaffinity is applied
+				g.Expect(podTemplate.Affinity).To(BeNil())
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				ss := th.GetStatefulSet(watcherTest.WatcherAPI)
+				podTemplate := ss.Spec.Template.Spec
+				g.Expect(podTemplate.TopologySpreadConstraints).To(Equal(expectedTopologySpec))
+			}, timeout, interval).Should(Succeed())
+
+			// Check finalizer is set to topologyRefAlt and is not set to
+			// topologyRef
+			Eventually(func(g Gomega) {
+				tp := infra.GetTopology(types.NamespacedName{
+					Name:      topologyRefAPI.Name,
+					Namespace: topologyRefAPI.Namespace,
+				})
+				finalizers := tp.GetFinalizers()
+				g.Expect(finalizers).ToNot(ContainElement(
+					fmt.Sprintf("openstack.org/watcherapi-%s", watcherTest.WatcherAPI.Name)))
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				tpAlt := infra.GetTopology(types.NamespacedName{
+					Name:      topologyRefAlt.Name,
+					Namespace: topologyRefAlt.Namespace,
+				})
+				finalizers := tpAlt.GetFinalizers()
+				g.Expect(finalizers).To(ContainElement(
+					fmt.Sprintf("openstack.org/watcherapi-%s", watcherTest.WatcherAPI.Name)))
+			}, timeout, interval).Should(Succeed())
+		})
+		It("removes topologyRef from WatcherAPI spec", func() {
+			Eventually(func(g Gomega) {
+				WatcherAPI := GetWatcherAPI(watcherTest.WatcherAPI)
+				WatcherAPI.Spec.TopologyRef = nil
+				g.Expect(k8sClient.Update(ctx, WatcherAPI)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				WatcherAPI := GetWatcherAPI(watcherTest.WatcherAPI)
+				g.Expect(WatcherAPI.Status.LastAppliedTopology).Should(BeNil())
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				ss := th.GetStatefulSet(watcherTest.WatcherAPI)
+				podTemplate := ss.Spec.Template.Spec
+				g.Expect(podTemplate.TopologySpreadConstraints).To(BeNil())
+				// Default Pod AntiAffinity is applied
+				g.Expect(podTemplate.Affinity).ToNot(BeNil())
+			}, timeout, interval).Should(Succeed())
+
+			// Check finalizer is not present anymore
+			Eventually(func(g Gomega) {
+				tp := infra.GetTopology(types.NamespacedName{
+					Name:      topologyRefAPI.Name,
+					Namespace: topologyRefAPI.Namespace,
+				})
+				finalizers := tp.GetFinalizers()
+				g.Expect(finalizers).ToNot(ContainElement(
+					fmt.Sprintf("openstack.org/watcherapi-%s", watcherTest.WatcherAPI.Name)))
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				tpAlt := infra.GetTopology(types.NamespacedName{
+					Name:      topologyRefAlt.Name,
+					Namespace: topologyRefAlt.Namespace,
+				})
+				finalizers := tpAlt.GetFinalizers()
+				g.Expect(finalizers).ToNot(ContainElement(
+					fmt.Sprintf("openstack.org/watcherapi-%s", watcherTest.WatcherAPI.Name)))
+			}, timeout, interval).Should(Succeed())
 		})
 	})
 })

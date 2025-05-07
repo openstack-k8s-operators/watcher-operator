@@ -17,9 +17,11 @@ limitations under the License.
 package v1beta1
 
 import (
-	"errors"
-
+	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -66,12 +68,31 @@ var _ webhook.Validator = &Watcher{}
 func (r *Watcher) ValidateCreate() (admission.Warnings, error) {
 	watcherlog.Info("validate create", "name", r.Name)
 
+	var allErrs field.ErrorList
+	basePath := field.NewPath("spec")
+
 	if *r.Spec.DatabaseInstance == "" || r.Spec.DatabaseInstance == nil {
-		return nil, errors.New("databaseInstance field should not be empty")
+		allErrs = append(
+			allErrs,
+			field.Invalid(
+				basePath.Child("databaseInstance"), "", "databaseInstance field should not be empty"),
+		)
 	}
 
 	if *r.Spec.RabbitMqClusterName == "" || r.Spec.RabbitMqClusterName == nil {
-		return nil, errors.New("rabbitMqClusterName field should not be empty")
+		allErrs = append(
+			allErrs,
+			field.Invalid(
+				basePath.Child("rabbitMqClusterName"), "", "rabbitMqClusterName field should not be empty"),
+		)
+	}
+
+	allErrs = append(allErrs, r.Spec.ValidateWatcherTopology(basePath, r.Namespace)...)
+
+	if len(allErrs) != 0 {
+		return nil, apierrors.NewInvalid(
+			schema.GroupKind{Group: "watcher.openstack.org", Kind: "Watcher"},
+			r.Name, allErrs)
 	}
 
 	return nil, nil
@@ -81,15 +102,35 @@ func (r *Watcher) ValidateCreate() (admission.Warnings, error) {
 func (r *Watcher) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
 	watcherlog.Info("validate update", "name", r.Name)
 
+	var allErrs field.ErrorList
+	basePath := field.NewPath("spec")
+
 	if *r.Spec.DatabaseInstance == "" || r.Spec.DatabaseInstance == nil {
-		return nil, errors.New("databaseInstance field should not be empty")
+		allErrs = append(
+			allErrs,
+			field.Invalid(
+				basePath.Child("databaseInstance"), "", "databaseInstance field should not be empty"),
+		)
 	}
 
 	if *r.Spec.RabbitMqClusterName == "" || r.Spec.RabbitMqClusterName == nil {
-		return nil, errors.New("rabbitMqClusterName field should not be empty")
+		allErrs = append(
+			allErrs,
+			field.Invalid(
+				basePath.Child("rabbitMqClusterName"), "", "rabbitMqClusterName field should not be empty"),
+		)
+	}
+
+	allErrs = append(allErrs, r.Spec.ValidateWatcherTopology(basePath, r.Namespace)...)
+
+	if len(allErrs) != 0 {
+		return nil, apierrors.NewInvalid(
+			schema.GroupKind{Group: "watcher.openstack.org", Kind: "Watcher"},
+			r.Name, allErrs)
 	}
 
 	return nil, nil
+
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
@@ -97,4 +138,32 @@ func (r *Watcher) ValidateDelete() (admission.Warnings, error) {
 	watcherlog.Info("validate delete", "name", r.Name)
 
 	return nil, nil
+}
+
+// ValidateWatcherTopology - Returns an ErrorList if the Topology is referenced
+// on a different namespace
+func (spec *WatcherSpec) ValidateWatcherTopology(basePath *field.Path, namespace string) field.ErrorList {
+	watcherlog.Info("validate topology")
+	var allErrs field.ErrorList
+
+	// When a TopologyRef CR is referenced, fail if a different Namespace is
+	// referenced because is not supported
+	allErrs = append(allErrs, topologyv1.ValidateTopologyRef(
+		spec.TopologyRef, *basePath.Child("topologyRef"), namespace)...)
+
+	// When a TopologyRef CR is referenced with an override to any of the SubCRs, fail
+	// if a different Namespace is referenced because not supported
+	apiPath := basePath.Child("apiServiceTemplate")
+	allErrs = append(allErrs,
+		spec.APIServiceTemplate.ValidateTopology(apiPath, namespace)...)
+
+	decisionEnginePath := basePath.Child("decisionengineServiceTemplate")
+	allErrs = append(allErrs,
+		spec.DecisionEngineServiceTemplate.ValidateTopology(decisionEnginePath, namespace)...)
+
+	applierPath := basePath.Child("applierServiceTemplate")
+	allErrs = append(allErrs,
+		spec.ApplierServiceTemplate.ValidateTopology(applierPath, namespace)...)
+
+	return allErrs
 }

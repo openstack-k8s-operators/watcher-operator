@@ -30,6 +30,7 @@ import (
 	condition "github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 	watcherv1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func GetDefaultWatcherSpec() map[string]interface{} {
@@ -368,4 +369,40 @@ func CreateCertSecret(name types.NamespacedName) *k8s_corev1.Secret {
 	}, timeout, interval).Should(Succeed())
 
 	return s
+}
+
+// GetSampleTopologySpec - An opinionated Topology Spec sample used to
+// test Watcher components. It returns both the user input representation
+// in the form of map[string]string, and the Golang expected representation
+// used in the test asserts.
+func GetSampleTopologySpec(label string) (map[string]interface{}, []corev1.TopologySpreadConstraint) {
+	// Build the topology Spec yaml representation
+	topologySpec := map[string]interface{}{
+		"topologySpreadConstraints": []map[string]interface{}{
+			{
+				"maxSkew":           1,
+				"topologyKey":       corev1.LabelHostname,
+				"whenUnsatisfiable": "ScheduleAnyway",
+				"labelSelector": map[string]interface{}{
+					"matchLabels": map[string]interface{}{
+						"service": label,
+					},
+				},
+			},
+		},
+	}
+	// Build the topologyObj representation
+	topologySpecObj := []corev1.TopologySpreadConstraint{
+		{
+			MaxSkew:           1,
+			TopologyKey:       corev1.LabelHostname,
+			WhenUnsatisfiable: corev1.ScheduleAnyway,
+			LabelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"service": label,
+				},
+			},
+		},
+	}
+	return topologySpec, topologySpecObj
 }
