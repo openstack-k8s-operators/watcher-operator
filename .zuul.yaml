@@ -287,6 +287,7 @@
               - ^setup.cfg$
               - ^tools/.*$
               - ^tox.ini$
+              - ^.zuul.yaml
             # Build watcher-operator always in meta content provider
             vars:
               cifmw_operator_build_operators:
