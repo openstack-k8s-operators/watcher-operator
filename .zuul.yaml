@@ -4,13 +4,7 @@
     default-branch: main
     merge-mode: rebase
     templates:
-      - opendev-master-watcher-operator-pipeline
-    github-check:
-      jobs:
-        - noop
-        - watcher-operator-doc-preview
-        - watcher-operator-validation
-        - watcher-operator-kuttl
+      - opendev-epoxy-watcher-operator-pipeline
 
 - job:
     name: watcher-operator-base
