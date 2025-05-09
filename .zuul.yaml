@@ -10,8 +10,6 @@
       jobs:
         - noop
         - watcher-operator-doc-preview
-        - watcher-operator-validation
-        - watcher-operator-kuttl
 
 - job:
     name: watcher-operator-base
@@ -254,7 +252,6 @@
       jobs:
         - openstack-meta-content-provider-master
         - watcher-operator-validation-master
-        - watcher-operator-validation-ocp4-16
 
 - project-template:
     name: opendev-epoxy-watcher-operator-pipeline
