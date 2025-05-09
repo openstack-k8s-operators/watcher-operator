@@ -3,15 +3,10 @@
     name: openstack-k8s-operators/watcher-operator
     default-branch: main
     merge-mode: rebase
-    templates:
-      - opendev-master-watcher-operator-pipeline
-      - opendev-epoxy-watcher-operator-pipeline
     github-check:
       jobs:
         - noop
-        - watcher-operator-doc-preview
-        - watcher-operator-validation
-        - watcher-operator-kuttl
+        - openstack-meta-content-provider-master
 
 - job:
     name: watcher-operator-base
@@ -208,12 +203,22 @@
     description: |
       A zuul job building content from OpenDev master release.
     parent: openstack-meta-content-provider
+    nodeset: single-centos-10-stream-node
     vars:
-      cifmw_operator_build_meta_build: false
       cifmw_bop_openstack_release: master
-      cifmw_bop_dlrn_baseurl: "https://trunk.rdoproject.org/centos9-master"
+      cifmw_bop_dlrn_baseurl: "https://trunk.rdoproject.org/centos10-master"
       cifmw_repo_setup_branch: master
-      cifmw_build_containers_registry_namespace: podified-master-centos9
+      cifmw_build_containers_registry_namespace: podified-master-centos10
+      cifmw_build_containers_containers_base_image: quay.io/centos/centos:stream10
+      cifmw_repo_setup_promotion: current
+      cifmw_bop_skip: false
+      cifmw_repo_setup_dist_major_version: 10
+      cifmw_build_containers_force: true
+      cifmw_build_containers_image_tag: watcher_latest
+      cifmw_build_containers_exclude_containers:
+        master:
+          centos10:
+            - horizontest
 
 - job:
     name: watcher-operator-validation-master
