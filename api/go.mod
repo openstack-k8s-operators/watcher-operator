@@ -1,6 +1,6 @@
 module github.com/openstack-k8s-operators/watcher-operator/api
 
-go 1.21
+go 1.22
 
 require (
 	github.com/openstack-k8s-operators/lib-common/modules/common v0.6.1-0.20250505061650-7cb2f323fb35
