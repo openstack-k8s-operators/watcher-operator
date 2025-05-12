@@ -109,6 +109,11 @@ type WatcherDecisionEngineList struct {
 	Items           []WatcherDecisionEngine `json:"items"`
 }
 
+// IsReady returns true if the ReadyCondition is true
+func (r *WatcherDecisionEngine) IsReady() bool {
+	return r.Status.Conditions.IsTrue(condition.ReadyCondition)
+}
+
 func init() {
 	SchemeBuilder.Register(&WatcherDecisionEngine{}, &WatcherDecisionEngineList{})
 }

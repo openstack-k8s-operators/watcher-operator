@@ -116,6 +116,11 @@ func (instance Watcher) RbacResourceName() string {
 	return "watcher-" + instance.Name
 }
 
+// IsReady returns true if the ReadyCondition is true
+func (r *Watcher) IsReady() bool {
+	return r.Status.Conditions.IsTrue(condition.ReadyCondition)
+}
+
 func init() {
 	SchemeBuilder.Register(&Watcher{}, &WatcherList{})
 }
