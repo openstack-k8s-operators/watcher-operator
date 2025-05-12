@@ -103,6 +103,11 @@ type WatcherApplier struct {
 	Status WatcherApplierStatus `json:"status,omitempty"`
 }
 
+// IsReady returns true if the ReadyCondition is true
+func (r *WatcherApplier) IsReady() bool {
+	return r.Status.Conditions.IsTrue(condition.ReadyCondition)
+}
+
 //+kubebuilder:object:root=true
 
 // WatcherApplierList contains a list of WatcherApplier

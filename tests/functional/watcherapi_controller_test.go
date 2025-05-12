@@ -107,6 +107,11 @@ var _ = Describe("WatcherAPI controller", func() {
 				return GetWatcherAPI(watcherTest.WatcherAPI).Finalizers
 			}, timeout, interval).Should(ContainElement("openstack.org/watcherapi"))
 		})
+
+		It("should return false when using isReady method", func() {
+			WatcherAPI := GetWatcherAPI(watcherTest.WatcherAPI)
+			Expect(WatcherAPI.IsReady()).Should(BeFalse())
+		})
 	})
 	When("the secret is created with all the expected fields and has all the required infra", func() {
 		BeforeEach(func() {
@@ -248,6 +253,21 @@ var _ = Describe("WatcherAPI controller", func() {
 				condition.KeystoneEndpointReadyCondition,
 				corev1.ConditionTrue,
 			)
+		})
+
+		It("should return true when using isReady method", func() {
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
+			keystone.SimulateKeystoneEndpointReady(watcherTest.WatcherKeystoneEndpointName)
+
+			th.ExpectCondition(
+				watcherTest.WatcherAPI,
+				ConditionGetterFunc(WatcherAPIConditionGetter),
+				condition.ReadyCondition,
+				corev1.ConditionTrue,
+			)
+
+			WatcherAPI := GetWatcherAPI(watcherTest.WatcherAPI)
+			Expect(WatcherAPI.IsReady()).Should(BeTrue())
 		})
 	})
 	When("the secret is created but missing fields", func() {

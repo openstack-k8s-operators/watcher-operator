@@ -131,6 +131,11 @@ type WatcherAPIList struct {
 	Items           []WatcherAPI `json:"items"`
 }
 
+// IsReady returns true if the ReadyCondition is true
+func (r *WatcherAPI) IsReady() bool {
+	return r.Status.Conditions.IsTrue(condition.ReadyCondition)
+}
+
 func init() {
 	SchemeBuilder.Register(&WatcherAPI{}, &WatcherAPIList{})
 }

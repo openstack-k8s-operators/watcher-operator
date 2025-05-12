@@ -106,6 +106,11 @@ var _ = Describe("WatcherDecisionEngine controller", func() {
 				return GetWatcherDecisionEngine(watcherTest.WatcherDecisionEngine).Finalizers
 			}, timeout, interval).Should(ContainElement("openstack.org/watcherdecisionengine"))
 		})
+
+		It("should return false when using isReady method", func() {
+			WatcherDecisionEngine := GetWatcherDecisionEngine(watcherTest.WatcherDecisionEngine)
+			Expect(WatcherDecisionEngine.IsReady()).Should(BeFalse())
+		})
 	})
 	When("the secret is created with all the expected fields", func() {
 		BeforeEach(func() {
@@ -269,6 +274,19 @@ period = 900`,
 			Expect(container.StartupProbe.Exec.Command).To(Equal(probeCmd))
 			Expect(container.LivenessProbe.Exec.Command).To(Equal(probeCmd))
 			Expect(container.ReadinessProbe.Exec.Command).To(Equal(probeCmd))
+		})
+		It("should return true when using isReady method", func() {
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherDecisionEngineStatefulSet)
+
+			th.ExpectCondition(
+				watcherTest.WatcherDecisionEngine,
+				ConditionGetterFunc(WatcherDecisionEngineConditionGetter),
+				condition.ReadyCondition,
+				corev1.ConditionTrue,
+			)
+
+			WatcherDecisionEngine := GetWatcherDecisionEngine(watcherTest.WatcherDecisionEngine)
+			Expect(WatcherDecisionEngine.IsReady()).Should(BeTrue())
 		})
 	})
 	When("the secret is created but missing fields", func() {
