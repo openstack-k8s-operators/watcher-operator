@@ -31,7 +31,7 @@ type WatcherSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	WatcherTemplate `json:",inline"`
+	WatcherSpecCore `json:",inline"`
 
 	WatcherImages `json:",inline"`
 }
@@ -114,6 +114,11 @@ func (instance Watcher) RbacNamespace() string {
 // RbacResourceName - return the name to be used for rbac objects (serviceaccount, role, rolebinding)
 func (instance Watcher) RbacResourceName() string {
 	return "watcher-" + instance.Name
+}
+
+// IsReady returns true if the ReadyCondition is true
+func (r *Watcher) IsReady() bool {
+	return r.Status.Conditions.IsTrue(condition.ReadyCondition)
 }
 
 func init() {

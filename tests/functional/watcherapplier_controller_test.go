@@ -107,6 +107,11 @@ var _ = Describe("WatcherApplier controller", func() {
 				return GetWatcherApplier(watcherTest.WatcherApplier).Finalizers
 			}, timeout, interval).Should(ContainElement("openstack.org/watcherapplier"))
 		})
+
+		It("should return false when using isReady method", func() {
+			WatcherApplier := GetWatcherApplier(watcherTest.WatcherApplier)
+			Expect(WatcherApplier.IsReady()).Should(BeFalse())
+		})
 	})
 	When("the secret is created with all the expected fields and has all the required infra", func() {
 		BeforeEach(func() {
@@ -245,6 +250,19 @@ interface = internal`,
 			Expect(container.StartupProbe.Exec.Command).To(Equal(probeCmd))
 			Expect(container.LivenessProbe.Exec.Command).To(Equal(probeCmd))
 			Expect(container.ReadinessProbe.Exec.Command).To(Equal(probeCmd))
+		})
+		It("should return true when using isReady method", func() {
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherApplierStatefulSet)
+
+			th.ExpectCondition(
+				watcherTest.WatcherApplier,
+				ConditionGetterFunc(WatcherApplierConditionGetter),
+				condition.ReadyCondition,
+				corev1.ConditionTrue,
+			)
+
+			WatcherApplier := GetWatcherApplier(watcherTest.WatcherApplier)
+			Expect(WatcherApplier.IsReady()).Should(BeTrue())
 		})
 	})
 	When("the secret is created but missing fields", func() {
