@@ -17,6 +17,8 @@ limitations under the License.
 package v1beta1
 
 import (
+	"fmt"
+
 	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -68,26 +70,7 @@ var _ webhook.Validator = &Watcher{}
 func (r *Watcher) ValidateCreate() (admission.Warnings, error) {
 	watcherlog.Info("validate create", "name", r.Name)
 
-	var allErrs field.ErrorList
-	basePath := field.NewPath("spec")
-
-	if *r.Spec.DatabaseInstance == "" || r.Spec.DatabaseInstance == nil {
-		allErrs = append(
-			allErrs,
-			field.Invalid(
-				basePath.Child("databaseInstance"), "", "databaseInstance field should not be empty"),
-		)
-	}
-
-	if *r.Spec.RabbitMqClusterName == "" || r.Spec.RabbitMqClusterName == nil {
-		allErrs = append(
-			allErrs,
-			field.Invalid(
-				basePath.Child("rabbitMqClusterName"), "", "rabbitMqClusterName field should not be empty"),
-		)
-	}
-
-	allErrs = append(allErrs, r.Spec.ValidateWatcherTopology(basePath, r.Namespace)...)
+	allErrs := r.Spec.ValidateCreate(field.NewPath("spec"), r.Namespace)
 
 	if len(allErrs) != 0 {
 		return nil, apierrors.NewInvalid(
@@ -98,14 +81,18 @@ func (r *Watcher) ValidateCreate() (admission.Warnings, error) {
 	return nil, nil
 }
 
-// ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (r *Watcher) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
-	watcherlog.Info("validate update", "name", r.Name)
+// ValidateCreate validates the WatcherSpec during the webhook invocation.
+func (r *WatcherSpec) ValidateCreate(basePath *field.Path, namespace string) field.ErrorList {
+	return r.WatcherSpecCore.ValidateCreate(basePath, namespace)
+}
 
+// ValidateCreate validates the WatcherSpecCore during the webhook invocation. It is
+// expected to be called by the validation webhook in the higher level meta
+// operator
+func (r *WatcherSpecCore) ValidateCreate(basePath *field.Path, namespace string) field.ErrorList {
 	var allErrs field.ErrorList
-	basePath := field.NewPath("spec")
 
-	if *r.Spec.DatabaseInstance == "" || r.Spec.DatabaseInstance == nil {
+	if *r.DatabaseInstance == "" || r.DatabaseInstance == nil {
 		allErrs = append(
 			allErrs,
 			field.Invalid(
@@ -113,7 +100,7 @@ func (r *Watcher) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
 		)
 	}
 
-	if *r.Spec.RabbitMqClusterName == "" || r.Spec.RabbitMqClusterName == nil {
+	if *r.RabbitMqClusterName == "" || r.RabbitMqClusterName == nil {
 		allErrs = append(
 			allErrs,
 			field.Invalid(
@@ -121,7 +108,21 @@ func (r *Watcher) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
 		)
 	}
 
-	allErrs = append(allErrs, r.Spec.ValidateWatcherTopology(basePath, r.Namespace)...)
+	allErrs = append(allErrs, r.ValidateWatcherTopology(basePath, namespace)...)
+
+	return allErrs
+}
+
+// ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
+func (r *Watcher) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
+
+	watcherlog.Info("validate update", "name", r.Name)
+	oldWatcher, ok := old.(*Watcher)
+	if !ok || oldWatcher == nil {
+		return nil, apierrors.NewInternalError(fmt.Errorf("unable to convert existing object"))
+	}
+
+	allErrs := r.Spec.ValidateUpdate(oldWatcher.Spec, field.NewPath("spec"), r.Namespace)
 
 	if len(allErrs) != 0 {
 		return nil, apierrors.NewInvalid(
@@ -131,6 +132,38 @@ func (r *Watcher) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
 
 	return nil, nil
 
+}
+
+// ValidateCreate validates the WatcherSpec during the webhook invocation.
+func (r *WatcherSpec) ValidateUpdate(old WatcherSpec, basePath *field.Path, namespace string) field.ErrorList {
+	return r.WatcherSpecCore.ValidateUpdate(old.WatcherSpecCore, basePath, namespace)
+}
+
+// ValidateUpdate validates the WatcherSpecCore during the webhook invocation. It is
+// expected to be called by the validation webhook in the higher level meta
+// operator
+func (r *WatcherSpecCore) ValidateUpdate(old WatcherSpecCore, basePath *field.Path, namespace string) field.ErrorList {
+	var allErrs field.ErrorList
+
+	if *r.DatabaseInstance == "" || r.DatabaseInstance == nil {
+		allErrs = append(
+			allErrs,
+			field.Invalid(
+				basePath.Child("databaseInstance"), "", "databaseInstance field should not be empty"),
+		)
+	}
+
+	if *r.RabbitMqClusterName == "" || r.RabbitMqClusterName == nil {
+		allErrs = append(
+			allErrs,
+			field.Invalid(
+				basePath.Child("rabbitMqClusterName"), "", "rabbitMqClusterName field should not be empty"),
+		)
+	}
+
+	allErrs = append(allErrs, r.ValidateWatcherTopology(basePath, namespace)...)
+
+	return allErrs
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
@@ -142,7 +175,7 @@ func (r *Watcher) ValidateDelete() (admission.Warnings, error) {
 
 // ValidateWatcherTopology - Returns an ErrorList if the Topology is referenced
 // on a different namespace
-func (spec *WatcherSpec) ValidateWatcherTopology(basePath *field.Path, namespace string) field.ErrorList {
+func (spec *WatcherSpecCore) ValidateWatcherTopology(basePath *field.Path, namespace string) field.ErrorList {
 	watcherlog.Info("validate topology")
 	var allErrs field.ErrorList
 
