@@ -77,8 +77,8 @@ type WatcherCommon struct {
 	TopologyRef *topologyv1.TopoRef `json:"topologyRef,omitempty"`
 }
 
-// WatcherTemplate defines the fields used in the top level CR
-type WatcherTemplate struct {
+// WatcherSpecCore defines the fields used from the OpenStackControlPlane CR (does not include images)
+type WatcherSpecCore struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 	WatcherCommon `json:",inline"`
