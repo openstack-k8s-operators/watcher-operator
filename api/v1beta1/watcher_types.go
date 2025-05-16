@@ -31,7 +31,7 @@ type WatcherSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	WatcherTemplate `json:",inline"`
+	WatcherSpecCore `json:",inline"`
 
 	WatcherImages `json:",inline"`
 }
