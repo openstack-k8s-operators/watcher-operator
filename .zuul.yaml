@@ -10,10 +10,6 @@
       jobs:
         - noop
         - watcher-operator-doc-preview
-        - watcher-operator-validation:
-            required-projects:
-              - name: openstack-k8s-operators/ci-framework
-                override-checkout: main
         - watcher-operator-kuttl:
             required-projects:
               - name: openstack-k8s-operators/ci-framework
@@ -203,6 +199,12 @@
       cifmw_test_operator_tempest_namespace: "{{ content_provider_os_registry_url | split('/') | last }}"
       cifmw_test_operator_tempest_image_tag: watcher_latest
 
+- job:
+    name: watcher-operator-validation-epoxy-ocp4-16
+    parent: watcher-operator-validation-epoxy
+    description: |
+      watcher-operator-validation qualification with OCP 4.16
+    nodeset: centos-9-medium-2x-centos-9-crc-extracted-2-39-0-xxl
 
 ##########################################################
 #                                                        #
@@ -251,17 +253,23 @@
             required-projects:
               - name: openstack-k8s-operators/ci-framework
                 override-checkout: main
-        - watcher-operator-validation-ocp4-16:
-            required-projects:
-              - name: openstack-k8s-operators/ci-framework
-                override-checkout: main
 
 - project-template:
     name: opendev-epoxy-watcher-operator-pipeline
     github-check:
       jobs:
-        - openstack-meta-content-provider-epoxy
-        - watcher-operator-validation-epoxy
+        - openstack-meta-content-provider-epoxy:
+            required-projects:
+              - name: openstack-k8s-operators/ci-framework
+                override-checkout: main
+        - watcher-operator-validation-epoxy:
+            required-projects:
+              - name: openstack-k8s-operators/ci-framework
+                override-checkout: main
+        - watcher-operator-validation-epoxy-ocp4-16:
+            required-projects:
+              - name: openstack-k8s-operators/ci-framework
+                override-checkout: main
 
 - project-template:
     name: opendev-watcher-edpm-pipeline
