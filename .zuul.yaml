@@ -3,15 +3,11 @@
     name: openstack-k8s-operators/watcher-operator
     default-branch: main
     merge-mode: rebase
-    templates:
-      - opendev-master-watcher-operator-pipeline
-      - opendev-epoxy-watcher-operator-pipeline
     github-check:
       jobs:
         - noop
-        - watcher-operator-doc-preview
-        - watcher-operator-validation
-        - watcher-operator-kuttl
+        - openstack-meta-content-provider-master
+        - watcher-operator-validation-master
 
 - job:
     name: watcher-operator-base
@@ -208,16 +204,47 @@
     description: |
       A zuul job building content from OpenDev master release.
     parent: openstack-meta-content-provider
+    nodeset: single-centos-10-stream-node
     vars:
-      cifmw_operator_build_meta_build: false
       cifmw_bop_openstack_release: master
-      cifmw_bop_dlrn_baseurl: "https://trunk.rdoproject.org/centos9-master"
+      cifmw_bop_dlrn_baseurl: "https://trunk.rdoproject.org/centos10-master"
       cifmw_repo_setup_branch: master
-      cifmw_build_containers_registry_namespace: podified-master-centos9
+      cifmw_build_containers_registry_namespace: podified-master-centos10
+      cifmw_build_containers_containers_base_image: quay.io/centos/centos:stream10
+      cifmw_repo_setup_promotion: current
+      cifmw_repo_setup_dist_major_version: 10
+      cifmw_build_containers_force: true
+      cifmw_build_containers_image_tag: watcher_latest
+      cifmw_build_containers_tcib_src: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/tcib"
+      cifmw_build_containers_install_from_source: true
+      cifmw_bop_initial_dlrn_config: centos10-stream
+      cifmw_bop_dlrn_target: centos10-stream
+      cifmw_bop_dlrn_from_source: true
+
+- nodeset:
+    name: centos-9-medium-2x-centos-9-crc-cloud-ocp-4-18-1-xxl-vexxhost
+    nodes:
+      - name: controller
+        label: cloud-centos-9-stream-tripleo-vexxhost-medium
+      - name: compute-0
+        label: cloud-centos-9-stream-tripleo-vexxhost
+      - name: compute-1
+        label: cloud-centos-9-stream-tripleo-vexxhost
+      - name: crc
+        label: crc-cloud-ocp-4-18-1-xxl
+    groups:
+      - name: computes
+        nodes:
+          - compute-0
+          - compute-1
+      - name: ocps
+        nodes:
+          - crc
 
 - job:
     name: watcher-operator-validation-master
     parent: watcher-operator-validation-base
+    nodeset: centos-9-medium-2x-centos-9-crc-cloud-ocp-4-18-1-xxl-vexxhost
     description: |
       A Zuul job consuming content from openstack-meta-content-provider-master
       and deploying EDPM with master content.
@@ -225,7 +252,18 @@
       cifmw_repo_setup_branch: master
       # To consume containers from meta content provider
       cifmw_update_containers_openstack: true
-      cifmw_update_containers_org: podified-master-centos9
+      cifmw_update_containers_org: podified-master-centos10
+      fetch_dlrn_hash: false
+      watcher_services_tag: watcher_latest
+      watcher_registry_url: "{{ content_provider_os_registry_url }}"
+      cifmw_update_containers_tag: watcher_latest
+      cifmw_update_containers_registry: "{{ content_provider_os_registry_url  | split('/') | first }}"
+      cifmw_test_operator_tempest_image_tag: watcher_latest
+    extra-vars:
+      # Override zuul meta content provider provided content_provider_dlrn_md5_hash
+      # var. As returned dlrn md5 hash comes from master release but job is using
+      # antelope content.
+      content_provider_dlrn_md5_hash: ''
 
 ##########################################################
 #                                                        #
