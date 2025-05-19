@@ -10,7 +10,6 @@
       jobs:
         - noop
         - watcher-operator-doc-preview
-        - watcher-operator-validation
         - watcher-operator-kuttl
 
 - job:
@@ -197,6 +196,12 @@
       cifmw_test_operator_tempest_namespace: "{{ content_provider_os_registry_url | split('/') | last }}"
       cifmw_test_operator_tempest_image_tag: watcher_latest
 
+- job:
+    name: watcher-operator-validation-epoxy-ocp4-16
+    parent: watcher-operator-validation-epoxy
+    description: |
+      watcher-operator-validation qualification with OCP 4.16
+    nodeset: centos-9-medium-2x-centos-9-crc-extracted-2-39-0-xxl
 
 ##########################################################
 #                                                        #
@@ -254,7 +259,6 @@
       jobs:
         - openstack-meta-content-provider-master
         - watcher-operator-validation-master
-        - watcher-operator-validation-ocp4-16
 
 - project-template:
     name: opendev-epoxy-watcher-operator-pipeline
@@ -262,6 +266,7 @@
       jobs:
         - openstack-meta-content-provider-epoxy
         - watcher-operator-validation-epoxy
+        - watcher-operator-validation-epoxy-ocp4-16
 
 - project-template:
     name: opendev-watcher-edpm-pipeline
