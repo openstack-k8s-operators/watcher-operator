@@ -113,7 +113,7 @@
     parent: watcher-operator-validation
     description: |
       watcher-operator-validation qualification with OCP 4.16
-    nodeset: centos-9-medium-2x-centos-9-crc-extracted-2-39-0-xxl
+    nodeset: centos-9-medium-2x-centos-9-crc-extracted-2-39-0-3xl
 
 - job:
     name: watcher-operator-kuttl
@@ -209,7 +209,7 @@
     parent: watcher-operator-validation-epoxy
     description: |
       watcher-operator-validation qualification with OCP 4.16
-    nodeset: centos-9-medium-2x-centos-9-crc-extracted-2-39-0-xxl
+    nodeset: centos-9-medium-2x-centos-9-crc-extracted-2-39-0-3xl
 
 ##########################################################
 #                                                        #
