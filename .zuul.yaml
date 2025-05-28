@@ -244,10 +244,6 @@
 - job:
     name: watcher-operator-validation-master
     parent: watcher-operator-validation-base
-    # Note(Chandankumar): Make it voting once
-    # github.com/openstack-k8s-operators/watcher-operator/pull/168#issuecomment-2897402858
-    # resolves.
-    voting: false
     description: |
       A Zuul job consuming content from openstack-meta-content-provider-master
       and deploying EDPM with master content.
