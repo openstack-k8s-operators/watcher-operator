@@ -114,6 +114,8 @@ var _ = Describe("WatcherApplier controller", func() {
 		})
 	})
 	When("the secret is created with all the expected fields and has all the required infra", func() {
+		var keystoneAPIName types.NamespacedName
+
 		BeforeEach(func() {
 			secret := th.CreateSecret(
 				watcherTest.InternalTopLevelSecretName,
@@ -153,7 +155,8 @@ var _ = Describe("WatcherApplier controller", func() {
 			)
 			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
 			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
-			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherApplier.Namespace))
+			keystoneAPIName = keystone.CreateKeystoneAPI(watcherTest.WatcherApplier.Namespace)
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystoneAPIName)
 			memcachedSpec := memcachedv1.MemcachedSpec{
 				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
 					Replicas: ptr.To(int32(1)),
@@ -263,6 +266,28 @@ interface = internal`,
 
 			WatcherApplier := GetWatcherApplier(watcherTest.WatcherApplier)
 			Expect(WatcherApplier.IsReady()).Should(BeTrue())
+		})
+		It("updates the KeystoneAuthURL if keystone internal endpoint changes", func() {
+			newInternalEndpoint := "https://keystone-internal"
+
+			keystone.UpdateKeystoneAPIEndpoint(keystoneAPIName, "internal", newInternalEndpoint)
+			logger.Info("Reconfigured")
+
+			th.ExpectCondition(
+				watcherTest.WatcherApplier,
+				ConditionGetterFunc(WatcherApplierConditionGetter),
+				condition.ServiceConfigReadyCondition,
+				corev1.ConditionTrue,
+			)
+
+			Eventually(func(g Gomega) {
+				confSecret := th.GetSecret(watcherTest.WatcherApplierConfigSecret)
+				g.Expect(confSecret).ShouldNot(BeNil())
+
+				conf := string(confSecret.Data["00-default.conf"])
+				g.Expect(conf).Should(
+					ContainSubstring("auth_url = %s", newInternalEndpoint))
+			}, timeout, interval).Should(Succeed())
 		})
 	})
 	When("the secret is created but missing fields", func() {

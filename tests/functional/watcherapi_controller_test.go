@@ -114,6 +114,7 @@ var _ = Describe("WatcherAPI controller", func() {
 		})
 	})
 	When("the secret is created with all the expected fields and has all the required infra", func() {
+		var keystoneAPIName types.NamespacedName
 		BeforeEach(func() {
 			secret := th.CreateSecret(
 				watcherTest.InternalTopLevelSecretName,
@@ -162,7 +163,8 @@ var _ = Describe("WatcherAPI controller", func() {
 			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
 			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
 			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, GetDefaultWatcherAPISpec()))
-			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
+			keystoneAPIName = keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace)
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystoneAPIName)
 			memcachedSpec := memcachedv1.MemcachedSpec{
 				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
 					Replicas: ptr.To(int32(1)),
@@ -268,6 +270,29 @@ var _ = Describe("WatcherAPI controller", func() {
 
 			WatcherAPI := GetWatcherAPI(watcherTest.WatcherAPI)
 			Expect(WatcherAPI.IsReady()).Should(BeTrue())
+		})
+
+		It("updates the KeystoneAuthURL if keystone internal endpoint changes", func() {
+			newInternalEndpoint := "https://keystone-internal"
+
+			keystone.UpdateKeystoneAPIEndpoint(keystoneAPIName, "internal", newInternalEndpoint)
+			logger.Info("Reconfigured")
+
+			th.ExpectCondition(
+				watcherTest.WatcherAPI,
+				ConditionGetterFunc(WatcherAPIConditionGetter),
+				condition.ServiceConfigReadyCondition,
+				corev1.ConditionTrue,
+			)
+
+			Eventually(func(g Gomega) {
+				confSecret := th.GetSecret(watcherTest.WatcherAPIConfigSecret)
+				g.Expect(confSecret).ShouldNot(BeNil())
+
+				conf := string(confSecret.Data["00-default.conf"])
+				g.Expect(conf).Should(
+					ContainSubstring("auth_url = %s", newInternalEndpoint))
+			}, timeout, interval).Should(Succeed())
 		})
 	})
 	When("the secret is created but missing fields", func() {
