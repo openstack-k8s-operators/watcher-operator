@@ -32,7 +32,6 @@ const (
 	caBundleSecretNameField = ".spec.tls.caBundleSecretName"
 	tlsAPIInternalField     = ".spec.tls.api.internal.secretName"
 	tlsAPIPublicField       = ".spec.tls.api.public.secretName"
-	tlsRouteSecretField     = ".spec.apiOverride.tls.secretName"
 	topologyField           = ".spec.topologyRef.Name"
 )
 
@@ -54,7 +53,6 @@ var (
 	watcherWatchFields = []string{
 		passwordSecretField,
 		prometheusSecretField,
-		tlsRouteSecretField,
 	}
 	decisionEngineWatchFields = []string{
 		passwordSecretField,

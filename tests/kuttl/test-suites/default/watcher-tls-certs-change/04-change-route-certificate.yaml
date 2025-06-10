@@ -1,5 +1,0 @@
-apiVersion: kuttl.dev/v1beta1
-kind: TestStep
-commands:
-  - script: |
-      oc patch Certificate -n $NAMESPACE watcher-public-route --type='json' -p='[{"op": "replace", "path": "/spec/dnsNames", "value":['watcher-public-watcher-kuttl-default.apps-crc.testing', 'watcher-public-watcher-kuttl-default.apps-crc.testing.cluster.local']}]'

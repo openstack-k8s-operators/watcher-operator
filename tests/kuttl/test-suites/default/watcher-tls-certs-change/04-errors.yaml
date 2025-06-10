@@ -84,17 +84,18 @@ metadata:
     service: watcher-api
   name: watcher-public
 ---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  labels:
+    public: "true"
+    service: watcher-api
+  name: watcher-public
+---
 apiVersion: keystone.openstack.org/v1beta1
 kind: KeystoneEndpoint
 metadata:
   name: watcher
----
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  labels:
-    service: watcher
-  name: watcher-kuttl-db-purge
 ---
 apiVersion: watcher.openstack.org/v1beta1
 kind: WatcherApplier

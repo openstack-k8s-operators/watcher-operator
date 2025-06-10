@@ -173,90 +173,9 @@ $ oc describe secret osp-secret -n openstack | grep Watcher
 WatcherPassword:                  9 bytes
 ----
 +
-. To expose the watcher services over https, three certificates are needed.
-One will be used to configure TLS on the openshift route, one for the
-watcher internal endpoint and the last one for the watcher public endpoint.
-Watcher does not support creating certificates for TLS, but assumes that the
-user has created them beforehand. To create the certificates, use the Cert-Manager Operator
-installed by the Openstack Operator and create `Certificate` objects.
-+
-Before creating the certificates, note the project where the openstack
-controlplane is deployed, which by default is __openstack__. When creating the
-certificates, you will need to set the name of the project in the DNS names
-section. Also, replace the `example.com` domain in the `watcher-public-route`
-certificate DNS names with you cluster's domain. The domain can be obtained
-running `oc get ingresses.config/cluster -o jsonpath={.spec.domain}`.
-+
-With the right project and domain, create a `watcher-certificates.yaml` file:
-+
-[source,yaml]
-----
----
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: watcher-internal-svc
-spec:
-  dnsNames:
-  - watcher-internal.openstack.svc
-  - watcher-internal.openstack.svc.cluster.local
-  duration: 43800h0m0s
-  issuerRef:
-    group: cert-manager.io
-    kind: Issuer
-    name: rootca-internal
-  secretName: cert-watcher-internal-svc
-  usages:
-  - key encipherment
-  - digital signature
-  - server auth
----
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: watcher-public-route
-spec:
-  dnsNames:
-  - watcher-public-openstack.example.com
-  issuerRef:
-    group: cert-manager.io
-    kind: Issuer
-    name: rootca-public
-  secretName: cert-watcher-public-route
-  usages:
-  - key encipherment
-  - digital signature
-  - server auth
----
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: watcher-public-svc
-spec:
-  dnsNames:
-  - watcher-public.openstack.svc
-  - watcher-public.openstack.svc.cluster.local
-  duration: 43800h0m0s
-  issuerRef:
-    group: cert-manager.io
-    kind: Issuer
-    name: rootca-public
-  secretName: cert-watcher-public-svc
-  usages:
-  - key encipherment
-  - digital signature
-  - server auth
-----
-+
-. `oc apply` the file to create the certificates:
-+
-[,console]
-----
-$ oc apply -f watcher-certificates.yaml
-certificate.cert-manager.io/watcher-internal-svc created
-certificate.cert-manager.io/watcher-public-route created
-certificate.cert-manager.io/watcher-public-svc created
-----
+. To expose the watcher services over https, some certificates are needed
+which will be automatically created by the openstack-operator as part of the
+OpenStackControlPlane creation.
 +
 . Create a file on your workstation named `watcher.yaml` to define the Watcher
   CR. In the `endpointURL` field, replace the `example.com` domain with your
@@ -275,9 +194,6 @@ metadata:
 spec:
   databaseInstance: "openstack"
   secret: <name of the secret with the credentials of the ControlPlane deploy>
-  apiOverride:
-    tls:
-      secretName: cert-watcher-public-route
   apiServiceTemplate:
     override:
       service:

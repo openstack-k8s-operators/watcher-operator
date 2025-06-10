@@ -40,10 +40,6 @@ status:
     reason: Ready
     status: "True"
     type: DBSyncReady
-  - message: Exposing service completed
-    reason: Ready
-    status: "True"
-    type: ExposeServiceReady
   - message: Input data complete
     reason: Ready
     status: "True"

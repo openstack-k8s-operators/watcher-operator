@@ -23,14 +23,11 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	routev1 "github.com/openshift/api/route/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	k8s_corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -50,9 +47,7 @@ import (
 	"github.com/openstack-k8s-operators/lib-common/modules/common/job"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/labels"
 	common_rbac "github.com/openstack-k8s-operators/lib-common/modules/common/rbac"
-	"github.com/openstack-k8s-operators/lib-common/modules/common/route"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/secret"
-	"github.com/openstack-k8s-operators/lib-common/modules/common/service"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/tls"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/util"
 	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
@@ -63,273 +58,6 @@ import (
 	"github.com/openstack-k8s-operators/watcher-operator/pkg/watcher"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 )
-
-// jgilaber helper types to expose services with TLS, copied from
-// openstack-operator, should be removed once watcher-operator is integrated
-// ServiceTLSDetails - tls settings for the endpoint
-type ServiceTLSDetails struct {
-	Enabled  bool
-	CertName string
-	tls.GenericService
-	tls.Ca
-}
-
-// ServiceDetails - service details
-type ServiceDetails struct {
-	Spec         *k8s_corev1.Service
-	OverrideSpec service.RoutedOverrideSpec
-	TLS          ServiceTLSDetails
-}
-
-// RouteDetails - route details
-type RouteDetails struct {
-	Create       bool
-	Route        *routev1.Route
-	OverrideSpec route.OverrideSpec
-	TLS          RouteTLSDetails
-}
-
-// RouteTLSDetails - tls settings for the endpoint
-type RouteTLSDetails struct {
-	Enabled    bool
-	SecretName *string
-	CertName   string
-	IssuerName string
-	tls.Ca
-}
-
-// EndpointDetail - endpoint details
-type EndpointDetail struct {
-	Name        string
-	Namespace   string
-	Type        service.Endpoint
-	Annotations map[string]string
-	Labels      map[string]string
-	Service     ServiceDetails
-	Route       RouteDetails
-	Hostname    *string
-	Proto       service.Protocol
-	EndpointURL string
-}
-
-func (ed *EndpointDetail) ensureRoute(
-	ctx context.Context,
-	helper *helper.Helper,
-	instance *watcherv1beta1.Watcher,
-	svc *k8s_corev1.Service,
-) (ctrl.Result, error) {
-	// check if there is already a route with watcherapi labels
-	routes, err := GetRoutesListWithLabel(ctx, helper, instance.Namespace, getAPIServiceLabels())
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	for _, route := range routes.Items {
-		instanceRef := metav1.OwnerReference{
-			APIVersion:         instance.APIVersion,
-			Kind:               instance.Kind,
-			Name:               instance.GetName(),
-			UID:                instance.GetUID(),
-			BlockOwnerDeletion: ptr.To(true),
-			Controller:         ptr.To(true),
-		}
-
-		owner := metav1.GetControllerOf(&route.ObjectMeta)
-
-		// Delete the route if the service was changed not to expose a route
-		if svc.ObjectMeta.Annotations[service.AnnotationIngressCreateKey] == "false" &&
-			route.Spec.To.Name == ed.Name &&
-			owner != nil && owner.UID == instance.GetUID() {
-			// Delete any other owner refs from ref list to not block deletion until owners are gone
-			route.SetOwnerReferences([]metav1.OwnerReference{instanceRef})
-
-			// Delete route
-			err := helper.GetClient().Delete(ctx, &route)
-			if err != nil && !k8s_errors.IsNotFound(err) {
-				err = fmt.Errorf("Error deleting route %s: %w", route.Name, err)
-				return ctrl.Result{}, err
-			}
-
-			if ed.Service.OverrideSpec.EndpointURL != nil {
-				ed.Service.OverrideSpec.EndpointURL = nil
-				helper.GetLogger().Info(fmt.Sprintf("Service %s override endpointURL removed", svc.Name))
-			}
-		}
-
-	}
-	if ed.Route.Create {
-		if ed.Service.OverrideSpec.EmbeddedLabelsAnnotations == nil {
-			ed.Service.OverrideSpec.EmbeddedLabelsAnnotations = &service.EmbeddedLabelsAnnotations{}
-		}
-		ed.Labels = getAPIServiceLabels()
-
-		ctrlResult, err := ed.CreateRoute(ctx, helper)
-		return ctrlResult, err
-	}
-
-	return ctrl.Result{}, nil
-}
-
-func (ed *EndpointDetail) CreateRoute(
-	ctx context.Context,
-	helper *helper.Helper,
-) (ctrl.Result, error) {
-	// initialize the route with any custom provided route override
-	// per default use the service name as targetPortName if we don't have the annotation.
-	targetPortName := ed.Service.Spec.Name
-	if name, ok := ed.Service.Spec.ObjectMeta.Annotations[service.AnnotationIngressTargetPortNameKey]; ok && name != "" {
-		targetPortName = name
-	}
-	endptRoute, err := route.NewRoute(
-		route.GenericRoute(&route.GenericRouteDetails{
-			Name:           ed.Name,
-			Namespace:      ed.Namespace,
-			Labels:         ed.Labels,
-			ServiceName:    ed.Service.Spec.Name,
-			TargetPortName: targetPortName,
-		}),
-		time.Duration(5)*time.Second,
-		[]route.OverrideSpec{ed.Route.OverrideSpec},
-	)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-
-	// if route TLS is disabled -> create the route
-	// if TLS is enabled and the route does not yet exist -> create the route
-	// to get the hostname for creating the cert
-	serviceRoute := &routev1.Route{}
-	err = helper.GetClient().Get(ctx, types.NamespacedName{Name: ed.Name, Namespace: ed.Namespace}, serviceRoute)
-	if !ed.Route.TLS.Enabled || (ed.Route.TLS.Enabled && err != nil && k8s_errors.IsNotFound(err)) {
-		ctrlResult, err := endptRoute.CreateOrPatch(ctx, helper)
-		if (err != nil) || (ctrlResult != ctrl.Result{}) {
-			return ctrlResult, err
-		}
-
-		ed.Hostname = ptr.To(endptRoute.GetHostname())
-	} else if err != nil {
-		return ctrl.Result{}, err
-	} else {
-		ed.Hostname = &serviceRoute.Spec.Host
-	}
-
-	// if TLS is enabled for the route
-	if ed.Route.TLS.Enabled {
-		var ctrlResult reconcile.Result
-
-		certSecret := &k8s_corev1.Secret{}
-
-		// if a custom cert secret was provided, check if it exist
-		// and has the required cert, key and cacert
-		// Right now there is no check if certificate is valid for
-		// the hostname of the route. If the referenced secret is
-		// there and has the required files it is just being used.
-		if ed.Route.TLS.SecretName != nil {
-			certSecret, _, err = secret.GetSecret(ctx, helper, *ed.Route.TLS.SecretName, ed.Namespace)
-			if err != nil {
-				if k8s_errors.IsNotFound(err) {
-					return ctrl.Result{}, fmt.Errorf("certificate secret %s not found: %w", *ed.Route.TLS.SecretName, err)
-				}
-
-				return ctrl.Result{}, err
-			}
-
-			// check if secret has the expected entries tls.crt, tls.key and ca.crt
-			if certSecret != nil {
-				for _, key := range []string{"tls.crt", "tls.key", "ca.crt"} {
-					if _, exist := certSecret.Data[key]; !exist {
-						return ctrl.Result{}, fmt.Errorf("certificate secret %s does not provide %s", *ed.Route.TLS.SecretName, key)
-					}
-				}
-			}
-		}
-
-		// create default TLS route override
-		tlsConfig := &routev1.TLSConfig{
-			Termination:                   routev1.TLSTerminationEdge,
-			Certificate:                   string(certSecret.Data[tls.CertKey]),
-			Key:                           string(certSecret.Data[tls.PrivateKey]),
-			CACertificate:                 string(certSecret.Data[tls.CAKey]),
-			InsecureEdgeTerminationPolicy: routev1.InsecureEdgeTerminationPolicyRedirect,
-		}
-
-		// for internal TLS (TLSE) use routev1.TLSTerminationReencrypt
-		if ed.Service.TLS.Enabled && (ed.Service.TLS.SecretName != nil || hasCertInOverrideSpec(ed.Route.OverrideSpec)) {
-			// get the TLSInternalCABundleFile to add it to the route
-			// to be able to validate public/internal service endpoints
-			tlsConfig.DestinationCACertificate, ctrlResult, err = secret.GetDataFromSecret(
-				ctx, helper, ed.Service.TLS.CaBundleSecretName, 5, tls.InternalCABundleKey,
-			)
-			if (err != nil) || (ctrlResult != ctrl.Result{}) {
-				return ctrlResult, err
-			}
-
-			tlsConfig.Termination = routev1.TLSTerminationReencrypt
-		}
-
-		endptRoute, err = route.NewRoute(
-			endptRoute.GetRoute(),
-			time.Duration(5)*time.Second,
-			[]route.OverrideSpec{
-				{
-					Spec: &route.Spec{
-						TLS: tlsConfig,
-					},
-				},
-				ed.Route.OverrideSpec,
-			},
-		)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-
-		ctrlResult, err = endptRoute.CreateOrPatch(ctx, helper)
-		if (err != nil) || (ctrlResult != ctrl.Result{}) {
-			return ctrlResult, err
-		}
-		ed.Proto = service.ProtocolHTTPS
-	} else {
-		ed.Proto = service.ProtocolHTTP
-	}
-
-	ed.EndpointURL = ed.Proto.String() + "://" + *ed.Hostname
-
-	return ctrl.Result{}, nil
-}
-
-func hasCertInOverrideSpec(overrideSpec route.OverrideSpec) bool {
-	if overrideSpec.Spec == nil {
-		return false
-	}
-	if overrideSpec.Spec.TLS == nil {
-		return false
-	}
-	return overrideSpec.Spec.TLS.CACertificate != "" &&
-		overrideSpec.Spec.TLS.Certificate != "" &&
-		overrideSpec.Spec.TLS.Key != ""
-}
-
-// GetRoutesListWithLabel - Get all routes in namespace of the obj matching label selector
-func GetRoutesListWithLabel(
-	ctx context.Context,
-	h *helper.Helper,
-	namespace string,
-	labelSelectorMap map[string]string,
-) (*routev1.RouteList, error) {
-	routeList := &routev1.RouteList{}
-	listOpts := []client.ListOption{
-		client.InNamespace(namespace),
-		client.MatchingLabels(labelSelectorMap),
-	}
-
-	if err := h.GetClient().List(ctx, routeList, listOpts...); err != nil {
-		err = fmt.Errorf("Error listing routes for %s: %w", labelSelectorMap, err)
-		return nil, err
-	}
-
-	return routeList, nil
-}
-
-// end of helper types to expose services
 
 // WatcherReconciler reconciles a Watcher object
 type WatcherReconciler struct {
@@ -630,32 +358,6 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		return ctrl.Result{}, err
 	}
 
-	ctrlResult, err = r.exposeEndpoints(
-		ctx,
-		helper,
-		instance,
-	)
-	if err != nil {
-		instance.Status.Conditions.Set(condition.FalseCondition(
-			condition.ExposeServiceReadyCondition,
-			condition.ErrorReason,
-			condition.SeverityWarning,
-			condition.ExposeServiceReadyErrorMessage,
-			err.Error(),
-		))
-		return ctrlResult, err
-	} else if (ctrlResult != ctrl.Result{}) {
-		instance.Status.Conditions.Set(condition.FalseCondition(
-			condition.ExposeServiceReadyCondition,
-			condition.RequestedReason,
-			condition.SeverityInfo,
-			condition.ExposeServiceReadyRunningMessage,
-		))
-		return ctrlResult, nil
-	}
-
-	instance.Status.Conditions.MarkTrue(condition.ExposeServiceReadyCondition, condition.ExposeServiceReadyMessage)
-
 	// End of Watcher API creation
 
 	// Create Watcher DecisionEngine
@@ -776,10 +478,6 @@ func (r *WatcherReconciler) initConditions(instance *watcherv1beta1.Watcher) err
 			condition.CronJobReadyCondition,
 			condition.InitReason,
 			condition.CronJobReadyInitMessage),
-		condition.UnknownCondition(
-			condition.ExposeServiceReadyCondition,
-			condition.InitReason,
-			condition.ExposeServiceReadyInitMessage),
 	)
 
 	instance.Status.Conditions.Init(&cl)
@@ -1482,106 +1180,6 @@ func (r *WatcherReconciler) reconcileDelete(ctx context.Context, instance *watch
 	return ctrl.Result{}, nil
 }
 
-func (r *WatcherReconciler) exposeEndpoints(
-	ctx context.Context,
-	helper *helper.Helper,
-	instance *watcherv1beta1.Watcher,
-
-) (ctrl.Result, error) {
-	Log := r.GetLogger(ctx)
-	Log.Info(fmt.Sprintf("Exposing WatcherAPI services '%s'", instance.Name))
-
-	svcs, err := service.GetServicesListWithLabel(
-		ctx,
-		helper,
-		instance.Namespace,
-		getAPIServiceLabels(),
-	)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-
-	// validate that ingress TLS is enabled when PodLevel TLS is enabled
-	hasIngressTLS := instance.Spec.APIOverride.TLS != nil && instance.Spec.APIOverride.TLS.SecretName != ""
-	hasPublicServiceSecretName := instance.Spec.APIServiceTemplate.TLS.API.Public.SecretName != nil &&
-		*instance.Spec.APIServiceTemplate.TLS.API.Public.SecretName != ""
-	if hasPublicServiceSecretName && !hasIngressTLS {
-		err = fmt.Errorf("TLS at ingress level is not configured, but at PodLevel is enabled, please set a secret to enable TLS on ingress")
-		instance.Status.Conditions.Set(condition.FalseCondition(
-			condition.ExposeServiceReadyCondition,
-			condition.ErrorReason,
-			condition.SeverityWarning,
-			condition.ExposeServiceReadyErrorMessage,
-			err.Error(),
-		))
-		return ctrl.Result{}, err
-	}
-
-	for _, svc := range svcs.Items {
-		ed := EndpointDetail{
-			Name:      svc.Name,
-			Namespace: svc.Namespace,
-			Type:      service.Endpoint(svc.Annotations[service.AnnotationEndpointKey]),
-			Service: ServiceDetails{
-				Spec: &svc,
-			},
-		}
-
-		ed.Service.OverrideSpec = instance.Spec.APIServiceTemplate.Override.Service[ed.Type]
-
-		if ed.Type == service.EndpointPublic {
-
-			// if the user has passed a secretName, we want to use TLS on the
-			// pod level
-			ed.Service.TLS.Enabled = hasPublicServiceSecretName
-
-			// If the service has the create ingress annotation and its
-			// a default ClusterIP service -> create route
-			ed.Route.Create = svc.ObjectMeta.Annotations[service.AnnotationIngressCreateKey] == "true" &&
-				svc.Spec.Type == k8s_corev1.ServiceTypeClusterIP
-
-			if instance.Spec.APIOverride.Route != nil {
-				ed.Route.OverrideSpec = *instance.Spec.APIOverride.Route
-			}
-
-			if hasIngressTLS {
-				// TLS for route enabled if public endpoint TLS is true
-				ed.Route.TLS.Enabled = true
-				ed.Route.TLS.CertName = fmt.Sprintf("%s-route", ed.Name)
-
-				ed.Route.TLS.SecretName = ptr.To(instance.Spec.APIOverride.TLS.SecretName)
-				validateSecret := &tls.GenericService{SecretName: ed.Route.TLS.SecretName}
-				_, err := validateSecret.ValidateCertSecret(ctx, helper, instance.GetNamespace())
-				if err != nil {
-					if k8s_errors.IsNotFound(err) {
-						return ctrl.Result{RequeueAfter: time.Duration(10) * time.Second}, nil
-					}
-					return ctrl.Result{}, err
-				}
-			}
-
-			if ed.Service.TLS.Enabled {
-				ed.Service.TLS.CaBundleSecretName = tls.CABundleSecret
-				ed.Service.TLS.SecretName = instance.Spec.APIServiceTemplate.TLS.API.Public.SecretName
-				_, err := ed.Service.TLS.GenericService.ValidateCertSecret(ctx, helper, instance.Namespace)
-				if err != nil {
-					if k8s_errors.IsNotFound(err) {
-						return ctrl.Result{RequeueAfter: time.Duration(10) * time.Second}, nil
-					}
-					return ctrl.Result{}, err
-				}
-			}
-
-			ctrlResult, err := ed.ensureRoute(ctx, helper, instance, &svc)
-			if err != nil || (ctrlResult != ctrl.Result{}) {
-				return ctrlResult, err
-			}
-		}
-	}
-
-	return ctrl.Result{}, nil
-}
-
 // SetupWithManager sets up the controller with the Manager.
 func (r *WatcherReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
@@ -1609,18 +1207,6 @@ func (r *WatcherReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	// index tlsRouteSecretField
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &watcherv1beta1.Watcher{}, tlsRouteSecretField, func(rawObj client.Object) []string {
-		// Extract the secret name from the spec, if one is provided
-		cr := rawObj.(*watcherv1beta1.Watcher)
-		if cr.Spec.APIOverride.TLS == nil || cr.Spec.APIOverride.TLS.SecretName == "" {
-			return nil
-		}
-		return []string{cr.Spec.APIOverride.TLS.SecretName}
-	}); err != nil {
-		return err
-	}
-
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&watcherv1beta1.Watcher{}).
 		Owns(&watcherv1beta1.WatcherAPI{}).
@@ -1636,7 +1222,6 @@ func (r *WatcherReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&batchv1.Job{}).
 		Owns(&batchv1.CronJob{}).
 		Owns(&corev1.Secret{}).
-		Owns(&routev1.Route{}).
 		Watches(
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.findObjectsForSrc),

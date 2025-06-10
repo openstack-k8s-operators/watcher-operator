@@ -51,10 +51,6 @@ status:
     reason: Ready
     status: "True"
     type: DBSyncReady
-  - message: Exposing service completed
-    reason: Ready
-    status: "True"
-    type: ExposeServiceReady
   - message: Input data complete
     reason: Ready
     status: "True"
@@ -365,19 +361,6 @@ spec:
   selector:
     service: watcher-api
   type: ClusterIP
----
-apiVersion: route.openshift.io/v1
-kind: Route
-metadata:
-  labels:
-    service: watcher-api
-  name: watcher-public
-spec:
-  port:
-    targetPort: watcher-public
-  to:
-    kind: Service
-    name: watcher-public
 ---
 apiVersion: keystone.openstack.org/v1beta1
 kind: KeystoneEndpoint

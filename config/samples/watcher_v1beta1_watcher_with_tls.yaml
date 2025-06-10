@@ -10,9 +10,6 @@ metadata:
   name: watcher
 spec:
   databaseInstance: "openstack"
-  apiOverride:
-    tls:
-      secretName: cert-watcher-public-route
   apiServiceTemplate:
     override:
       service:
