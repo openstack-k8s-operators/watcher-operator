@@ -7,6 +7,3 @@ delete:
 - apiVersion: cert-manager.io/v1
   kind: Certificate
   name: watcher-public-svc
-- apiVersion: cert-manager.io/v1
-  kind: Certificate
-  name: watcher-public-route

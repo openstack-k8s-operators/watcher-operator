@@ -55,13 +55,10 @@ type WatcherTestData struct {
 	WatcherDecisionEngineSecret       types.NamespacedName
 	WatcherPublicServiceName          types.NamespacedName
 	WatcherInternalServiceName        types.NamespacedName
-	WatcherRouteName                  types.NamespacedName
-	WatcherInternalRouteName          types.NamespacedName
 	WatcherKeystoneEndpointName       types.NamespacedName
 	WatcherApplier                    types.NamespacedName
 	WatcherApplierConfigSecret        types.NamespacedName
 	WatcherApplierStatefulSet         types.NamespacedName
-	WatcherRouteCertSecret            types.NamespacedName
 	WatcherPublicCertSecret           types.NamespacedName
 	WatcherInternalCertSecret         types.NamespacedName
 	WatcherApplierSecret              types.NamespacedName
@@ -165,14 +162,6 @@ func GetWatcherTestData(watcherName types.NamespacedName) WatcherTestData {
 			Namespace: watcherName.Namespace,
 			Name:      "watcher-internal",
 		},
-		WatcherRouteName: types.NamespacedName{
-			Namespace: watcherName.Namespace,
-			Name:      "watcher-public",
-		},
-		WatcherInternalRouteName: types.NamespacedName{
-			Namespace: watcherName.Namespace,
-			Name:      "watcher-internal",
-		},
 		WatcherKeystoneEndpointName: types.NamespacedName{
 			Namespace: watcherName.Namespace,
 			Name:      "watcher",
@@ -188,10 +177,6 @@ func GetWatcherTestData(watcherName types.NamespacedName) WatcherTestData {
 		WatcherApplierStatefulSet: types.NamespacedName{
 			Namespace: watcherName.Namespace,
 			Name:      "watcher-applier",
-		},
-		WatcherRouteCertSecret: types.NamespacedName{
-			Namespace: watcherName.Namespace,
-			Name:      "cert-watcher-public-route",
 		},
 		WatcherPublicCertSecret: types.NamespacedName{
 			Namespace: watcherName.Namespace,
