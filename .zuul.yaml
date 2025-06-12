@@ -129,6 +129,7 @@
       deploy_watcher_service_extra_vars:
         watcher_catalog_image: "{{ cifmw_operator_build_output['operators']['watcher-operator'].image_catalog }}"
         deploy_watcher_service: false
+        force_watcher_standalone: true
       cifmw_extras:
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
            src_dir }}/ci/scenarios/kuttl.yml"
@@ -163,7 +164,6 @@
     pre-run:
       - ci/playbooks/copy_container_files.yaml
     vars:
-      cifmw_operator_build_meta_build: false
       cifmw_bop_openstack_release: epoxy
       cifmw_bop_dlrn_baseurl: "https://trunk.rdoproject.org/centos9-epoxy"
       cifmw_repo_setup_branch: epoxy
@@ -224,7 +224,6 @@
     parent: openstack-meta-content-provider
     vars:
       cifmw_bop_openstack_release: master
-      cifmw_operator_build_meta_build: false
       cifmw_bop_dlrn_baseurl: "https://trunk.rdoproject.org/centos10-master"
       cifmw_repo_setup_branch: master
       cifmw_build_containers_registry_namespace: podified-master-centos10

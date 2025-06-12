@@ -22,3 +22,6 @@ post_install_operators_kuttl_from_operator:
         deploy_watcher_service_extra_vars | default({}) |
         combine({ 'watcher_repo': watcher_repo })
       }}
+
+# Enable observability operator
+cifmw_deploy_obs: true

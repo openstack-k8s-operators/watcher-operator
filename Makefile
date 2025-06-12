@@ -397,8 +397,16 @@ OPENSTACK_NAMESPACE ?= openstack
 
 .PHONY: watcher_deploy
 watcher_deploy: ## Deploy watcher service
+	# In some cases, when we do not have the mutating webhooks enabled, we need to have images URLs
+	# in the watcher CR and get it replaced by the url of containers to be  tested
+	$(eval TEMPDIR=$(shell mktemp -d))
+	cp ${WATCHER_SAMPLE_CR_PATH} ${TEMPDIR}
+	sed -i "s|WATCHER_API_CI_IMAGE|${WATCHER_API_CI_IMAGE}|g" ${TEMPDIR}/*
+	sed -i "s|WATCHER_APPLIER_CI_IMAGE|${WATCHER_APPLIER_CI_IMAGE}|g" ${TEMPDIR}/*
+	sed -i "s|WATCHER_DECISION_ENGINE_CI_IMAGE|${WATCHER_DECISION_ENGINE_CI_IMAGE}|g" ${TEMPDIR}/*
 	oc apply -f ${WATCHER_SAMPLE_CR_PATH} -n ${OPENSTACK_NAMESPACE}
 	oc wait watcher watcher --for condition=Ready --timeout=600s -n ${OPENSTACK_NAMESPACE}
+	rm -rf ${TEMPDIR}
 
 .PHONY: watcher_deploy_cleanup
 watcher_deploy_cleanup: ## Undeploy watcher service
@@ -414,6 +422,10 @@ watcher_cleanup: ## Cleaning watcher operator via olm
 KUTTL_SUITE ?= default
 KUTTL_NAMESPACE ?= watcher-kuttl-$(KUTTL_SUITE)
 KUTTL_SUITE_DIR ?= tests/kuttl/test-suites/$(KUTTL_SUITE)
+
+.PHONY: stop_watcher_integrated
+stop_watcher_integrated:
+	bash hack/stop_integrated_watcher.sh
 
 .PHONY: kuttl-test-prep
 kuttl-test-prep:
