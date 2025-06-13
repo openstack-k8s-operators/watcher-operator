@@ -125,6 +125,7 @@ type WatcherSpecCore struct {
 	// manifest of several child resources.
 	APIOverride Override `json:"apiOverride,omitempty"`
 
+	// +kubebuilder:validation:Optional
 	// DBPurge defines the parameters for the Watcher DB purging cron job
 	DBPurge WatcherDBPurge `json:"dbPurge"`
 }

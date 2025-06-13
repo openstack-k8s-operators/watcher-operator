@@ -924,7 +924,6 @@ spec:
             - applierContainerImageURL
             - applierServiceTemplate
             - databaseInstance
-            - dbPurge
             - decisionengineContainerImageURL
             - decisionengineServiceTemplate
             - rabbitMqClusterName
