@@ -1,0 +1,87 @@
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: watcher-internal-svc
+spec:
+  dnsNames:
+  - watcher-internal.openstack.svc
+  - watcher-internal.openstack.svc.cluster.local
+  duration: 43800h0m0s
+  issuerRef:
+    group: cert-manager.io
+    kind: Issuer
+    name: rootca-internal
+  secretName: cert-watcher-internal-svc
+  usages:
+  - key encipherment
+  - digital signature
+  - server auth
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: watcher-public-route
+spec:
+  dnsNames:
+  - watcher-public-openstack.apps-crc.testing
+  issuerRef:
+    group: cert-manager.io
+    kind: Issuer
+    name: rootca-public
+  secretName: cert-watcher-public-route
+  usages:
+  - key encipherment
+  - digital signature
+  - server auth
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: watcher-public-svc
+spec:
+  dnsNames:
+  - watcher-public.openstack.svc
+  - watcher-public.openstack.svc.cluster.local
+  duration: 43800h0m0s
+  issuerRef:
+    group: cert-manager.io
+    kind: Issuer
+    name: rootca-public
+  secretName: cert-watcher-public-svc
+  usages:
+  - key encipherment
+  - digital signature
+  - server auth
+---
+apiVersion: watcher.openstack.org/v1beta1
+kind: Watcher
+metadata:
+  name: watcher
+spec:
+  apiContainerImageURL: WATCHER_API_CI_IMAGE
+  applierContainerImageURL: WATCHER_APPLIER_CI_IMAGE
+  decisionengineContainerImageURL: WATCHER_DECISION_ENGINE_CI_IMAGE
+  dbPurge: {}
+  databaseInstance: "openstack"
+  apiOverride:
+    tls:
+      secretName: cert-watcher-public-route
+  apiServiceTemplate:
+    override:
+      service:
+        public:
+          endpointURL: https://watcher-public-openstack.apps-crc.testing
+    tls:
+      caBundleSecretName: "combined-ca-bundle"
+      api:
+        internal:
+          secretName: cert-watcher-internal-svc
+        public:
+          secretName: cert-watcher-public-svc
+  decisionengineServiceTemplate:
+    customServiceConfig: |
+      [watcher_cluster_data_model_collectors.compute]
+      period = 60
+      [watcher_cluster_data_model_collectors.storage]
+      period = 60

@@ -4,10 +4,26 @@
 - name: Deploy Watcher service
   hosts: "{{ cifmw_target_hook_host | default('localhost') }}"
   gather_facts: false
+  vars:
+    watcher_cr_file_full: "ci/full_watcher_v1beta1_watcher_tlse.yaml"
   environment:
     KUBECONFIG: "{{ cifmw_openshift_kubeconfig }}"
     PATH: "{{ cifmw_path }}"
+    CTLPLANE_PATCH: "{{ watcher_ctlplane_patch | default( '{{ watcher_repo }}/ci/ctlplane_watcher_patch.yaml' ) }}"
   tasks:
+    # If the watcher-operator installation is already included in the openstack-operator we don't need to install it as
+    # an standalone operator.
+    - name: Check if Watcher API resources are available
+      ansible.builtin.shell:
+        cmd:
+          oc api-resources --api-group=watcher.openstack.org -o name | grep -q watcher
+      failed_when: false
+      register: watcher_api_resources
+
+    - name: add install_watcher_standalone fact, true if Watcher API resources do not exist
+      set_fact:
+        watcher_operator_standalone: "{{ watcher_api_resources.rc != 0 }}"
+
     - name: Fetch dlrn md5_hash from DLRN repo
       when: fetch_dlrn_hash | default(true) | bool
       ansible.builtin.uri:
@@ -18,34 +34,103 @@
       retries: 6
       delay: 5
 
-    - name: Install Watcher Operator
-      vars:
-        _tag: "{{ latest_dlrn_tag.content | default(watcher_services_tag) | default('current-podified') }}"
-        # When there is no Depends-On from opendev, then content_provider_os_registry_url will return null
-        # value to child job. In that case, we need to set default to quay registry.
-        _registry_url: >-
-          {%- if watcher_registry_url is defined -%}
-          {{ watcher_registry_url }}
-          {%- elif content_provider_os_registry_url is defined and content_provider_os_registry_url == 'null' -%}
-          quay.io/podified-master-centos9
-          {%- else -%}
-          {{ content_provider_os_registry_url | default('quay.io/podified-master-centos9') }}
-          {%- endif -%}
-      cifmw.general.ci_script:
-        output_dir: "{{ cifmw_basedir }}/artifacts"
-        chdir: "{{ watcher_repo }}"
-        script: make watcher
-        extra_args:
-          CATALOG_IMAGE: "{{ watcher_catalog_image | default('quay.io/openstack-k8s-operators/watcher-operator-index:latest') }}"
-          WATCHER_API_CI_IMAGE: "{{ _registry_url }}/openstack-watcher-api:{{ _tag }}"
-          WATCHER_DECISION_ENGINE_CI_IMAGE: "{{ _registry_url }}/openstack-watcher-decision-engine:{{ _tag }}"
-          WATCHER_APPLIER_CI_IMAGE: "{{ _registry_url }}/openstack-watcher-applier:{{ _tag }}"
+    - name: Install standalone watcher-operator if Watcher API resources are not available
+      when: watcher_operator_standalone
+      block:
+        - name: Install Watcher Operator in standalone mode
+          vars:
+            _tag: "{{ latest_dlrn_tag.content | default(watcher_services_tag) | default('current-podified') }}"
+            # When there is no Depends-On from opendev, then content_provider_os_registry_url will return null
+            # value to child job. In that case, we need to set default to quay registry.
+            _registry_url: >-
+              {%- if watcher_registry_url is defined -%}
+              {{ watcher_registry_url }}
+              {%- elif content_provider_os_registry_url is defined and content_provider_os_registry_url == 'null' -%}
+              quay.io/podified-master-centos9
+              {%- else -%}
+              {{ content_provider_os_registry_url | default('quay.io/podified-master-centos9') }}
+              {%- endif -%}
+          cifmw.general.ci_script:
+            output_dir: "{{ cifmw_basedir }}/artifacts"
+            chdir: "{{ watcher_repo }}"
+            script: make watcher
+            extra_args:
+              CATALOG_IMAGE: "{{ watcher_catalog_image | default('quay.io/openstack-k8s-operators/watcher-operator-index:latest') }}"
+              WATCHER_API_CI_IMAGE: "{{ _registry_url }}/openstack-watcher-api:{{ _tag }}"
+              WATCHER_DECISION_ENGINE_CI_IMAGE: "{{ _registry_url }}/openstack-watcher-decision-engine:{{ _tag }}"
+              WATCHER_APPLIER_CI_IMAGE: "{{ _registry_url }}/openstack-watcher-applier:{{ _tag }}"
+
+    # Once the integration in the openstack controlplane is finished and merged everywhere we will be
+    # able to deploy watcher using kustomize in a pre_deploy hook. Until then we need to discover
+    # if the integration is finished and that can not be done in pre_deploy hook as it runs before
+    # make openstack_init so I am implementing it in this playbook which runs in post_deploy
+    - name: Check if a Watcher CR is already created
+      ansible.builtin.shell:
+        cmd:
+          oc get watcher -A -o name | grep -q watcher
+      failed_when: false
+      register: watcher_deployed
+
+    - name: Add watcher_is_deployed fact, true if a Watcher CR exist, otherwise false
+      set_fact:
+        watcher_is_deployed: "{{ watcher_deployed.rc == 0 }}"
+
+    - name: Check if Watcher is fully integrated in the OpenStackControlPlane
+      ansible.builtin.shell:
+        cmd:
+          oc explain openstackcontrolplane.spec|grep -q -w "watcher"
+      failed_when: false
+      register: watcher_controlplane_spec
+
+    - name: Add watcher_in_ctlplane fact, true if Watcher is in the controlplane CRD
+      set_fact:
+        watcher_in_ctlplane: "{{ watcher_controlplane_spec.rc == 0 }}"
 
     - name: Deploy Watcher service
-      when: deploy_watcher_service | default('true') | bool
-      cifmw.general.ci_script:
-        output_dir: "{{ cifmw_basedir }}/artifacts"
-        chdir: "{{ watcher_repo }}"
-        script: make watcher_deploy
-        extra_args:
-          WATCHER_SAMPLE_CR_PATH: "{{ watcher_cr_file | default('ci/watcher_v1beta1_watcher.yaml') }}"
+      when:
+        - deploy_watcher_service | default('true') | bool
+        - not watcher_is_deployed
+      block:
+        # When not using the standalone mode in the operator but watcher is not
+        # in the openstackcontrolplane we do not have mutating webhooks so we need
+        # to override the Watcher CR to use one that includes the container image URLs
+        - name: Set watcher_cr_file to the one with container images
+          when:
+            - not watcher_in_ctlplane
+            - not watcher_operator_standalone
+          set_fact:
+             watcher_cr_file_override: "{{ watcher_cr_file_full }}"
+
+        - name: Deploy Watcher service using standalone Watcher CR
+          when: not watcher_in_ctlplane
+          vars:
+            _tag: "{{ latest_dlrn_tag.content | default(watcher_services_tag) | default('current-podified') }}"
+            # When there is no Depends-On from opendev, then content_provider_os_registry_url will return null
+            # value to child job. In that case, we need to set default to quay registry.
+            _registry_url: >-
+              {%- if watcher_registry_url is defined -%}
+              {{ watcher_registry_url }}
+              {%- elif content_provider_os_registry_url is defined and content_provider_os_registry_url == 'null' -%}
+              quay.io/podified-master-centos9
+              {%- else -%}
+              {{ content_provider_os_registry_url | default('quay.io/podified-master-centos9') }}
+              {%- endif -%}
+          cifmw.general.ci_script:
+            output_dir: "{{ cifmw_basedir }}/artifacts"
+            chdir: "{{ watcher_repo }}"
+            script: make watcher_deploy
+            extra_args:
+              WATCHER_SAMPLE_CR_PATH: "{{ watcher_cr_file_override | default( watcher_cr_file | default('ci/watcher_v1beta1_watcher.yaml')) }}"
+              WATCHER_API_CI_IMAGE: "{{ _registry_url }}/openstack-watcher-api:{{ _tag }}"
+              WATCHER_DECISION_ENGINE_CI_IMAGE: "{{ _registry_url }}/openstack-watcher-decision-engine:{{ _tag }}"
+              WATCHER_APPLIER_CI_IMAGE: "{{ _registry_url }}/openstack-watcher-applier:{{ _tag }}"
+
+        - name: Deploy Watcher service by patching an existing OpenStackControlplane
+          when: watcher_in_ctlplane
+          ansible.builtin.shell:
+            cmd: |
+              set -ex
+              CTLPLANE=$(oc get openstackcontrolplane -n openstack -o jsonpath="{range .items[*]}{@.metadata.name}{end}")
+              oc patch openstackcontrolplane $CTLPLANE -n openstack --type merge --patch-file $CTLPLANE_PATCH
+              oc wait openstackcontrolplane $CTLPLANE -n openstack --for condition=Ready --timeout=600s
+              oc wait watcher watcher -n openstack --for condition=Ready --timeout=600s

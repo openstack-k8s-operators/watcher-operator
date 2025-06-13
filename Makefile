@@ -395,8 +395,16 @@ watcher: ## Install watcher operator via olm
 
 .PHONY: watcher_deploy
 watcher_deploy: ## Deploy watcher service
-	oc apply -f ${WATCHER_SAMPLE_CR_PATH}
+	# In some cases, when we do not have the mutating webhooks enabled, we need to have images URLs
+	# in the watcher CR and get it replaced by the url of containers to be  tested
+	$(eval TEMPDIR=$(shell mktemp -d))
+	cp ${WATCHER_SAMPLE_CR_PATH} ${TEMPDIR}
+	sed -i "s|WATCHER_API_CI_IMAGE|${WATCHER_API_CI_IMAGE}|g" ${TEMPDIR}/*
+	sed -i "s|WATCHER_APPLIER_CI_IMAGE|${WATCHER_APPLIER_CI_IMAGE}|g" ${TEMPDIR}/*
+	sed -i "s|WATCHER_DECISION_ENGINE_CI_IMAGE|${WATCHER_DECISION_ENGINE_CI_IMAGE}|g" ${TEMPDIR}/*
+	oc apply -f ${TEMPDIR}/
 	oc wait watcher watcher --for condition=Ready --timeout=600s
+	rm -rf ${TEMPDIR}
 
 .PHONY: watcher_deploy_cleanup
 watcher_deploy_cleanup: ## Undeploy watcher service

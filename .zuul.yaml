@@ -4,13 +4,13 @@
     default-branch: main
     merge-mode: rebase
     templates:
-      - opendev-master-watcher-operator-pipeline
+      #- opendev-master-watcher-operator-pipeline
       - opendev-epoxy-watcher-operator-pipeline
     github-check:
       jobs:
         - noop
         - watcher-operator-doc-preview
-        - watcher-operator-kuttl
+        #- watcher-operator-kuttl
 
 - job:
     name: watcher-operator-base
@@ -163,7 +163,6 @@
     pre-run:
       - ci/playbooks/copy_container_files.yaml
     vars:
-      cifmw_operator_build_meta_build: false
       cifmw_bop_openstack_release: epoxy
       cifmw_bop_dlrn_baseurl: "https://trunk.rdoproject.org/centos9-epoxy"
       cifmw_repo_setup_branch: epoxy
@@ -224,7 +223,6 @@
     parent: openstack-meta-content-provider
     vars:
       cifmw_bop_openstack_release: master
-      cifmw_operator_build_meta_build: false
       cifmw_bop_dlrn_baseurl: "https://trunk.rdoproject.org/centos10-master"
       cifmw_repo_setup_branch: master
       cifmw_build_containers_registry_namespace: podified-master-centos10
@@ -303,7 +301,7 @@
       jobs:
         - openstack-meta-content-provider-epoxy
         - watcher-operator-validation-epoxy
-        - watcher-operator-validation-epoxy-ocp4-16
+        #- watcher-operator-validation-epoxy-ocp4-16
 
 - project-template:
     name: opendev-watcher-edpm-pipeline

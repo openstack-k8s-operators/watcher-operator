@@ -1,0 +1,10 @@
+spec:
+  watcher:
+    enabled: true
+    databaseInstance: "openstack"
+    decisionengineServiceTemplate:
+      customServiceConfig: |
+        [watcher_cluster_data_model_collectors.compute]
+        period = 60
+        [watcher_cluster_data_model_collectors.storage]
+        period = 60
