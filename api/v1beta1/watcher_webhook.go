@@ -62,6 +62,11 @@ func (spec *WatcherSpec) Default() {
 	spec.WatcherImages.Default(watcherDefaults)
 }
 
+// Default - set defaults for this WatcherSpecCore spec.
+func (spec *WatcherSpecCore) Default() {
+	// no validations . Placeholder for defaulting webhook integrated in the OpenStackControlPlane
+}
+
 //+kubebuilder:webhook:path=/validate-watcher-openstack-org-v1beta1-watcher,mutating=false,failurePolicy=fail,sideEffects=None,groups=watcher.openstack.org,resources=watchers,verbs=create;update,versions=v1beta1,name=vwatcher.kb.io,admissionReviewVersions=v1
 
 var _ webhook.Validator = &Watcher{}
