@@ -9,6 +9,11 @@ pre_deploy_create_coo_subscription:
     type: playbook
     source: "{{ watcher_coo_hook }}"
 post_deploy:
+  - name: Download needed tools
+    type: playbook
+    inventory: "/home/zuul/src/github.com/openstack-k8s-operators/install_yamls/devsetup/hosts"
+    source: "/home/zuul/src/github.com/openstack-k8s-operators/install_yamls/devsetup/download_tools.yaml"
+
   - name: Deploy watcher service
     type: playbook
     source: "{{ watcher_hook }}"
