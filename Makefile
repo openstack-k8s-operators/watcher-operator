@@ -157,9 +157,10 @@ build: generate fmt vet ## Build manager binary.
 .PHONY: run
 run: export METRICS_PORT?=24604
 run: export HEALTH_PORT?=24605
+run: export PPROF_PORT?=8082
 run: export ENABLE_WEBHOOKS?=false
 run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./main.go -metrics-bind-address ":$(METRICS_PORT)" -health-probe-bind-address ":$(HEALTH_PORT)"
+	go run ./main.go -metrics-bind-address ":$(METRICS_PORT)" -health-probe-bind-address ":$(HEALTH_PORT)" -pprof-bind-address ":$(PPROF_PORT)"
 
 
 # Extra vars which will be passed to the Docker-build
@@ -471,6 +472,7 @@ SKIP_CERT ?=false
 .PHONY: run-with-webhook
 run-with-webhook: export METRICS_PORT?=33080
 run-with-webhook: export HEALTH_PORT?=33081
+run-with-webhook: export PPROF_PORT?=8082
 run-with-webhook: export RELATED_IMAGE_WATCHER_API_IMAGE_URL_DEFAULT=${WATCHER_API_CI_IMAGE}
 run-with-webhook: export RELATED_IMAGE_WATCHER_DECISION_ENGINE_IMAGE_URL_DEFAULT=${WATCHER_DECISION_ENGINE_CI_IMAGE}
 run-with-webhook: export RELATED_IMAGE_WATCHER_APPLIER_IMAGE_URL_DEFAULT=${WATCHER_APPLIER_CI_IMAGE}
