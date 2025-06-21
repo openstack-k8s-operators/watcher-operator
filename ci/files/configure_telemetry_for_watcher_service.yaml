@@ -1,0 +1,28 @@
+---
+apiVersion: core.openstack.org/v1beta1
+kind: OpenStackControlPlane
+metadata:
+  name: controlplane
+spec:
+  telemetry:
+    enabled: true
+    template:
+      ceilometer:
+        enabled: true
+      metricStorage:
+        enabled: true
+        customMonitoringStack:
+          alertmanagerConfig:
+            disabled: true
+          prometheusConfig:
+            enableRemoteWriteReceiver: true
+            persistentVolumeClaim:
+              resources:
+                requests:
+                  storage: 20G
+            replicas: 1
+            scrapeInterval: 30s
+          resourceSelector:
+            matchLabels:
+              service: metricStorage
+          retention: 24h

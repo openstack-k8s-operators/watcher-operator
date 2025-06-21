@@ -23,49 +23,8 @@ post_deploy:
         combine({ 'watcher_repo': watcher_repo })
       }}
 
-# controlplane customization to deploy telemetry service
-# customMonitoringStack is used here to allow us to enable
-# enableRemoteWriteReceiver, needed when pushing fake metrics
-# to Prometheus server, via watcher-tempest-plugin.
 cifmw_edpm_prepare_timeout: 60
-cifmw_edpm_prepare_kustomizations:
-  - apiVersion: kustomize.config.k8s.io/v1beta1
-    kind: Kustomization
-    namespace: openstack
-    patches:
-    - patch: |-
-        apiVersion: core.openstack.org/v1beta1
-        kind: OpenStackControlPlane
-        metadata:
-          name: unused
-        spec:
-          telemetry:
-            enabled: true
-            template:
-              metricStorage:
-                enabled: true
-                customMonitoringStack:
-                  alertmanagerConfig:
-                    disabled: true
-                  prometheusConfig:
-                    replicas: 1
-                    enableRemoteWriteReceiver: true
-                    scrapeInterval: 30s
-                    persistentVolumeClaim:
-                      resources:
-                        requests:
-                          storage: 20G
-                  resourceSelector:
-                    matchLabels:
-                      service: metricStorage
-                  retention: 24h
-      target:
-        kind: OpenStackControlPlane
-    - patch: |-
-        - op: remove
-          path: /spec/telemetry/template/metricStorage/monitoringStack
-      target:
-        kind: OpenStackControlPlane
+
 cifmw_install_yamls_whitelisted_vars:
   - 'WATCHER_REPO'
   - 'WATCHER_BRANCH'

@@ -11,6 +11,23 @@
     PATH: "{{ cifmw_path }}"
     CTLPLANE_PATCH: "{{ watcher_ctlplane_patch | default( '{{ watcher_repo }}/ci/ctlplane_watcher_patch.yaml' ) }}"
   tasks:
+    - name: Configure telemetry for watcher service
+      when: deploy_watcher_service | default('true') | bool
+      block:
+        - name: Patch telemetry service to enable Remote Write Receiver
+          cifmw.general.ci_script:
+            output_dir: "{{ cifmw_basedir }}/artifacts"
+            chdir: "{{ watcher_repo }}/ci/files"
+            script: |
+              oc patch openstackcontrolplane controlplane --type='merge' --patch-file configure_telemetry_for_watcher_service.yaml -n openstack
+              oc patch openstackcontrolplane controlplane --type='merge' --patch-file remove-monitoring-stack-field.yaml -n openstack
+
+        - name: Wait for OpenStackControlPlane 'controlplane' to be redeployed
+          ansible.builtin.command:
+            cmd: >-
+              oc wait OpenStackControlPlane controlplane --namespace=openstack
+              --for=condition=Ready --timeout=10m
+
     # If the watcher-operator installation is already included in the openstack-operator we don't need to install it as
     # an standalone operator.
     - name: Check if Watcher API resources are available
@@ -23,7 +40,6 @@
     - name: add watcher_installed_integrated fact, true if Watcher API resources exist
       set_fact:
         watcher_installed_integrated: "{{ watcher_api_resources.rc == 0 }}"
-
     - name: Fetch dlrn md5_hash from DLRN repo
       when: fetch_dlrn_hash | default(true) | bool
       ansible.builtin.uri:
