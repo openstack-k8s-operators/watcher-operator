@@ -1,0 +1,29 @@
+
+# patch-custom-monitoring-stack-merge.yaml
+# This file defines the desired state for the 'customMonitoringStack'
+# within the OpenStackControlPlane resource.
+# Using type='merge' will replace the entire 'customMonitoringStack' object
+# with the content defined here.
+apiVersion: core.openstack.org/v1beta1
+kind: OpenStackControlPlane
+metadata:
+  name: controlplane # Ensure this matches your resource name
+spec:
+  telemetry:
+    template:
+      metricStorage:
+        customMonitoringStack: # This entire object will be replaced
+          alertmanagerConfig:
+            disabled: true
+          prometheusConfig:
+            enableRemoteWriteReceiver: true
+            persistentVolumeClaim:
+              resources:
+                requests:
+                  storage: 20G
+            replicas: 1
+            scrapeInterval: 30s
+          resourceSelector:
+            matchLabels:
+              service: metricStorage
+          retention: 24h

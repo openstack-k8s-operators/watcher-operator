@@ -1,0 +1,6 @@
+# remove-monitoring-stack-field.yaml
+# This file defines a JSON patch to remove the 'monitoringStack' field
+# from the OpenStackControlPlane resource.
+
+- op: remove
+  path: /spec/telemetry/template/metricStorage/monitoringStack

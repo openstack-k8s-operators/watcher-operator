@@ -8,6 +8,36 @@
     KUBECONFIG: "{{ cifmw_openshift_kubeconfig }}"
     PATH: "{{ cifmw_path }}"
   tasks:
+    - name: Check if prometheus-metric-storage resource exists
+      ansible.builtin.command:
+        cmd: oc get prometheus prometheus-metric-storage -o name
+      register: prometheus_resource_exists
+      failed_when: false
+      changed_when: false
+
+    - name: Get Prometheus Custom Resource status
+      when: prometheus_resource_exists.rc == 0
+      ansible.builtin.command:
+        cmd: oc get prometheus prometheus-metric-storage -o jsonpath='{.spec.enableRemoteWriteReceiver}'
+      register: prometheus_cr_status
+
+    - name: Patch telemetry service to enable Remote Write Receiver if not enabled
+      when:
+        - prometheus_resource_exists.rc != 0
+        - prometheus_cr_status.stdout | default('false') | lower != 'true'
+      cifmw.general.ci_script:
+        output_dir: "{{ cifmw_basedir }}/artifacts"
+        chdir: "{{ watcher_repo }}/ci/files"
+        script: |
+          oc patch openstackcontrolplane controlplane --type='merge' --patch-file patch-custom-monitoring-stack-merge.yaml -n openstack
+          oc patch openstackcontrolplane controlplane --type='merge' --patch-file remove-monitoring-stack-field.yaml -n openstack
+
+    - name: Wait for OpenStackControlPlane 'controlplane' to be redeployed
+      ansible.builtin.command:
+        cmd: >-
+          oc wait OpenStackControlPlane controlplane --namespace=openstack
+          --for=condition=ready --timeout=2m
+
     - name: Fetch dlrn md5_hash from DLRN repo
       when: fetch_dlrn_hash | default(true) | bool
       ansible.builtin.uri:
