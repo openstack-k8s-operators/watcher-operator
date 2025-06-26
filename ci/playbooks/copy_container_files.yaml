@@ -1,9 +1,0 @@
----
-- name: Copy watcher containers.yaml file
-  hosts: all
-  tasks:
-    - name: Copy containers.yaml file
-      ansible.builtin.copy:
-        src: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator/ci/files/containers.yaml"
-        dest: "{{ ansible_user_dir }}/containers.yaml"
-        remote_src: true
