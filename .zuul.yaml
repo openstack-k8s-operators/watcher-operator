@@ -85,40 +85,6 @@
         watcher_catalog_image: "{{ cifmw_operator_build_output['operators']['watcher-operator'].image_catalog }}"
 
 - job:
-    name: watcher-operator-validation
-    parent: watcher-operator-validation-base
-    description: |
-      A zuul job to validate the watcher operator and its service deployment.
-      It will deploy podified and EDPM using current-podified antelope content.
-      During watcher deployment, It will fetch master current-podified hash and pull
-      openstack watcher services containers from meta content provider.
-      It will test current-podified control plane EDPM deployment with openstack watcher
-      master content. It deploys watcher using TLSe, and creates the certificates to use.
-    extra-vars:
-      # Override zuul meta content provider provided content_provider_dlrn_md5_hash
-      # var. As returned dlrn md5 hash comes from master release but job is using
-      # antelope content.
-      content_provider_dlrn_md5_hash: ''
-    vars:
-      # Use watcher-tempest-plugin with latest content from master branch
-      cifmw_test_operator_tempest_external_plugin:
-        - repository: "https://opendev.org/openstack/watcher-tempest-plugin.git"
-          changeRepository: "https://review.opendev.org/openstack/watcher-tempest-plugin"
-          changeRefspec: "refs/heads/master"
-      # Donot use openstack services containers from meta content provider master
-      # job.
-      cifmw_update_containers_openstack: false
-      deploy_watcher_service_extra_vars:
-        watcher_cr_file: "ci/watcher_v1beta1_watcher_tlse.yaml"
-
-- job:
-    name: watcher-operator-validation-ocp4-16
-    parent: watcher-operator-validation
-    description: |
-      watcher-operator-validation qualification with OCP 4.16
-    nodeset: centos-9-medium-2x-centos-9-crc-extracted-2-39-0-3xl
-
-- job:
     name: watcher-operator-kuttl
     dependencies: ["openstack-meta-content-provider-master"]
     parent: cifmw-multinode-kuttl-operator-target
