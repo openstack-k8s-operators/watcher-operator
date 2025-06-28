@@ -127,13 +127,12 @@
     description: |
       A zuul job building content from OpenDev epoxy release.
     parent: openstack-meta-content-provider
-    pre-run:
-      - ci/playbooks/copy_container_files.yaml
     vars:
       cifmw_bop_openstack_release: epoxy
       cifmw_bop_dlrn_baseurl: "https://trunk.rdoproject.org/centos9-epoxy"
       cifmw_repo_setup_branch: epoxy
       cifmw_build_containers_registry_namespace: podified-epoxy-centos9
+      zuul_project_container_path: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator/ci/files/containers.yaml"
       cifmw_build_containers_config_file: "{{ ansible_user_dir }}/containers.yaml"
       cifmw_repo_setup_promotion: podified-ci-testing
       cifmw_build_containers_force: true
