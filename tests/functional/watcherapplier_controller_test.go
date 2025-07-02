@@ -35,8 +35,8 @@ var _ = Describe("WatcherApplier controller with minimal spec values", func() {
 		It("should have the Spec fields defaulted", func() {
 			WatcherApplier := GetWatcherApplier(watcherTest.WatcherApplier)
 			Expect(WatcherApplier.Spec.Secret).Should(Equal("osp-secret"))
-			Expect(WatcherApplier.Spec.MemcachedInstance).Should(Equal("memcached"))
-			Expect(WatcherApplier.Spec.PasswordSelectors).Should(Equal(watcherv1beta1.PasswordSelector{Service: "WatcherPassword"}))
+			Expect(*(WatcherApplier.Spec.MemcachedInstance)).Should(Equal("memcached"))
+			Expect(WatcherApplier.Spec.PasswordSelectors).Should(Equal(watcherv1beta1.PasswordSelector{Service: ptr.To("WatcherPassword")}))
 		})
 
 		It("should have the Status fields initialized", func() {
@@ -64,8 +64,8 @@ var _ = Describe("WatcherApplier controller", func() {
 		It("should have the Spec fields defaulted", func() {
 			WatcherApplier := GetWatcherApplier(watcherTest.WatcherApplier)
 			Expect(WatcherApplier.Spec.Secret).Should(Equal("test-osp-secret"))
-			Expect(WatcherApplier.Spec.MemcachedInstance).Should(Equal("memcached"))
-			Expect(WatcherApplier.Spec.PasswordSelectors).Should(Equal(watcherv1beta1.PasswordSelector{Service: "WatcherPassword"}))
+			Expect(*(WatcherApplier.Spec.MemcachedInstance)).Should(Equal("memcached"))
+			Expect(WatcherApplier.Spec.PasswordSelectors).Should(Equal(watcherv1beta1.PasswordSelector{Service: ptr.To("WatcherPassword")}))
 		})
 
 		It("should have the Status fields initialized", func() {

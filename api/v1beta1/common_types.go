@@ -37,7 +37,7 @@ type WatcherCommon struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=watcher
 	// ServiceUser - optional username used for this service to register in keystone
-	ServiceUser string `json:"serviceUser"`
+	ServiceUser *string `json:"serviceUser"`
 
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default={service: WatcherPassword,}
@@ -47,7 +47,7 @@ type WatcherCommon struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=memcached
 	// MemcachedInstance is the name of the Memcached CR that all watcher service will use.
-	MemcachedInstance string `json:"memcachedInstance"`
+	MemcachedInstance *string `json:"memcachedInstance"`
 
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=false
@@ -68,7 +68,7 @@ type WatcherCommon struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=metric-storage-prometheus-endpoint
 	// Secret containing prometheus connection parameters
-	PrometheusSecret string `json:"prometheusSecret"`
+	PrometheusSecret *string `json:"prometheusSecret"`
 
 	// +kubebuilder:validation:Optional
 	// TopologyRef to apply the Topology defined by the associated CR referenced
@@ -91,7 +91,7 @@ type WatcherSpecCore struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=osp-secret
 	// Secret containing all passwords / keys needed
-	Secret string `json:"secret"`
+	Secret *string `json:"secret"`
 
 	// +kubebuilder:validation:Required
 	// MariaDB instance name
@@ -101,7 +101,7 @@ type WatcherSpecCore struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=watcher
 	// DatabaseAccount - MariaDBAccount CR name used for watcher DB, defaults to watcher
-	DatabaseAccount string `json:"databaseAccount"`
+	DatabaseAccount *string `json:"databaseAccount"`
 
 	// +kubebuilder:validation:Required
 	// +kubebuilder:default={replicas:1}
@@ -128,7 +128,7 @@ type PasswordSelector struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default="WatcherPassword"
 	// Service - Selector to get the watcher service user password from the Secret
-	Service string `json:"service"`
+	Service *string `json:"service"`
 }
 
 // WatcherSubCrsCommon

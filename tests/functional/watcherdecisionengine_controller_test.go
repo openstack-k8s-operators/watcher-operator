@@ -34,9 +34,9 @@ var _ = Describe("WatcherDecisionEngine controller with minimal spec values", fu
 
 		It("should have the Spec fields defaulted", func() {
 			WatcherDecisionEngine := GetWatcherDecisionEngine(watcherTest.WatcherDecisionEngine)
-			Expect(WatcherDecisionEngine.Spec.MemcachedInstance).Should(Equal("memcached"))
+			Expect(*(WatcherDecisionEngine.Spec.MemcachedInstance)).Should(Equal("memcached"))
 			Expect(WatcherDecisionEngine.Spec.Secret).Should(Equal("osp-secret"))
-			Expect(WatcherDecisionEngine.Spec.PasswordSelectors).Should(Equal(watcherv1beta1.PasswordSelector{Service: "WatcherPassword"}))
+			Expect(WatcherDecisionEngine.Spec.PasswordSelectors).Should(Equal(watcherv1beta1.PasswordSelector{Service: ptr.To("WatcherPassword")}))
 		})
 
 		It("should have the Status fields initialized", func() {
@@ -64,7 +64,7 @@ var _ = Describe("WatcherDecisionEngine controller", func() {
 		It("should have the Spec fields defaulted", func() {
 			WatcherDecisionEngine := GetWatcherDecisionEngine(watcherTest.WatcherDecisionEngine)
 			Expect(WatcherDecisionEngine.Spec.Secret).Should(Equal("test-osp-secret"))
-			Expect(WatcherDecisionEngine.Spec.MemcachedInstance).Should(Equal("memcached"))
+			Expect(*(WatcherDecisionEngine.Spec.MemcachedInstance)).Should(Equal("memcached"))
 		})
 
 		It("should have the Status fields initialized", func() {

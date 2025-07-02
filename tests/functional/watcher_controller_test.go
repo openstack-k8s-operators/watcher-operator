@@ -48,15 +48,15 @@ var _ = Describe("Watcher controller with minimal spec values", func() {
 		It("should have the Spec fields defaulted", func() {
 			Watcher := GetWatcher(watcherTest.Instance)
 			Expect(*(Watcher.Spec.DatabaseInstance)).Should(Equal("openstack"))
-			Expect(Watcher.Spec.DatabaseAccount).Should(Equal("watcher"))
-			Expect(Watcher.Spec.Secret).Should(Equal("osp-secret"))
-			Expect(Watcher.Spec.PasswordSelectors).Should(Equal(watcherv1beta1.PasswordSelector{Service: "WatcherPassword"}))
+			Expect(*(Watcher.Spec.DatabaseAccount)).Should(Equal("watcher"))
+			Expect(*(Watcher.Spec.Secret)).Should(Equal("osp-secret"))
+			Expect(*(Watcher.Spec.PasswordSelectors.Service)).Should(Equal("WatcherPassword"))
 			Expect(*(Watcher.Spec.RabbitMqClusterName)).Should(Equal("rabbitmq"))
-			Expect(Watcher.Spec.ServiceUser).Should(Equal("watcher"))
+			Expect(*(Watcher.Spec.ServiceUser)).Should(Equal("watcher"))
 			Expect(Watcher.Spec.PreserveJobs).Should(BeFalse())
 			Expect(Watcher.Spec.APIServiceTemplate.TLS.CaBundleSecretName).Should(Equal(""))
 			Expect(Watcher.Spec.CustomServiceConfig).Should(Equal(""))
-			Expect(Watcher.Spec.PrometheusSecret).Should(Equal("metric-storage-prometheus-endpoint"))
+			Expect(*(Watcher.Spec.PrometheusSecret)).Should(Equal("metric-storage-prometheus-endpoint"))
 			Expect(Watcher.Spec.APIServiceTemplate.CustomServiceConfig).Should(Equal(""))
 			Expect(*(Watcher.Spec.DBPurge.Schedule)).Should(Equal("0 1 * * *"))
 			Expect(*(Watcher.Spec.DBPurge.PurgeAge)).Should(Equal(90))
@@ -97,9 +97,9 @@ var _ = Describe("Watcher controller", func() {
 		It("should have the Spec fields defaulted", func() {
 			Watcher := GetWatcher(watcherTest.Instance)
 			Expect(*(Watcher.Spec.DatabaseInstance)).Should(Equal("openstack"))
-			Expect(Watcher.Spec.DatabaseAccount).Should(Equal("watcher"))
-			Expect(Watcher.Spec.ServiceUser).Should(Equal("watcher"))
-			Expect(Watcher.Spec.Secret).Should(Equal("test-osp-secret"))
+			Expect(*(Watcher.Spec.DatabaseAccount)).Should(Equal("watcher"))
+			Expect(*(Watcher.Spec.ServiceUser)).Should(Equal("watcher"))
+			Expect(*(Watcher.Spec.Secret)).Should(Equal("test-osp-secret"))
 			Expect(*(Watcher.Spec.RabbitMqClusterName)).Should(Equal("rabbitmq"))
 			Expect(Watcher.Spec.PreserveJobs).Should(BeFalse())
 
@@ -417,7 +417,7 @@ var _ = Describe("Watcher controller", func() {
 			Expect(int(*WatcherAPI.Spec.Replicas)).To(Equal(1))
 			Expect(WatcherAPI.Spec.NodeSelector).To(BeNil())
 			Expect(WatcherAPI.Spec.CustomServiceConfig).To(Equal(""))
-			Expect(WatcherAPI.Spec.PrometheusSecret).Should(Equal("metric-storage-prometheus-endpoint"))
+			Expect(*WatcherAPI.Spec.PrometheusSecret).Should(Equal("metric-storage-prometheus-endpoint"))
 
 			// Assert that the watcher statefulset is created
 			deployment := th.GetStatefulSet(watcherTest.WatcherAPIStatefulSet)
@@ -454,7 +454,7 @@ var _ = Describe("Watcher controller", func() {
 			Expect(int(*WatcherDecisionEngine.Spec.Replicas)).To(Equal(1))
 			Expect(WatcherDecisionEngine.Spec.NodeSelector).To(BeNil())
 			Expect(WatcherDecisionEngine.Spec.CustomServiceConfig).To(Equal(""))
-			Expect(WatcherDecisionEngine.Spec.PrometheusSecret).Should(Equal("metric-storage-prometheus-endpoint"))
+			Expect(*(WatcherDecisionEngine.Spec.PrometheusSecret)).Should(Equal("metric-storage-prometheus-endpoint"))
 
 			// Assert that the Watcher DecisionEngine statefulset is created
 			decisionengineStatefulSet := th.GetStatefulSet(watcherTest.WatcherDecisionEngineStatefulSet)
@@ -838,14 +838,14 @@ var _ = Describe("Watcher controller", func() {
 		It("should have the Spec fields with the expected values", func() {
 			Watcher := GetWatcher(watcherTest.Instance)
 			Expect(*(Watcher.Spec.DatabaseInstance)).Should(Equal("fakeopenstack"))
-			Expect(Watcher.Spec.DatabaseAccount).Should(Equal("watcher"))
-			Expect(Watcher.Spec.ServiceUser).Should(Equal("fakeuser"))
-			Expect(Watcher.Spec.Secret).Should(Equal("test-osp-secret"))
+			Expect(*(Watcher.Spec.DatabaseAccount)).Should(Equal("watcher"))
+			Expect(*(Watcher.Spec.ServiceUser)).Should(Equal("fakeuser"))
+			Expect(*(Watcher.Spec.Secret)).Should(Equal("test-osp-secret"))
 			Expect(Watcher.Spec.PreserveJobs).Should(BeTrue())
 			Expect(*(Watcher.Spec.RabbitMqClusterName)).Should(Equal("rabbitmq"))
 			Expect(Watcher.Spec.APIServiceTemplate.TLS.CaBundleSecretName).Should(Equal("combined-ca-bundle"))
 			Expect(Watcher.Spec.CustomServiceConfig).Should(Equal("# Global config"))
-			Expect(Watcher.Spec.PrometheusSecret).Should(Equal("custom-prometheus-config"))
+			Expect(*(Watcher.Spec.PrometheusSecret)).Should(Equal("custom-prometheus-config"))
 			Expect(Watcher.Spec.APIServiceTemplate.CustomServiceConfig).Should(Equal("# Service config"))
 			Expect(*(Watcher.Spec.DBPurge.Schedule)).Should(Equal("1 2 * * *"))
 			Expect(*(Watcher.Spec.DBPurge.PurgeAge)).Should(Equal(1))
@@ -1023,7 +1023,7 @@ var _ = Describe("Watcher controller", func() {
 			Expect(*WatcherAPI.Spec.NodeSelector).To(Equal(map[string]string{"foo": "bar"}))
 			Expect(WatcherAPI.Spec.TLS.CaBundleSecretName).Should(Equal("combined-ca-bundle"))
 			Expect(WatcherAPI.Spec.CustomServiceConfig).Should(Equal("# Service config"))
-			Expect(WatcherAPI.Spec.PrometheusSecret).Should(Equal("custom-prometheus-config"))
+			Expect(*WatcherAPI.Spec.PrometheusSecret).Should(Equal("custom-prometheus-config"))
 
 			// Assert that the watcher deployment is created
 			deployment := th.GetStatefulSet(watcherTest.WatcherAPIStatefulSet)
@@ -1104,7 +1104,7 @@ var _ = Describe("Watcher controller", func() {
 			Expect(*WatcherDecisionEngine.Spec.NodeSelector).To(Equal(map[string]string{"foo": "bar"}))
 			Expect(WatcherDecisionEngine.Spec.TLS.CaBundleSecretName).Should(Equal("combined-ca-bundle"))
 			Expect(WatcherDecisionEngine.Spec.CustomServiceConfig).Should(Equal("# Service config DecisionEngine"))
-			Expect(WatcherDecisionEngine.Spec.PrometheusSecret).Should(Equal("custom-prometheus-config"))
+			Expect(*(WatcherDecisionEngine.Spec.PrometheusSecret)).Should(Equal("custom-prometheus-config"))
 
 			// Assert the DecisionEngine StatefulSet is created
 			decisionEngineStatefulSet := th.GetStatefulSet(watcherTest.WatcherDecisionEngineStatefulSet)

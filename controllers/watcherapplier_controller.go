@@ -163,7 +163,7 @@ func (r *WatcherApplierReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		ctx,
 		types.NamespacedName{Namespace: instance.Namespace, Name: instance.Spec.Secret},
 		[]string{
-			instance.Spec.PasswordSelectors.Service,
+			*instance.Spec.PasswordSelectors.Service,
 			TransportURLSelector,
 			DatabaseAccount,
 			DatabaseUsername,
@@ -184,7 +184,7 @@ func (r *WatcherApplierReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	// all our input checks out so report InputReady
 	instance.Status.Conditions.MarkTrue(condition.InputReadyCondition, condition.InputReadyMessage)
 
-	memcached, err := ensureMemcached(ctx, helper, instance.Namespace, instance.Spec.MemcachedInstance, &instance.Status.Conditions)
+	memcached, err := ensureMemcached(ctx, helper, instance.Namespace, *instance.Spec.MemcachedInstance, &instance.Status.Conditions)
 
 	if err != nil {
 		return ctrl.Result{}, err
@@ -307,7 +307,7 @@ func (r *WatcherApplierReconciler) reconcileDelete(ctx context.Context, instance
 	Log.Info(fmt.Sprintf("Reconcile Service '%s' delete started", instance.Name))
 
 	// Remove our finalizer from Memcached
-	memcached, err := memcachedv1.GetMemcachedByName(ctx, helper, instance.Spec.MemcachedInstance, instance.Namespace)
+	memcached, err := memcachedv1.GetMemcachedByName(ctx, helper, *instance.Spec.MemcachedInstance, instance.Namespace)
 	if err != nil && !k8s_errors.IsNotFound(err) {
 		return ctrl.Result{}, nil
 	}
@@ -419,8 +419,8 @@ func (r *WatcherApplierReconciler) generateServiceConfigs(
 			watcher.DatabaseName,
 		),
 		"KeystoneAuthURL":          keystoneInternalURL,
-		"ServicePassword":          string(secret.Data[instance.Spec.PasswordSelectors.Service]),
-		"ServiceUser":              instance.Spec.ServiceUser,
+		"ServicePassword":          string(secret.Data[*instance.Spec.PasswordSelectors.Service]),
+		"ServiceUser":              *instance.Spec.ServiceUser,
 		"TransportURL":             string(secret.Data[TransportURLSelector]),
 		"MemcachedServers":         memcachedInstance.GetMemcachedServerListString(),
 		"MemcachedServersWithInet": memcachedInstance.GetMemcachedServerListWithInetString(),
@@ -449,10 +449,10 @@ func (r *WatcherApplierReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &watcherv1beta1.WatcherApplier{}, prometheusSecretField, func(rawObj client.Object) []string {
 		// Extract the secret name from the spec, if one is provided
 		cr := rawObj.(*watcherv1beta1.WatcherApplier)
-		if cr.Spec.PrometheusSecret == "" {
+		if *cr.Spec.PrometheusSecret == "" {
 			return nil
 		}
-		return []string{cr.Spec.PrometheusSecret}
+		return []string{*cr.Spec.PrometheusSecret}
 	}); err != nil {
 		return err
 	}

@@ -233,9 +233,9 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	// Top level secret
 	hash, _, inputSecret, err := ensureSecret(
 		ctx,
-		types.NamespacedName{Namespace: instance.Namespace, Name: instance.Spec.Secret},
+		types.NamespacedName{Namespace: instance.Namespace, Name: *instance.Spec.Secret},
 		[]string{
-			instance.Spec.PasswordSelectors.Service,
+			*instance.Spec.PasswordSelectors.Service,
 		},
 		helper.GetClient(),
 		&instance.Status.Conditions,
@@ -266,7 +266,7 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 
 	hashPrometheus, _, prometheusSecret, err := ensureSecret(
 		ctx,
-		types.NamespacedName{Namespace: instance.Namespace, Name: instance.Spec.PrometheusSecret},
+		types.NamespacedName{Namespace: instance.Namespace, Name: *instance.Spec.PrometheusSecret},
 		[]string{
 			PrometheusHost,
 			PrometheusPort,
@@ -383,7 +383,7 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	// running with current database account info
 	err = mariadbv1.DeleteUnusedMariaDBAccountFinalizers(
 		ctx, helper, watcher.DatabaseCRName,
-		instance.Spec.DatabaseAccount, instance.Namespace)
+		*instance.Spec.DatabaseAccount, instance.Namespace)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -527,7 +527,7 @@ func (r *WatcherReconciler) ensureDB(
 	// ensure MariaDBAccount exists without being yet associated with any database.
 	// This account record may be created by the openstack-operator up front.
 	_, _, err := mariadbv1.EnsureMariaDBAccount(
-		ctx, h, instance.Spec.DatabaseAccount,
+		ctx, h, *instance.Spec.DatabaseAccount,
 		instance.Namespace, false, watcher.DatabaseUsernamePrefix,
 	)
 	if err != nil {
@@ -551,7 +551,7 @@ func (r *WatcherReconciler) ensureDB(
 		*instance.Spec.DatabaseInstance, // mariadb/galera service to target
 		watcher.DatabaseName,            // name used in CREATE DATABASE in mariadb
 		watcher.DatabaseCRName,          // CR name for MariaDBDatabase
-		instance.Spec.DatabaseAccount,   // CR name for MariaDBAccount
+		*instance.Spec.DatabaseAccount,  // CR name for MariaDBAccount
 		instance.Namespace,              // namespace
 	)
 
@@ -678,9 +678,9 @@ func (r *WatcherReconciler) ensureKeystoneSvc(
 		ServiceName:        watcher.ServiceName,
 		ServiceDescription: "Watcher Service",
 		Enabled:            true,
-		ServiceUser:        instance.Spec.ServiceUser,
-		Secret:             instance.Spec.Secret,
-		PasswordSelector:   instance.Spec.PasswordSelectors.Service,
+		ServiceUser:        *instance.Spec.ServiceUser,
+		Secret:             *instance.Spec.Secret,
+		PasswordSelector:   *instance.Spec.PasswordSelectors.Service,
 	}
 
 	ksSvc := keystonev1.NewKeystoneService(ksSvcSpec, instance.Namespace, serviceLabels, time.Duration(10)*time.Second)
@@ -818,13 +818,13 @@ func (r *WatcherReconciler) createSubLevelSecret(
 	databaseAccount := db.GetAccount()
 	databaseSecret := db.GetSecret()
 	data := map[string]string{
-		instance.Spec.PasswordSelectors.Service: string(inputSecret.Data[instance.Spec.PasswordSelectors.Service]),
-		TransportURLSelector:                    string(transportURLSecret.Data[TransportURLSelector]),
-		DatabaseAccount:                         databaseAccount.Name,
-		DatabaseUsername:                        databaseAccount.Spec.UserName,
-		DatabasePassword:                        string(databaseSecret.Data[mariadbv1.DatabasePasswordSelector]),
-		DatabaseHostname:                        db.GetDatabaseHostname(),
-		watcher.GlobalCustomConfigFileName:      instance.Spec.CustomServiceConfig,
+		*instance.Spec.PasswordSelectors.Service: string(inputSecret.Data[*instance.Spec.PasswordSelectors.Service]),
+		TransportURLSelector:                     string(transportURLSecret.Data[TransportURLSelector]),
+		DatabaseAccount:                          databaseAccount.Name,
+		DatabaseUsername:                         databaseAccount.Spec.UserName,
+		DatabasePassword:                         string(databaseSecret.Data[mariadbv1.DatabasePasswordSelector]),
+		DatabaseHostname:                         db.GetDatabaseHostname(),
+		watcher.GlobalCustomConfigFileName:       instance.Spec.CustomServiceConfig,
 	}
 	secretName := instance.Name
 
@@ -1130,7 +1130,7 @@ func (r *WatcherReconciler) reconcileDelete(ctx context.Context, instance *watch
 	Log.Info(fmt.Sprintf("Reconcile Service '%s' delete started", instance.Name))
 
 	// remove db finalizer first
-	db, err := mariadbv1.GetDatabaseByNameAndAccount(ctx, helper, watcher.DatabaseCRName, instance.Spec.DatabaseAccount, instance.Namespace)
+	db, err := mariadbv1.GetDatabaseByNameAndAccount(ctx, helper, watcher.DatabaseCRName, *instance.Spec.DatabaseAccount, instance.Namespace)
 	if err != nil && !k8s_errors.IsNotFound(err) {
 		return ctrl.Result{}, err
 	}
@@ -1161,7 +1161,7 @@ func (r *WatcherReconciler) reconcileDelete(ctx context.Context, instance *watch
 	prometheusSecret := &corev1.Secret{}
 	reader := helper.GetClient()
 	err = reader.Get(ctx,
-		types.NamespacedName{Namespace: instance.Namespace, Name: instance.Spec.PrometheusSecret},
+		types.NamespacedName{Namespace: instance.Namespace, Name: *instance.Spec.PrometheusSecret},
 		prometheusSecret)
 
 	if err == nil {
@@ -1187,10 +1187,10 @@ func (r *WatcherReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &watcherv1beta1.Watcher{}, passwordSecretField, func(rawObj client.Object) []string {
 		// Extract the secret name from the spec, if one is provided
 		cr := rawObj.(*watcherv1beta1.Watcher)
-		if cr.Spec.Secret == "" {
+		if *cr.Spec.Secret == "" {
 			return nil
 		}
-		return []string{cr.Spec.Secret}
+		return []string{*cr.Spec.Secret}
 	}); err != nil {
 		return err
 	}
@@ -1199,10 +1199,10 @@ func (r *WatcherReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &watcherv1beta1.Watcher{}, prometheusSecretField, func(rawObj client.Object) []string {
 		// Extract the secret name from the spec, if one is provided
 		cr := rawObj.(*watcherv1beta1.Watcher)
-		if cr.Spec.PrometheusSecret == "" {
+		if *cr.Spec.PrometheusSecret == "" {
 			return nil
 		}
-		return []string{cr.Spec.PrometheusSecret}
+		return []string{*cr.Spec.PrometheusSecret}
 	}); err != nil {
 		return err
 	}
