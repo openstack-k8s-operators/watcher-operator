@@ -10,7 +10,6 @@ import (
 	condition "github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 	//revive:disable-next-line:dot-imports
 
-	routev1 "github.com/openshift/api/route/v1"
 	memcachedv1 "github.com/openstack-k8s-operators/infra-operator/apis/memcached/v1beta1"
 	rabbitmqv1 "github.com/openstack-k8s-operators/infra-operator/apis/rabbitmq/v1beta1"
 	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
@@ -522,22 +521,6 @@ var _ = Describe("Watcher controller", func() {
 			// Simulate WatcherDecisionEngine deployment
 			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherDecisionEngineStatefulSet)
 
-			th.ExpectCondition(
-				watcherTest.Watcher,
-				ConditionGetterFunc(WatcherConditionGetter),
-				condition.ExposeServiceReadyCondition,
-				corev1.ConditionTrue,
-			)
-
-			th.AssertRouteExists(watcherTest.WatcherRouteName)
-			// check that the Route has no TLS configuration
-			Eventually(func(g Gomega) {
-				watcherRoute := &routev1.Route{}
-
-				g.Expect(th.K8sClient.Get(th.Ctx, watcherTest.WatcherRouteName, watcherRoute)).Should(Succeed())
-				g.Expect(watcherRoute.Spec.TLS).Should(BeNil())
-
-			}, timeout, interval).Should(Succeed())
 			public := th.GetService(watcherTest.WatcherPublicServiceName)
 			Expect(public.Labels["service"]).To(Equal("watcher-api"))
 			Expect(public.Labels["endpoint"]).To(Equal("public"))
@@ -1250,7 +1233,6 @@ var _ = Describe("Watcher controller", func() {
 						"tls-ca-bundle.pem":      []byte("other-b64-text"),
 					},
 				))
-			DeferCleanup(k8sClient.Delete, ctx, th.CreateCertSecret(watcherTest.WatcherRouteCertSecret))
 			DeferCleanup(k8sClient.Delete, ctx, th.CreateCertSecret(watcherTest.WatcherPublicCertSecret))
 			DeferCleanup(k8sClient.Delete, ctx, th.CreateCertSecret(watcherTest.WatcherInternalCertSecret))
 			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
@@ -1287,28 +1269,6 @@ var _ = Describe("Watcher controller", func() {
 			Expect(*Watcher.Spec.APIServiceTemplate.TLS.API.Public.SecretName).Should(Equal("cert-watcher-public-svc"))
 			Expect(*Watcher.Spec.APIServiceTemplate.TLS.API.Internal.SecretName).Should(Equal("cert-watcher-internal-svc"))
 			Expect(Watcher.Spec.APIServiceTemplate.TLS.CaBundleSecretName).Should(Equal("combined-ca-bundle"))
-			Expect(Watcher.Spec.APIOverride.TLS.SecretName).Should(Equal("cert-watcher-public-route"))
-		})
-		It("should have created a route", func() {
-			th.ExpectCondition(
-				watcherTest.Instance,
-				ConditionGetterFunc(WatcherConditionGetter),
-				condition.ReadyCondition,
-				corev1.ConditionTrue,
-			)
-			th.AssertRouteExists(watcherTest.WatcherRouteName)
-			// check that the Route has Reencrypt termination
-			Eventually(func(g Gomega) {
-				watcherRoute := &routev1.Route{}
-
-				g.Expect(th.K8sClient.Get(th.Ctx, watcherTest.WatcherRouteName, watcherRoute)).Should(Succeed())
-				g.Expect(watcherRoute.Spec.TLS.Certificate).Should(Not(BeEmpty()))
-				g.Expect(watcherRoute.Spec.TLS.Key).Should(Not(BeEmpty()))
-				g.Expect(watcherRoute.Spec.TLS.CACertificate).Should(Not(BeEmpty()))
-				g.Expect(string(watcherRoute.Spec.TLS.Termination)).Should(Equal("reencrypt"))
-
-			}, timeout, interval).Should(Succeed())
-
 		})
 	})
 	When("A Watcher instance with TLS at the route but not at pod level is created", func() {
@@ -1349,7 +1309,6 @@ var _ = Describe("Watcher controller", func() {
 						"tls-ca-bundle.pem":      []byte("other-b64-text"),
 					},
 				))
-			DeferCleanup(k8sClient.Delete, ctx, th.CreateCertSecret(watcherTest.WatcherRouteCertSecret))
 			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
 			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
 			infra.SimulateTransportURLReady(watcherTest.WatcherTransportURL)
@@ -1384,27 +1343,6 @@ var _ = Describe("Watcher controller", func() {
 			Expect(Watcher.Spec.APIServiceTemplate.TLS.API.Public.SecretName).Should(BeNil())
 			Expect(Watcher.Spec.APIServiceTemplate.TLS.API.Internal.SecretName).Should(BeNil())
 			Expect(Watcher.Spec.APIServiceTemplate.TLS.CaBundleSecretName).Should(Equal("combined-ca-bundle"))
-			Expect(Watcher.Spec.APIOverride.TLS.SecretName).Should(Equal("cert-watcher-public-route"))
-		})
-		It("should have created a route", func() {
-			th.ExpectCondition(
-				watcherTest.Instance,
-				ConditionGetterFunc(WatcherConditionGetter),
-				condition.ReadyCondition,
-				corev1.ConditionTrue,
-			)
-			th.AssertRouteExists(watcherTest.WatcherRouteName)
-			// check that the Route has Edge termination
-			Eventually(func(g Gomega) {
-				watcherRoute := &routev1.Route{}
-
-				g.Expect(th.K8sClient.Get(th.Ctx, watcherTest.WatcherRouteName, watcherRoute)).Should(Succeed())
-				g.Expect(watcherRoute.Spec.TLS.Certificate).Should(Not(BeEmpty()))
-				g.Expect(watcherRoute.Spec.TLS.Key).Should(Not(BeEmpty()))
-				g.Expect(watcherRoute.Spec.TLS.CACertificate).Should(Not(BeEmpty()))
-				g.Expect(string(watcherRoute.Spec.TLS.Termination)).Should(Equal("edge"))
-
-			}, timeout, interval).Should(Succeed())
 		})
 	})
 	When("A Watcher instance with TLS at the pod but not at the route is created", func() {
@@ -1463,17 +1401,6 @@ var _ = Describe("Watcher controller", func() {
 
 			// Simulate dbsync success
 			th.SimulateJobSuccess(watcherTest.WatcherDBSync)
-		})
-		It("should fail to expose the services", func() {
-			th.ExpectConditionWithDetails(
-				watcherTest.Instance,
-				ConditionGetterFunc(WatcherConditionGetter),
-				condition.ExposeServiceReadyCondition,
-				corev1.ConditionFalse,
-				condition.ErrorReason,
-				"Exposing service error occurred TLS at ingress level is not configured, but at PodLevel is enabled, please set a secret to enable TLS on ingress",
-			)
-
 		})
 	})
 

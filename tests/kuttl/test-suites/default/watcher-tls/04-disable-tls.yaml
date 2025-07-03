@@ -3,4 +3,3 @@ kind: TestStep
 commands:
   - script: |
       oc patch watcher -n $NAMESPACE watcher-kuttl --type='json' -p='[{"op": "replace", "path": "/spec/apiServiceTemplate/override", "value":{}}]'
-      oc patch watcher -n $NAMESPACE watcher-kuttl --type='json' -p='[{"op": "replace", "path": "/spec/apiOverride", "value":{}}]'
