@@ -28,6 +28,16 @@
               oc wait OpenStackControlPlane controlplane --namespace=openstack
               --for=condition=Ready --timeout=10m
 
+        - name: Patch prometheuses.monitoring.rhobs metric-storage to enable Admin API
+          ansible.builtin.command:
+            cmd: >-
+              oc patch prometheuses.monitoring.rhobs metric-storage --namespace=openstack --type=merge -p '{"spec":{"enableAdminAPI":true}}'
+
+        - name: Wait for prometheuses.monitoring.rhobs metric-storage associated pod to be redeployed
+          ansible.builtin.command:
+            cmd: >-
+              oc wait pod prometheus-metric-storage-0 --for=condition=Ready -n openstack --timeout=10m
+
     # If the watcher-operator installation is already included in the openstack-operator we don't need to install it as
     # an standalone operator.
     - name: Check if Watcher API resources are available
