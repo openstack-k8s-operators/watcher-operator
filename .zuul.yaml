@@ -52,6 +52,8 @@
            src_dir }}/ci/scenarios/edpm.yml"
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
            src_dir }}/ci/tests/watcher-master.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/scenarios/nfs.yml"
       fetch_dlrn_hash: false
       # Note(chandankumar): It tests cs10 master container current tag build from
       # DLRN current.
