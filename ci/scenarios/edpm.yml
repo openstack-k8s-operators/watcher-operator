@@ -76,9 +76,11 @@ cifmw_edpm_prepare_kustomizations:
               decisionengineServiceTemplate:
                 customServiceConfig: |
                   [watcher_cluster_data_model_collectors.compute]
-                  period = 60
+                  # DNM jgilaber reducing to a very low value to check if it
+                  # fixes a problem
+                  period = 15
                   [watcher_cluster_data_model_collectors.storage]
-                  period = 60
+                  period = 15
       target:
         kind: OpenStackControlPlane
 
