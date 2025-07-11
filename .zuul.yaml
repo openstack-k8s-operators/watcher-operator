@@ -235,7 +235,8 @@
     voting: false
     description: |
       A Zuul job consuming content from openstack-meta-content-provider-master
-      and deploying EDPM with master content.
+      and deploying EDPM with master content. It configures an NFS server in a
+      compute node as storage backend for cinder.
     vars:
       cifmw_repo_setup_branch: master
       # To consume containers from meta content provider
@@ -246,6 +247,19 @@
       watcher_services_tag: watcher_latest
       watcher_registry_url: "{{ content_provider_os_registry_url }}"
       cifmw_test_operator_tempest_image_tag: watcher_latest
+      cifmw_extras:
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
+           src_dir }}/scenarios/centos-9/multinode-ci.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
+           src_dir }}/scenarios/centos-9/horizon.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/scenarios/edpm.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/tests/watcher-tempest.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/tests/watcher-tempest-nfs.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/scenarios/nfs.yml"
 
     extra-vars:
       # Override zuul meta content provider provided content_provider_dlrn_md5_hash
