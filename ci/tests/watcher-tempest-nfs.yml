@@ -1,0 +1,6 @@
+# get the tempest configuration from watcher-waster.yml, with the exception of
+# not skipping volume_migration tests
+cifmw_test_operator_tempest_exclude_list: |
+  watcher_tempest_plugin.*client_functional.*
+  watcher_tempest_plugin.tests.scenario.test_execute_strategies.TestExecuteStrategies.test_execute_storage_capacity_balance_strategy
+  watcher_tempest_plugin.*\[.*\breal_load\b.*\].*
