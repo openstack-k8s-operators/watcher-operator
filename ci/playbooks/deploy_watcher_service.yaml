@@ -36,7 +36,8 @@
         - name: Wait for prometheuses.monitoring.rhobs metric-storage associated pod to be redeployed
           ansible.builtin.command:
             cmd: >-
-              oc wait pod prometheus-metric-storage-0 --for=condition=Ready -n openstack --timeout=10m
+              oc wait pod prometheus-metric-storage-0 --for=condition=Ready -n openstack --timeout=1m
+          retries: 10
 
     # If the watcher-operator installation is already included in the openstack-operator we don't need to install it as
     # an standalone operator.
