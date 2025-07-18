@@ -160,6 +160,32 @@
               WATCHER_DECISION_ENGINE_CI_IMAGE: "{{ _registry_url }}/openstack-watcher-decision-engine:{{ _tag }}"
               WATCHER_APPLIER_CI_IMAGE: "{{ _registry_url }}/openstack-watcher-applier:{{ _tag }}"
 
+        - name: Create patch for OpenStackVersion if we are deploying watcher via OpenStackControlplane
+          when: watcher_in_ctlplane
+          vars:
+            # TODO(amoralej) I'm duplicating code here and in previous task but we will be getting rid of
+            # that task as soon as the integration is finished, so it is just temporary.
+            _tag: "{{ latest_dlrn_tag.content | default(watcher_services_tag) | default('current-podified') }}"
+            # When there is no Depends-On from opendev, then content_provider_os_registry_url will return null
+            # value to child job. In that case, we need to set default to quay registry.
+            _registry_url: >-
+              {%- if watcher_registry_url is defined -%}
+              {{ watcher_registry_url }}
+              {%- elif content_provider_os_registry_url is defined and content_provider_os_registry_url == 'null' -%}
+              quay.io/podified-master-centos9
+              {%- else -%}
+              {{ content_provider_os_registry_url | default('quay.io/podified-master-centos9') }}
+              {%- endif -%}
+          ansible.builtin.template:
+            src: "patch-openstack-versions.yaml.j2"
+            dest: "{{ cifmw_basedir }}/artifacts/patch-openstack-versions.yaml"
+
+        - name: Patch the OpenStackVersion to use the required watcher containers
+          when: watcher_in_ctlplane
+          ansible.builtin.shell:
+            cmd: |
+              oc patch openstackversions controlplane -n openstack --type merge --patch-file {{ cifmw_basedir}}/artifacts/patch-openstack-versions.yaml
+
         - name: Deploy Watcher service by patching an existing OpenStackControlplane
           when: watcher_in_ctlplane
           ansible.builtin.shell:
