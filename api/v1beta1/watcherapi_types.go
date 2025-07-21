@@ -53,6 +53,12 @@ type WatcherAPISpec struct {
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	// TLS - Parameters related to the TLS
 	TLS tls.API `json:"tls,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=60
+	// +kubebuilder:validation:Minimum=10
+	// APITimeout for Route and Apache
+	APITimeout int `json:"apiTimeout"`
 }
 
 // WatcherAPIStatus defines the observed state of WatcherAPI

@@ -874,9 +874,10 @@ func (r *WatcherReconciler) ensureAPI(
 			Resources:      instance.Spec.APIServiceTemplate.Resources,
 			ServiceAccount: "watcher-" + instance.Name,
 		},
-		Replicas: instance.Spec.APIServiceTemplate.Replicas,
-		Override: instance.Spec.APIServiceTemplate.Override,
-		TLS:      instance.Spec.APIServiceTemplate.TLS,
+		Replicas:   instance.Spec.APIServiceTemplate.Replicas,
+		Override:   instance.Spec.APIServiceTemplate.Override,
+		TLS:        instance.Spec.APIServiceTemplate.TLS,
+		APITimeout: *instance.Spec.APITimeout,
 	}
 
 	// If NodeSelector is not specified in Watcher APIServiceTemplate, the current

@@ -479,6 +479,7 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 		}
 		endptConfig["Port"] = fmt.Sprintf("%d", watcher.WatcherPublicPort)
 		httpdVhostConfig[endpt.String()] = endptConfig
+		endptConfig["TimeOut"] = instance.Spec.APITimeout
 	}
 	templateParameters["VHosts"] = httpdVhostConfig
 

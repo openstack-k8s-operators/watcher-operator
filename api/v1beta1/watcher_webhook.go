@@ -24,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/utils/ptr"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -204,4 +205,35 @@ func (spec *WatcherSpecCore) ValidateWatcherTopology(basePath *field.Path, names
 		spec.ApplierServiceTemplate.ValidateTopology(applierPath, namespace)...)
 
 	return allErrs
+}
+
+// SetDefaultRouteAnnotations sets HAProxy timeout values for Watcher API routes
+// This function is called by the OpenStackControlPlane webhook to set the default HAProxy timeout
+// for the Watcher API routes.
+func (spec *WatcherSpecCore) SetDefaultRouteAnnotations(annotations map[string]string) {
+	const haProxyAnno = "haproxy.router.openshift.io/timeout"
+	// Use a custom annotation to flag when the operator has set the default HAProxy timeout
+	// With the annotation func determines when to overwrite existing HAProxy timeout with the APITimeout
+	const watcherAnno = "api.watcher.openstack.org/timeout"
+	valWatcherAPI, okWatcherAPI := annotations[watcherAnno]
+	valHAProxy, okHAProxy := annotations[haProxyAnno]
+
+	// Human operator set the HAProxy timeout manually
+	if !okWatcherAPI && okHAProxy {
+		return
+	}
+	// Human operator modified the HAProxy timeout manually without removing the Watcher flag
+	if okWatcherAPI && okHAProxy && valWatcherAPI != valHAProxy {
+		delete(annotations, watcherAnno)
+		return
+	}
+
+	// The Default webhook is called before applying kubebuilder defaults so we need to manage
+	// the defaulting of the APITimeout field.
+	if spec.APITimeout == nil || *spec.APITimeout == 0 {
+		spec.APITimeout = ptr.To(int(APITimeoutDefault))
+	}
+	timeout := fmt.Sprintf("%ds", *spec.APITimeout)
+	annotations[watcherAnno] = timeout
+	annotations[haProxyAnno] = timeout
 }

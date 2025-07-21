@@ -29,6 +29,7 @@ const (
 	WatcherAPIContainerImage            = "quay.io/podified-master-centos9/openstack-watcher-api:current-podified"
 	WatcherDecisionEngineContainerImage = "quay.io/podified-master-centos9/openstack-watcher-decision-engine:current-podified"
 	WatcherApplierContainerImage        = "quay.io/podified-master-centos9/openstack-watcher-applier:current-podified"
+	APITimeoutDefault                   = 60
 )
 
 // WatcherCommon defines a spec based reusable for all the CRDs
@@ -121,6 +122,12 @@ type WatcherSpecCore struct {
 	// +kubebuilder:validation:Optional
 	// DBPurge defines the parameters for the Watcher DB purging cron job
 	DBPurge WatcherDBPurge `json:"dbPurge"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=60
+	// +kubebuilder:validation:Minimum=10
+	// APITimeout for Route and Apache
+	APITimeout *int `json:"apiTimeout"`
 }
 
 // PasswordSelector to identify the DB and AdminUser password from the Secret

@@ -73,6 +73,7 @@ func GetNonDefaultWatcherSpec() map[string]interface{} {
 			"schedule": "1 2 * * *",
 			"purgeAge": 1,
 		},
+		"apiTimeout": 120,
 	}
 }
 
