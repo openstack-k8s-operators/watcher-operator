@@ -502,7 +502,7 @@ func (r *WatcherApplierReconciler) SetupWithManager(mgr ctrl.Manager) error {
 func (r *WatcherApplierReconciler) findObjectsForSrc(ctx context.Context, src client.Object) []reconcile.Request {
 	requests := []reconcile.Request{}
 
-	l := log.FromContext(ctx).WithName("Controllers").WithName("WatcherApplier")
+	Log := r.GetLogger(ctx)
 
 	for _, field := range applierWatchFields {
 		crList := &watcherv1beta1.WatcherApplierList{}
@@ -512,12 +512,12 @@ func (r *WatcherApplierReconciler) findObjectsForSrc(ctx context.Context, src cl
 		}
 		err := r.Client.List(ctx, crList, listOps)
 		if err != nil {
-			l.Error(err, fmt.Sprintf("listing %s for field: %s - %s", crList.GroupVersionKind().Kind, field, src.GetNamespace()))
+			Log.Error(err, fmt.Sprintf("listing %s for field: %s - %s", crList.GroupVersionKind().Kind, field, src.GetNamespace()))
 			return requests
 		}
 
 		for _, item := range crList.Items {
-			l.Info(fmt.Sprintf("input source %s changed, reconcile: %s - %s", src.GetName(), item.GetName(), item.GetNamespace()))
+			Log.Info(fmt.Sprintf("input source %s changed, reconcile: %s - %s", src.GetName(), item.GetName(), item.GetNamespace()))
 
 			requests = append(requests,
 				reconcile.Request{
@@ -536,7 +536,7 @@ func (r *WatcherApplierReconciler) findObjectsForSrc(ctx context.Context, src cl
 func (r *WatcherApplierReconciler) findObjectForSrc(ctx context.Context, src client.Object) []reconcile.Request {
 	requests := []reconcile.Request{}
 
-	l := log.FromContext(ctx).WithName("Controllers").WithName("WatcherApplier")
+	Log := r.GetLogger(ctx)
 
 	crList := &watcherv1beta1.WatcherApplierList{}
 	listOps := &client.ListOptions{
@@ -544,12 +544,12 @@ func (r *WatcherApplierReconciler) findObjectForSrc(ctx context.Context, src cli
 	}
 	err := r.Client.List(ctx, crList, listOps)
 	if err != nil {
-		l.Error(err, fmt.Sprintf("listing %s for namespace: %s", crList.GroupVersionKind().Kind, src.GetNamespace()))
+		Log.Error(err, fmt.Sprintf("listing %s for namespace: %s", crList.GroupVersionKind().Kind, src.GetNamespace()))
 		return requests
 	}
 
 	for _, item := range crList.Items {
-		l.Info(fmt.Sprintf("input source %s changed, reconcile: %s - %s", src.GetName(), item.GetName(), item.GetNamespace()))
+		Log.Info(fmt.Sprintf("input source %s changed, reconcile: %s - %s", src.GetName(), item.GetName(), item.GetNamespace()))
 
 		requests = append(requests,
 			reconcile.Request{
