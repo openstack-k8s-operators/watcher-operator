@@ -102,6 +102,7 @@ var _ = Describe("Watcher controller", func() {
 			Expect(*(Watcher.Spec.Secret)).Should(Equal("test-osp-secret"))
 			Expect(*(Watcher.Spec.RabbitMqClusterName)).Should(Equal("rabbitmq"))
 			Expect(Watcher.Spec.PreserveJobs).Should(BeFalse())
+			Expect(*(Watcher.Spec.APITimeout)).To(Equal(60))
 
 		})
 
@@ -418,6 +419,7 @@ var _ = Describe("Watcher controller", func() {
 			Expect(WatcherAPI.Spec.NodeSelector).To(BeNil())
 			Expect(WatcherAPI.Spec.CustomServiceConfig).To(Equal(""))
 			Expect(*WatcherAPI.Spec.PrometheusSecret).Should(Equal("metric-storage-prometheus-endpoint"))
+			Expect(WatcherAPI.Spec.APITimeout).To(Equal(60))
 
 			// Assert that the watcher statefulset is created
 			deployment := th.GetStatefulSet(watcherTest.WatcherAPIStatefulSet)
@@ -849,6 +851,7 @@ var _ = Describe("Watcher controller", func() {
 			Expect(Watcher.Spec.APIServiceTemplate.CustomServiceConfig).Should(Equal("# Service config"))
 			Expect(*(Watcher.Spec.DBPurge.Schedule)).Should(Equal("1 2 * * *"))
 			Expect(*(Watcher.Spec.DBPurge.PurgeAge)).Should(Equal(1))
+			Expect(*(Watcher.Spec.APITimeout)).Should(Equal(120))
 		})
 
 		It("Should create watcher service with custom values", func() {
@@ -1024,6 +1027,7 @@ var _ = Describe("Watcher controller", func() {
 			Expect(WatcherAPI.Spec.TLS.CaBundleSecretName).Should(Equal("combined-ca-bundle"))
 			Expect(WatcherAPI.Spec.CustomServiceConfig).Should(Equal("# Service config"))
 			Expect(*WatcherAPI.Spec.PrometheusSecret).Should(Equal("custom-prometheus-config"))
+			Expect(WatcherAPI.Spec.APITimeout).To(Equal(120))
 
 			// Assert that the watcher deployment is created
 			deployment := th.GetStatefulSet(watcherTest.WatcherAPIStatefulSet)
@@ -1039,6 +1043,7 @@ var _ = Describe("Watcher controller", func() {
 			Expect(createdConfigSecret).ShouldNot(BeNil())
 			Expect(createdConfigSecret.Data["01-global-custom.conf"]).Should(Equal([]byte("# Global config")))
 			Expect(createdConfigSecret.Data["02-service-custom.conf"]).Should(Equal([]byte("# Service config")))
+			Expect(createdConfigSecret.Data["10-watcher-wsgi-main.conf"]).Should(ContainSubstring("TimeOut 120"))
 
 			// Check Watcher Applier
 			watcherApplier := &watcherv1beta1.WatcherApplier{}

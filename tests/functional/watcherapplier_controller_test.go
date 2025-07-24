@@ -11,7 +11,6 @@ import (
 	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
 	condition "github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 	. "github.com/openstack-k8s-operators/lib-common/modules/common/test/helpers"
-	"github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
@@ -555,14 +554,14 @@ interface = internal`,
 			)
 			mariadb.CreateMariaDBAccountAndSecret(
 				watcherTest.WatcherDatabaseAccount,
-				v1beta1.MariaDBAccountSpec{
+				mariadbv1.MariaDBAccountSpec{
 					UserName: "watcher",
 				},
 			)
 			mariadb.CreateMariaDBDatabase(
 				watcherTest.WatcherApplier.Namespace,
 				"watcher",
-				v1beta1.MariaDBDatabaseSpec{
+				mariadbv1.MariaDBDatabaseSpec{
 					Name: "watcher",
 				},
 			)

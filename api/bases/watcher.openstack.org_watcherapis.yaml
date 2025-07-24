@@ -48,6 +48,11 @@ spec:
           spec:
             description: WatcherAPISpec defines the desired state of WatcherAPI
             properties:
+              apiTimeout:
+                default: 60
+                description: APITimeout for Route and Apache
+                minimum: 10
+                type: integer
               containerImage:
                 description: The service specific Container Image URL (will be set
                   to environmental default if empty)
