@@ -1,0 +1,89 @@
+---
+- name: Kustomize ControlPlane for cinder over NFS
+  hosts: "{{ cifmw_target_hook_host | default('localhost') }}"
+  gather_facts: false
+  vars:
+    cifmw_controlplane_kustomizations_path: "{{ cifmw_basedir }}/artifacts/manifests/kustomizations/controlplane"
+    cifmw_cinder_operator_path: "{{ cinder_operator_path if cinder_operator_path is defined else ansible_user_dir + '/cinder-operator/' }}"
+    _cinder_nfs_secret_files:
+      - cinder-backup-nfs-secrets.yaml
+      - cinder-volume-nfs-secrets.yaml
+  tasks:
+    - name: Ensure the kustomizations dir exists
+      ansible.builtin.file:
+        path: "{{ cifmw_controlplane_kustomizations_path }}"
+        state: directory
+
+    - name: Create the cinder-backup OpenStackControlPlane configuration file
+      ansible.builtin.copy:
+        dest: "{{ cifmw_controlplane_kustomizations_path }}/cinder-backup.yaml"
+        content: |
+          apiVersion: core.openstack.org/v1beta1
+          kind: OpenStackControlPlane
+          metadata:
+            name: openstack
+          spec:
+            cinder:
+              template:
+                cinderBackup:
+                  replicas: 1
+                  customServiceConfig: |
+                    [DEFAULT]
+                    backup_driver=cinder.backup.drivers.nfs.NFSBackupDriver
+                    backup_mount_options=nosharecache
+                  customServiceConfigSecrets:
+                    - cinder-backup-nfs-secrets
+                  networkAttachments:
+                  - storage
+
+    - name: Create the definition of the secrets
+      ansible.builtin.template:
+        dest: "{{ cifmw_controlplane_kustomizations_path }}/{{ item }}"
+        src: "{{ item }}.j2"
+        mode: '640'
+      loop: "{{ _cinder_nfs_secret_files }}"
+
+    - name: Apply the secrets
+      environment:
+        KUBECONFIG: "{{ cifmw_openshift_kubeconfig }}"
+        PATH: "{{ cifmw_path }}"
+      ansible.builtin.shell: |
+        oc project {{ namespace }}
+        oc apply -f {{ cifmw_controlplane_kustomizations_path }}/{{ item }}
+      register: apply_result
+      changed_when: ('stdout' in apply_result) and ('unchanged' not in apply_result.stdout)
+      failed_when: ( apply_result.rc | int ) > 1
+      loop: "{{ _cinder_nfs_secret_files }}"
+
+    - name: Create the nfs backend cinderVolume patch
+      ansible.builtin.template:
+        dest: "{{ cifmw_controlplane_kustomizations_path }}/nfs_backend.yaml"
+        src: "nfs_backend.yaml.j2"
+        mode: '640'
+
+    # FIXME: copy with inline content does not support templating, so this should be reworked
+    - name: Create kustomization to really enable NFS shares as backends for cinder and cinder-backup
+      ansible.builtin.copy:
+        dest: "{{ cifmw_controlplane_kustomizations_path }}/90-cinder-nfs.yaml"
+        content: |-
+          apiVersion: kustomize.config.k8s.io/v1beta1
+          kind: Kustomization
+          resources:
+          namespace: {{ namespace }}
+          # FIXME: patch the IP address of the NFS share using a better way to identify the exact volume
+          patches:
+          - target:
+              kind: OpenStackControlPlane
+              name: .*
+            patch: |-
+              - op: replace
+                path: /metadata/name
+                value: openstack
+          - target:
+              kind: OpenStackControlPlane
+              name: .*
+            patch: |-
+              - op: remove
+                path: /metadata/namespace
+          - path: {{ cifmw_controlplane_kustomizations_path + '/nfs_backend.yaml'}}
+          - path: {{ cifmw_controlplane_kustomizations_path + '/cinder-backup.yaml' }}
