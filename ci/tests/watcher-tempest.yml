@@ -10,6 +10,8 @@ cifmw_tempest_tempestconf_config:
     telemetry_services.metric_backends prometheus
     telemetry.disable_ssl_certificate_validation true
     telemetry.ceilometer_polling_interval 15
+    optimize.min_microversion {{ watcher_tempest_min_microversion | default('1.0') }}
+    optimize.max_microversion {{ watcher_tempest_max_microversion | default('latest') }}
     optimize.datasource prometheus
     optimize.openstack_type podified
     optimize.proxy_host_address {{ hostvars['controller']['ansible_host'] }}
