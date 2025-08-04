@@ -16,6 +16,8 @@ spec:
     templates:
       rabbitmq:
         replicas: 1
+      rabbitmq-notifications:
+        replicas: 1
   memcached:
     templates:
       memcached:

@@ -466,6 +466,10 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 		"PrometheusCaCertPath":     prometheusCaCertPath,
 	}
 
+	if string(secret.Data[NotificationURLSelector]) != "" {
+		templateParameters["NotificationURL"] = string(secret.Data[NotificationURLSelector])
+	}
+
 	// create httpd  vhost template parameters
 	httpdVhostConfig := map[string]interface{}{}
 	for _, endpt := range []service.Endpoint{service.EndpointInternal, service.EndpointPublic} {
