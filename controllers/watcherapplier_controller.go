@@ -429,6 +429,10 @@ func (r *WatcherApplierReconciler) generateServiceConfigs(
 		"CaFilePath":               CaFilePath,
 	}
 
+	if string(secret.Data[NotificationURLSelector]) != "" {
+		templateParameters["NotificationURL"] = string(secret.Data[NotificationURLSelector])
+	}
+
 	return GenerateConfigsGeneric(ctx, helper, instance, envVars, templateParameters, customData, labels, false)
 }
 

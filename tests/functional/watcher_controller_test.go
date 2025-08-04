@@ -409,6 +409,7 @@ var _ = Describe("Watcher controller", func() {
 			Expect(createdSecret.Data["transport_url"]).To(Equal([]byte("rabbit://rabbitmq-secret/fake")))
 			Expect(createdSecret.Data["database_account"]).To(Equal([]byte("watcher")))
 			Expect(createdSecret.Data["01-global-custom.conf"]).To(Equal([]byte("")))
+			Expect(createdSecret.Data["notification_url"]).To(Equal([]byte("")))
 
 			// Check WatcherAPI is created
 			WatcherAPI := GetWatcherAPI(watcherTest.WatcherAPI)
@@ -1621,6 +1622,130 @@ var _ = Describe("Watcher controller", func() {
 			}, timeout, interval).Should(Succeed())
 
 		})
+	})
+
+	When("Watcher with notification bus instance is created", func() {
+		BeforeEach(func() {
+			spec := GetDefaultWatcherSpec()
+			spec["notificationsBusInstance"] = ptr.To("rabbitmq-notification")
+			DeferCleanup(th.DeleteInstance, CreateWatcher(watcherTest.Instance, spec))
+			DeferCleanup(k8sClient.Delete, ctx, CreateWatcherMessageBusSecret(watcherTest.Instance.Namespace, "rabbitmq-secret"))
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.Watcher.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.Instance.Namespace,
+					*GetWatcher(watcherTest.Instance).Spec.DatabaseInstance,
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: SecretName},
+					map[string][]byte{
+						"WatcherPassword": []byte("password"),
+					},
+				))
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: "metric-storage-prometheus-endpoint"},
+					map[string][]byte{
+						"host": []byte("prometheus.example.com"),
+						"port": []byte("9090"),
+					},
+				))
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+			infra.SimulateTransportURLReady(watcherTest.WatcherTransportURL)
+		})
+
+		It("should have the Spec fields with the expected values", func() {
+			Watcher := GetWatcher(watcherTest.Instance)
+			Expect(*(Watcher.Spec.RabbitMqClusterName)).Should(Equal("rabbitmq"))
+			Expect(*(Watcher.Spec.NotificationsBusInstance)).Should(Equal("rabbitmq-notification"))
+		})
+
+		It("should have the condition WatcherNotificationTransportURLReadyCondition set to false", func() {
+
+			th.ExpectConditionWithDetails(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				watcherv1beta1.WatcherNotificationTransportURLReadyCondition,
+				corev1.ConditionFalse,
+				condition.RequestedReason,
+				"WatcherNotificationTransportURL creation in progress",
+			)
+
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				condition.ReadyCondition,
+				corev1.ConditionFalse,
+			)
+		})
+
+		It("should have WatcherNotificationTransportURLReadyCondition set to true when creating the notification transportURL", func() {
+
+			DeferCleanup(k8sClient.Delete, ctx, CreateWatcherMessageBusSecret(watcherTest.Instance.Namespace, "rabbitmq-notification-secret"))
+			infra.SimulateTransportURLReady(watcherTest.WatcherNotificationTransportURL)
+
+			// simulate that it becomes ready i.e. the keystone-operator
+			// did its job and registered the watcher service
+			keystone.SimulateKeystoneServiceReady(watcherTest.KeystoneServiceName)
+
+			// Simulate dbsync success
+			th.SimulateJobSuccess(watcherTest.WatcherDBSync)
+
+			// Simulate WatcherAPI deployment
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
+
+			// Simulate KeystoneEndpoint success
+			keystone.SimulateKeystoneEndpointReady(watcherTest.WatcherKeystoneEndpointName)
+
+			// Simulate WatcherApplier deployment
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherApplierStatefulSet)
+
+			// Simulate WatcherDecisionEngine deployment
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherDecisionEngineStatefulSet)
+
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				watcherv1beta1.WatcherNotificationTransportURLReadyCondition,
+				corev1.ConditionTrue,
+			)
+
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				condition.ReadyCondition,
+				corev1.ConditionTrue,
+			)
+
+			// Check content of the sublevel secret
+			createdSecret := th.GetSecret(watcherTest.Watcher)
+			Expect(createdSecret).ShouldNot(BeNil())
+			Expect(createdSecret.Data["WatcherPassword"]).To(Equal([]byte("password")))
+			Expect(createdSecret.Data["transport_url"]).To(Equal([]byte("rabbit://rabbitmq-secret/fake")))
+			Expect(createdSecret.Data["database_account"]).To(Equal([]byte("watcher")))
+			Expect(createdSecret.Data["01-global-custom.conf"]).To(Equal([]byte("")))
+			Expect(createdSecret.Data["notification_url"]).To(Equal([]byte("rabbit://rabbitmq-notification-secret/fake")))
+
+			createdSecretConfig := th.GetSecret(watcherTest.WatcherDecisionEngineSecret)
+			Expect(createdSecretConfig).ShouldNot(BeNil())
+			Expect(createdSecretConfig.Data["00-default.conf"]).ShouldNot(BeNil())
+
+		})
+
 	})
 
 })

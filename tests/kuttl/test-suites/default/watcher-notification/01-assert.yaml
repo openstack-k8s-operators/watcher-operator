@@ -1,0 +1,459 @@
+apiVersion: watcher.openstack.org/v1beta1
+kind: Watcher
+metadata:
+  finalizers:
+  - openstack.org/watcher
+  name: watcher-kuttl
+  namespace: watcher-kuttl-default
+spec:
+  databaseAccount: watcher
+  databaseInstance: openstack
+  passwordSelectors:
+    service: WatcherPassword
+  secret: osp-secret
+  apiTimeout: 60
+  notificationsBusInstance: rabbitmq-notifications
+status:
+  apiServiceReadyCount: 1
+  conditions:
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: Ready
+  - message: CronJob completed
+    reason: Ready
+    status: "True"
+    type: CronJobReady
+  - message: DB create completed
+    reason: Ready
+    status: "True"
+    type: DBReady
+  - message: DBsync completed
+    reason: Ready
+    status: "True"
+    type: DBSyncReady
+  - message: Input data complete
+    reason: Ready
+    status: "True"
+    type: InputReady
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: KeystoneServiceReady
+  - message: MariaDBAccount creation complete
+    reason: Ready
+    status: "True"
+    type: MariaDBAccountReady
+  - message: RoleBinding created
+    reason: Ready
+    status: "True"
+    type: RoleBindingReady
+  - message: Role created
+    reason: Ready
+    status: "True"
+    type: RoleReady
+  - message: ServiceAccount created
+    reason: Ready
+    status: "True"
+    type: ServiceAccountReady
+  - message: Service config create completed
+    reason: Ready
+    status: "True"
+    type: ServiceConfigReady
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: WatcherAPIReady
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: WatcherApplierReady
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: WatcherDecisionEngineReady
+  - message: WatcherNotificationTransportURL successfully created
+    reason: Ready
+    status: "True"
+    type: WatcherNotificationTransportURLReady
+  - message: WatcherRabbitMQTransportURL successfully created
+    reason: Ready
+    status: "True"
+    type: WatcherRabbitMQTransportURLReady
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: watcher-db-secret
+  namespace: watcher-kuttl-default
+  finalizers:
+  - openstack.org/watcher
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: watcher-kuttl
+---
+apiVersion: mariadb.openstack.org/v1beta1
+kind: MariaDBDatabase
+metadata:
+  name: watcher
+  namespace: watcher-kuttl-default
+  finalizers:
+  - openstack.org/watcher
+  - openstack.org/mariadbdatabase
+  - openstack.org/mariadbaccount-watcher
+---
+apiVersion: rabbitmq.openstack.org/v1beta1
+kind: TransportURL
+metadata:
+  generation: 1
+  labels:
+    service: watcher
+  name: watcher-kuttl-watcher-transport
+  namespace: watcher-kuttl-default
+spec:
+  rabbitmqClusterName: rabbitmq
+status:
+  conditions:
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: Ready
+  - message: TransportURL completed
+    reason: Ready
+    status: "True"
+    type: TransportURLReady
+  secretName: rabbitmq-transport-url-watcher-kuttl-watcher-transport
+---
+apiVersion: rabbitmq.openstack.org/v1beta1
+kind: TransportURL
+metadata:
+  generation: 1
+  labels:
+    service: watcher
+  name: watcher-kuttl-watcher-notification
+  namespace: watcher-kuttl-default
+spec:
+  rabbitmqClusterName: rabbitmq-notifications
+status:
+  conditions:
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: Ready
+  - message: TransportURL completed
+    reason: Ready
+    status: "True"
+    type: TransportURLReady
+  secretName: rabbitmq-transport-url-watcher-kuttl-watcher-notification
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: rabbitmq-transport-url-watcher-kuttl-watcher-transport
+  namespace: watcher-kuttl-default
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: rabbitmq-transport-url-watcher-kuttl-watcher-notification
+  namespace: watcher-kuttl-default
+---
+apiVersion: keystone.openstack.org/v1beta1
+kind: KeystoneService
+metadata:
+  name: watcher
+  finalizers:
+  - openstack.org/watcher
+  - openstack.org/keystoneservice
+  - openstack.org/keystoneendpoint-watcher
+spec:
+  enabled: true
+  passwordSelector: WatcherPassword
+  secret: osp-secret
+  serviceDescription: Watcher Service
+  serviceName: watcher
+  serviceType: infra-optim
+  serviceUser: watcher
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  labels:
+    service: watcher
+  name: watcher-kuttl-db-sync
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: watcher-kuttl-config-data
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: watcher-kuttl-scripts
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  labels:
+    service: watcher
+  name: watcher-kuttl-db-purge
+spec:
+  jobTemplate:
+    metadata:
+      labels:
+        service: watcher
+    spec:
+      template:
+        spec:
+          containers:
+          - name: watcher-db-manage
+            env:
+            - name: KOLLA_BOOTSTRAP
+              value: "true"
+            - name: KOLLA_CONFIG_STRATEGY
+              value: COPY_ALWAYS
+            - name: PURGE_AGE
+              value: "90"
+            image: quay.io/podified-master-centos9/openstack-watcher-api:current-podified
+          serviceAccount: watcher-watcher-kuttl
+  schedule: "0 1 * * *"
+---
+apiVersion: watcher.openstack.org/v1beta1
+kind: WatcherAPI
+metadata:
+  finalizers:
+  - openstack.org/watcherapi
+  name: watcher-kuttl-api
+spec:
+  containerImage: quay.io/podified-master-centos9/openstack-watcher-api:current-podified
+  memcachedInstance: memcached
+  passwordSelectors:
+    service: WatcherPassword
+  preserveJobs: false
+  replicas: 1
+  resources: {}
+  secret: watcher-kuttl
+  serviceAccount: watcher-watcher-kuttl
+  serviceUser: watcher
+  apiTimeout: 60
+status:
+  conditions:
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: Ready
+  - message: Create service completed
+    reason: Ready
+    status: "True"
+    type: CreateServiceReady
+  - message: Deployment completed
+    reason: Ready
+    status: "True"
+    type: DeploymentReady
+  - message: Input data complete
+    reason: Ready
+    status: "True"
+    type: InputReady
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: KeystoneEndpointReady
+  - message: " Memcached instance has been provisioned"
+    reason: Ready
+    status: "True"
+    type: MemcachedReady
+  - message: Service config create completed
+    reason: Ready
+    status: "True"
+    type: ServiceConfigReady
+  - message: Input data complete
+    reason: Ready
+    status: "True"
+    type: TLSInputReady
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: watcher-kuttl-api
+  labels:
+    service: watcher-api
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+      - name: watcher-kuttl-api-log
+      - name: watcher-api
+status:
+  readyReplicas: 1
+  replicas: 1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    service: watcher-api
+  name: watcher-kuttl-api-0
+spec:
+  containers:
+  - name: watcher-kuttl-api-log
+  - name: watcher-api
+status:
+  phase: Running
+---
+apiVersion: watcher.openstack.org/v1beta1
+kind: WatcherApplier
+metadata:
+  finalizers:
+  - openstack.org/watcherapplier
+  name: watcher-kuttl-applier
+spec:
+  containerImage: quay.io/podified-master-centos9/openstack-watcher-applier:current-podified
+  memcachedInstance: memcached
+  passwordSelectors:
+    service: WatcherPassword
+  preserveJobs: false
+  replicas: 1
+  resources: {}
+  secret: watcher-kuttl
+  serviceAccount: watcher-watcher-kuttl
+  serviceUser: watcher
+status:
+  conditions:
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: Ready
+  - message: Deployment completed
+    reason: Ready
+    status: "True"
+    type: DeploymentReady
+  - message: Input data complete
+    reason: Ready
+    status: "True"
+    type: InputReady
+  - message: " Memcached instance has been provisioned"
+    reason: Ready
+    status: "True"
+    type: MemcachedReady
+  - message: Service config create completed
+    reason: Ready
+    status: "True"
+    type: ServiceConfigReady
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: watcher-kuttl-applier
+  labels:
+    service: watcher-applier
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+      - name: watcher-applier
+        image: quay.io/podified-master-centos9/openstack-watcher-applier:current-podified
+status:
+  readyReplicas: 1
+  replicas: 1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    service: watcher-applier
+  name: watcher-kuttl-applier-0
+spec:
+  containers:
+  - name: watcher-applier
+    image: quay.io/podified-master-centos9/openstack-watcher-applier:current-podified
+status:
+  phase: Running
+---
+apiVersion: watcher.openstack.org/v1beta1
+kind: WatcherDecisionEngine
+metadata:
+  finalizers:
+  - openstack.org/watcherdecisionengine
+  name: watcher-kuttl-decision-engine
+spec:
+  containerImage: quay.io/podified-master-centos9/openstack-watcher-decision-engine:current-podified
+  memcachedInstance: memcached
+  passwordSelectors:
+    service: WatcherPassword
+  preserveJobs: false
+  replicas: 1
+  resources: {}
+  secret: watcher-kuttl
+  serviceAccount: watcher-watcher-kuttl
+  serviceUser: watcher
+status:
+  conditions:
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: Ready
+  - message: Deployment completed
+    reason: Ready
+    status: "True"
+    type: DeploymentReady
+  - message: Input data complete
+    reason: Ready
+    status: "True"
+    type: InputReady
+  - message: " Memcached instance has been provisioned"
+    reason: Ready
+    status: "True"
+    type: MemcachedReady
+  - message: Service config create completed
+    reason: Ready
+    status: "True"
+    type: ServiceConfigReady
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: watcher-kuttl-decision-engine
+  labels:
+    service: watcher-decision-engine
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+      - name: watcher-decision-engine
+        image: quay.io/podified-master-centos9/openstack-watcher-decision-engine:current-podified
+status:
+  readyReplicas: 1
+  replicas: 1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    service: watcher-decision-engine
+  name: watcher-kuttl-decision-engine-0
+spec:
+  containers:
+  - name: watcher-decision-engine
+    image: quay.io/podified-master-centos9/openstack-watcher-decision-engine:current-podified
+status:
+  phase: Running
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+namespaced: true
+commands:
+  - script: |
+      set -euxo pipefail
+      oc project watcher-kuttl-default
+      APIPOD=$(oc get pods -n watcher-kuttl-default -l "service=watcher-api" -ocustom-columns=:metadata.name|grep -v ^$|head -1)
+      if [ -n "${APIPOD}" ]; then
+        [ $(echo $(oc rsh -c watcher-api ${APIPOD} cat /etc/watcher/watcher.conf.d/00-default.conf) |grep -czPo '\[oslo_messaging_notifications\]\s+driver\s+=\s+messagingv2\s+transport_url\s+=') == 1 ]
+      else
+        exit 1
+      fi

@@ -126,6 +126,7 @@ var _ = Describe("WatcherAPI controller", func() {
 					"database_hostname":     []byte("hostname"),
 					"database_account":      []byte("watcher"),
 					"01-global-custom.conf": []byte(""),
+					"notification_url":      []byte(""),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -272,6 +273,56 @@ var _ = Describe("WatcherAPI controller", func() {
 			Expect(WatcherAPI.IsReady()).Should(BeTrue())
 		})
 
+		It("should have the expected config secret content", func() {
+
+			createdSecret := th.GetSecret(watcherTest.WatcherAPIConfigSecret)
+			Expect(createdSecret).ShouldNot(BeNil())
+			Expect(createdSecret.Data["00-default.conf"]).ShouldNot(BeNil())
+
+			// extract default config data
+			configData := createdSecret.Data["00-default.conf"]
+			Expect(configData).ShouldNot(BeNil())
+
+			expectedSections := []string{`
+[cinder_client]
+endpoint_type = internal`, `
+[glance_client]
+endpoint_type = internal`, `
+[ironic_client]
+endpoint_type = internal`, `
+[keystone_client]
+interface = internal`, `
+[neutron_client]
+endpoint_type = internal`, `
+[nova_client]
+endpoint_type = internal`, `
+[placement_client]
+interface = internal`, `
+[watcher_cluster_data_model_collectors.compute]
+period = 900`, `
+[watcher_cluster_data_model_collectors.baremetal]
+period = 900`, `
+[watcher_cluster_data_model_collectors.storage]
+period = 900`, `
+[oslo_messaging_notifications]
+
+driver = noop`, `
+[oslo_messaging_rabbit]
+amqp_durable_queues=false
+amqp_auto_delete=false
+heartbeat_in_pthread=false`,
+			}
+			for _, val := range expectedSections {
+				Expect(string(configData)).Should(ContainSubstring(val))
+			}
+			unexpectedNotificationSection := `
+[oslo_messaging_notifications]
+
+driver = messagingv2
+transport_url =`
+			Expect(string(configData)).Should(Not(ContainSubstring(unexpectedNotificationSection)))
+		})
+
 		It("updates the KeystoneAuthURL if keystone internal endpoint changes", func() {
 			newInternalEndpoint := "https://keystone-internal"
 
@@ -354,6 +405,7 @@ var _ = Describe("WatcherAPI controller", func() {
 					"database_hostname":     []byte("hostname"),
 					"database_account":      []byte("watcher"),
 					"01-global-custom.conf": []byte(""),
+					"notification_url":      []byte(""),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -399,6 +451,7 @@ var _ = Describe("WatcherAPI controller", func() {
 					"database_hostname":     []byte("hostname"),
 					"database_account":      []byte("watcher"),
 					"01-global-custom.conf": []byte(""),
+					"notification_url":      []byte(""),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -430,6 +483,7 @@ var _ = Describe("WatcherAPI controller", func() {
 					"database_hostname":     []byte("hostname"),
 					"database_account":      []byte("watcher"),
 					"01-global-custom.conf": []byte(""),
+					"notification_url":      []byte(""),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -494,6 +548,7 @@ var _ = Describe("WatcherAPI controller", func() {
 					"database_password":     []byte("watcher-password"),
 					"database_hostname":     []byte("db-hostname"),
 					"01-global-custom.conf": []byte(""),
+					"notification_url":      []byte(""),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -587,6 +642,7 @@ var _ = Describe("WatcherAPI controller", func() {
 					"database_password":     []byte("watcher-password"),
 					"database_hostname":     []byte("db-hostname"),
 					"01-global-custom.conf": []byte(""),
+					"notification_url":      []byte(""),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -685,6 +741,7 @@ var _ = Describe("WatcherAPI controller", func() {
 					"database_password":     []byte("watcher-password"),
 					"database_hostname":     []byte("db-hostname"),
 					"01-global-custom.conf": []byte(""),
+					"notification_url":      []byte(""),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -770,6 +827,7 @@ var _ = Describe("WatcherAPI controller", func() {
 					"database_password":     []byte("watcher-password"),
 					"database_hostname":     []byte("db-hostname"),
 					"01-global-custom.conf": []byte(""),
+					"notification_url":      []byte(""),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -846,6 +904,7 @@ var _ = Describe("WatcherAPI controller", func() {
 					"database_password":     []byte("watcher-password"),
 					"database_hostname":     []byte("db-hostname"),
 					"01-global-custom.conf": []byte(""),
+					"notification_url":      []byte(""),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -949,6 +1008,7 @@ var _ = Describe("WatcherAPI controller", func() {
 					"database_password":     []byte("watcher-password"),
 					"database_hostname":     []byte("db-hostname"),
 					"01-global-custom.conf": []byte(""),
+					"notification_url":      []byte(""),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -1145,6 +1205,134 @@ var _ = Describe("WatcherAPI controller", func() {
 				g.Expect(finalizers).ToNot(ContainElement(
 					fmt.Sprintf("openstack.org/watcherapi-%s", watcherTest.WatcherAPI.Name)))
 			}, timeout, interval).Should(Succeed())
+		})
+	})
+
+	When("the secret is created with notification_url field in the top level secret", func() {
+		var keystoneAPIName types.NamespacedName
+		BeforeEach(func() {
+			secret := th.CreateSecret(
+				watcherTest.InternalTopLevelSecretName,
+				map[string][]byte{
+					"WatcherPassword":       []byte("service-password"),
+					"transport_url":         []byte("url"),
+					"database_username":     []byte("username"),
+					"database_password":     []byte("password"),
+					"database_hostname":     []byte("hostname"),
+					"database_account":      []byte("watcher"),
+					"01-global-custom.conf": []byte(""),
+					"notification_url":      []byte("rabbit://rabbitmq-notification-secret/fake"),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, secret)
+			prometheusSecret := th.CreateSecret(
+				watcherTest.PrometheusSecretName,
+				map[string][]byte{
+					"host": []byte("prometheus.example.com"),
+					"port": []byte("9090"),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, prometheusSecret)
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.WatcherAPI.Namespace,
+					"openstack",
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+			mariadb.CreateMariaDBAccountAndSecret(
+				watcherTest.WatcherDatabaseAccount,
+				v1beta1.MariaDBAccountSpec{
+					UserName: "watcher",
+				},
+			)
+			mariadb.CreateMariaDBDatabase(
+				watcherTest.WatcherAPI.Namespace,
+				"watcher",
+				v1beta1.MariaDBDatabaseSpec{
+					Name: "watcher",
+				},
+			)
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, GetDefaultWatcherAPISpec()))
+			keystoneAPIName = keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace)
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystoneAPIName)
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.WatcherAPI.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
+			keystone.SimulateKeystoneEndpointReady(watcherTest.WatcherKeystoneEndpointName)
+
+		})
+		It("should have input ready", func() {
+			th.ExpectCondition(
+				watcherTest.WatcherAPI,
+				ConditionGetterFunc(WatcherAPIConditionGetter),
+				condition.InputReadyCondition,
+				corev1.ConditionTrue,
+			)
+		})
+
+		It("should have config service input ready", func() {
+			th.ExpectCondition(
+				watcherTest.WatcherAPI,
+				ConditionGetterFunc(WatcherAPIConditionGetter),
+				condition.ServiceConfigReadyCondition,
+				corev1.ConditionTrue,
+			)
+		})
+
+		It("should have the expected config secret content", func() {
+
+			createdSecret := th.GetSecret(watcherTest.WatcherAPIConfigSecret)
+			Expect(createdSecret).ShouldNot(BeNil())
+			Expect(createdSecret.Data["00-default.conf"]).ShouldNot(BeNil())
+
+			// extract default config data
+			configData := createdSecret.Data["00-default.conf"]
+			Expect(configData).ShouldNot(BeNil())
+
+			expectedSections := []string{`
+[cinder_client]
+endpoint_type = internal`, `
+[glance_client]
+endpoint_type = internal`, `
+[ironic_client]
+endpoint_type = internal`, `
+[keystone_client]
+interface = internal`, `
+[neutron_client]
+endpoint_type = internal`, `
+[nova_client]
+endpoint_type = internal`, `
+[placement_client]
+interface = internal`, `
+[watcher_cluster_data_model_collectors.compute]
+period = 900`, `
+[watcher_cluster_data_model_collectors.baremetal]
+period = 900`, `
+[watcher_cluster_data_model_collectors.storage]
+period = 900`, `
+[oslo_messaging_notifications]
+
+driver = messagingv2
+transport_url = rabbit://rabbitmq-notification-secret/fake`, `
+[oslo_messaging_rabbit]
+amqp_durable_queues=false
+amqp_auto_delete=false
+heartbeat_in_pthread=false`,
+			}
+			for _, val := range expectedSections {
+				Expect(string(configData)).Should(ContainSubstring(val))
+			}
 		})
 	})
 })

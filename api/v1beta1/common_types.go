@@ -128,6 +128,15 @@ type WatcherSpecCore struct {
 	// +kubebuilder:validation:Minimum=10
 	// APITimeout for Route and Apache
 	APITimeout *int `json:"apiTimeout"`
+
+	// +kubebuilder:validation:Optional
+	// NotificationsBusInstance is the name of the RabbitMqCluster CR to select
+	// the Message Bus Service instance used by the Watcher service to publish and consume notifications
+	// from other services.
+	// If undefined, the value will be inherited from OpenStackControlPlane.
+	// An empty value "" leaves the notification drivers unconfigured and emitting no notifications at all.
+	// Avoid colocating it with RabbitMqClusterName or other message bus instances used for RPC.
+	NotificationsBusInstance *string `json:"notificationsBusInstance,omitempty"`
 }
 
 // PasswordSelector to identify the DB and AdminUser password from the Secret

@@ -201,11 +201,11 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	// create service DB - end
 
 	//
-	// create RabbitMQ transportURL CR and get the actual URL from the associated secret that is created
+	// create RPC RabbitMQ transportURL CR and get the actual URL from the associated secret that is created
 	// not-ready condition is managed here instead of in ensureMQ to distinguish between Error (when receiving)
 	// an error, or Running when transportURL is empty.
 	//
-	transportURL, op, err := r.ensureMQ(ctx, instance, helper, serviceLabels)
+	transportURL, op, err := r.ensureMQ(ctx, instance, helper, instance.Name+"-watcher-transport", *instance.Spec.RabbitMqClusterName, serviceLabels)
 	if err != nil {
 		instance.Status.Conditions.Set(condition.FalseCondition(
 			watcherv1beta1.WatcherRabbitMQTransportURLReadyCondition,
@@ -226,9 +226,64 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		return ctrl.Result{RequeueAfter: time.Duration(10) * time.Second}, nil
 	}
 
+	instance.Status.Conditions.MarkTrue(watcherv1beta1.WatcherRabbitMQTransportURLReadyCondition, watcherv1beta1.WatcherRabbitMQTransportURLReadyMessage)
+
 	_ = op
 	// end of TransportURL creation
 
+	// create Notification RabbitMQ transportURL CR and get the actual URL from the associated secret that is created
+	notificationURLSecret := &corev1.Secret{}
+
+	if instance.Spec.NotificationsBusInstance != nil && *instance.Spec.NotificationsBusInstance != "" {
+		instance.Status.Conditions.Set(condition.FalseCondition(
+			watcherv1beta1.WatcherNotificationTransportURLReadyCondition,
+			condition.RequestedReason,
+			condition.SeverityInfo,
+			watcherv1beta1.WatcherNotificationTransportURLReadyRunningMessage,
+		))
+		notificationURL, op, err := r.ensureMQ(ctx, instance, helper, instance.Name+"-watcher-notification", *instance.Spec.NotificationsBusInstance, serviceLabels)
+		if err != nil {
+			instance.Status.Conditions.Set(condition.FalseCondition(
+				watcherv1beta1.WatcherNotificationTransportURLReadyCondition,
+				condition.ErrorReason,
+				condition.SeverityWarning,
+				watcherv1beta1.WatcherNotificationTransportURLReadyErrorMessage,
+				err.Error()))
+			return ctrl.Result{}, err
+		}
+
+		if notificationURL == nil {
+			Log.Info(fmt.Sprintf("Waiting for TransportURL for %s to be created", instance.Name))
+			instance.Status.Conditions.Set(condition.FalseCondition(
+				watcherv1beta1.WatcherNotificationTransportURLReadyCondition,
+				condition.RequestedReason,
+				condition.SeverityInfo,
+				watcherv1beta1.WatcherNotificationTransportURLReadyRunningMessage,
+			))
+			return ctrl.Result{RequeueAfter: time.Duration(10) * time.Second}, nil
+		}
+		instance.Status.Conditions.MarkTrue(watcherv1beta1.WatcherNotificationTransportURLReadyCondition, watcherv1beta1.WatcherNotificationTransportURLReadyMessage)
+
+		// NotificationURL Secret
+		hashNotificationURL, _, notificationSecret, err := ensureSecret(
+			ctx,
+			types.NamespacedName{Namespace: instance.Namespace, Name: notificationURL.Status.SecretName},
+			[]string{
+				TransportURLSelector,
+			},
+			helper.GetClient(),
+			&instance.Status.Conditions,
+			r.RequeueTimeout,
+		)
+		if err != nil || hashNotificationURL == "" {
+			// Empty hash means that there is some problem retrieving the key from the secret
+			return ctrl.Result{}, errors.New("error retrieving required data from notificationURL secret")
+		}
+		notificationURLSecret = &notificationSecret
+		_ = op
+	}
+
+	// end of Notification TransportURL creation
 	// Check we have the required inputs
 	// Top level secret
 	hash, _, inputSecret, err := ensureSecret(
@@ -300,7 +355,7 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 
 	// End of Prometheus config secret
 
-	subLevelSecretName, err := r.createSubLevelSecret(ctx, helper, instance, transporturlSecret, inputSecret, db)
+	subLevelSecretName, err := r.createSubLevelSecret(ctx, helper, instance, transporturlSecret, notificationURLSecret, inputSecret, db)
 	if err != nil {
 		return ctrl.Result{}, nil
 	}
@@ -605,21 +660,23 @@ func (r *WatcherReconciler) ensureMQ(
 	ctx context.Context,
 	instance *watcherv1beta1.Watcher,
 	h *helper.Helper,
+	transportURLName string,
+	messageBusInstance string,
 	serviceLabels map[string]string,
 ) (*rabbitmqv1.TransportURL, controllerutil.OperationResult, error) {
 	Log := r.GetLogger(ctx)
-	Log.Info(fmt.Sprintf("Reconciling the RabbitMQ TransportURL for '%s'", instance.Name))
+	Log.Info(fmt.Sprintf("Reconciling the RabbitMQ TransportURL '%s' for '%s'", transportURLName, instance.Name))
 
 	transportURL := &rabbitmqv1.TransportURL{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-watcher-transport", instance.Name),
+			Name:      transportURLName,
 			Namespace: instance.Namespace,
 			Labels:    serviceLabels,
 		},
 	}
 
 	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, transportURL, func() error {
-		transportURL.Spec.RabbitmqClusterName = *instance.Spec.RabbitMqClusterName
+		transportURL.Spec.RabbitmqClusterName = messageBusInstance
 
 		err := controllerutil.SetControllerReference(instance, transportURL, r.Scheme)
 		return err
@@ -656,7 +713,6 @@ func (r *WatcherReconciler) ensureMQ(
 			"the TransportURL secret %s does not have 'transport_url' field", transportURL.Status.SecretName)
 	}
 
-	instance.Status.Conditions.MarkTrue(watcherv1beta1.WatcherRabbitMQTransportURLReadyCondition, watcherv1beta1.WatcherRabbitMQTransportURLReadyMessage)
 	return transportURL, op, nil
 }
 
@@ -810,6 +866,7 @@ func (r *WatcherReconciler) createSubLevelSecret(
 	helper *helper.Helper,
 	instance *watcherv1beta1.Watcher,
 	transportURLSecret corev1.Secret,
+	notificationURLSecret *corev1.Secret,
 	inputSecret corev1.Secret,
 	db *mariadbv1.Database,
 ) (string, error) {
@@ -817,6 +874,7 @@ func (r *WatcherReconciler) createSubLevelSecret(
 	Log.Info(fmt.Sprintf("Creating SubCr Level Secret for '%s'", instance.Name))
 	databaseAccount := db.GetAccount()
 	databaseSecret := db.GetSecret()
+
 	data := map[string]string{
 		*instance.Spec.PasswordSelectors.Service: string(inputSecret.Data[*instance.Spec.PasswordSelectors.Service]),
 		TransportURLSelector:                     string(transportURLSecret.Data[TransportURLSelector]),
@@ -825,6 +883,7 @@ func (r *WatcherReconciler) createSubLevelSecret(
 		DatabasePassword:                         string(databaseSecret.Data[mariadbv1.DatabasePasswordSelector]),
 		DatabaseHostname:                         db.GetDatabaseHostname(),
 		watcher.GlobalCustomConfigFileName:       instance.Spec.CustomServiceConfig,
+		NotificationURLSelector:                  string(notificationURLSecret.Data[TransportURLSelector]),
 	}
 	secretName := instance.Name
 

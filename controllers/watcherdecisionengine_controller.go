@@ -542,6 +542,10 @@ func (r *WatcherDecisionEngineReconciler) generateServiceConfigs(
 		"PrometheusCaCertPath":     prometheusCaCertPath,
 	}
 
+	if string(secret.Data[NotificationURLSelector]) != "" {
+		templateParameters["NotificationURL"] = string(secret.Data[NotificationURLSelector])
+	}
+
 	return GenerateConfigsGeneric(ctx, helper, instance, envVars, templateParameters, customData, labels, false)
 }
 
