@@ -30,10 +30,13 @@ cifmw_test_operator_tempest_include_list: |
 # is finished upstream.
 # TODO(chandankumar): Drop watcher_tempest_plugin.*client_functional.* from here and also remove it
 # from watcher-tempest-plugin by openstack release 2024.2 eol.
+# TODO(amoralej): Disable test_execute_zone_migration_without_destination_host until
+# https://review.opendev.org/c/openstack/watcher/+/951535 is merged
 cifmw_test_operator_tempest_exclude_list: |
   watcher_tempest_plugin.*client_functional.*
   watcher_tempest_plugin.tests.scenario.test_execute_strategies.TestExecuteStrategies.test_execute_storage_capacity_balance_strategy
   watcher_tempest_plugin.*\[.*\breal_load\b.*\].*
+  watcher_tempest_plugin.tests.scenario.test_execute_zone_migration.TestExecuteZoneMigrationStrategy.test_execute_zone_migration_without_destination_host
 
 # Tempest images cases
 # content_provider_os_registry_url is not null, It means an opendev depends-on is used
