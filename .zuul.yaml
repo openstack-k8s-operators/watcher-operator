@@ -41,6 +41,7 @@
       cifmw_repo_setup_promotion: podified-ci-testing
       cifmw_dlrn_report_result: true
       cifmw_update_containers_openstack: true
+      cifmw_update_containers_watcher: true
       cifmw_extras:
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
            src_dir }}/scenarios/centos-9/multinode-ci.yml"
@@ -81,8 +82,6 @@
       # Donot use openstack services containers from meta content provider master
       # job.
       cifmw_update_containers_openstack: false
-      deploy_watcher_service_extra_vars:
-        watcher_catalog_image: "{{ cifmw_operator_build_output['operators']['watcher-operator'].image_catalog }}"
       cifmw_edpm_telemetry_enabled_exporters:
         - podman_exporter
         - openstack_network_exporter
@@ -98,10 +97,8 @@
     vars:
       # Do not fetch dlrn md5 hash
       fetch_dlrn_hash: false
-      deploy_watcher_service_extra_vars:
+      deploy_watcher_operator_extra_vars:
         watcher_catalog_image: "{{ cifmw_operator_build_output['operators']['watcher-operator'].image_catalog }}"
-        deploy_watcher_service: false
-        force_watcher_standalone: true
       cifmw_extras:
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
            src_dir }}/ci/scenarios/kuttl.yml"
@@ -164,12 +161,14 @@
       # Donot use openstack services containers from meta content provider master
       # job.
       cifmw_update_containers_openstack: false
+      cifmw_update_containers_watcher: true
+      cifmw_update_containers_registry: "{{ content_provider_os_registry_url | split('/') | first }}"
+      cifmw_update_containers_tag: watcher_latest
+      cifmw_update_containers_org: podified-epoxy-centos9
       # current dlrn hash changes frequently. In meta content provider, containers
       # are tagged with watcher_latest, let's use the same here.
       fetch_dlrn_hash: false
       watcher_services_tag: watcher_latest
-      deploy_watcher_service_extra_vars:
-        watcher_cr_file: "ci/watcher_v1beta1_watcher_tlse.yaml"
       # tempest vars
       cifmw_test_operator_tempest_registry: "{{ content_provider_os_registry_url | split('/') | first }}"
       cifmw_test_operator_tempest_namespace: "{{ content_provider_os_registry_url | split('/') | last }}"
@@ -235,6 +234,7 @@
       cifmw_update_containers_openstack: true
       cifmw_update_containers_org: podified-master-centos10
       fetch_dlrn_hash: false
+      cifmw_update_containers_watcher: true
       watcher_services_tag: watcher_latest
       watcher_registry_url: "{{ content_provider_os_registry_url }}"
       cifmw_update_containers_tag: current-tested

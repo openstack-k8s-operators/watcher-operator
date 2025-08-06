@@ -1,0 +1,37 @@
+---
+# This hook is used to deploy watcher operator.
+
+- name: Deploy Watcher Operator
+  hosts: "{{ cifmw_target_hook_host | default('localhost') }}"
+  gather_facts: false
+  environment:
+    KUBECONFIG: "{{ cifmw_openshift_kubeconfig }}"
+    PATH: "{{ cifmw_path }}"
+  tasks:
+    - name: Stop watcher-operator
+      cifmw.general.ci_script:
+        output_dir: "{{ cifmw_basedir }}/artifacts"
+        chdir: "{{ watcher_repo }}"
+        script: make stop_watcher_integrated
+    - name: Install Watcher Operator in standalone mode
+      vars:
+        _tag: "{{ latest_dlrn_tag.content | default(watcher_services_tag) | default('current-podified') }}"
+        # When there is no Depends-On from opendev, then content_provider_os_registry_url will return null
+        # value to child job. In that case, we need to set default to quay registry.
+        _registry_url: >-
+          {%- if watcher_registry_url is defined -%}
+          {{ watcher_registry_url }}
+          {%- elif content_provider_os_registry_url is defined and content_provider_os_registry_url == 'null' -%}
+          quay.io/podified-master-centos9
+          {%- else -%}
+          {{ content_provider_os_registry_url | default('quay.io/podified-master-centos9') }}
+          {%- endif -%}
+      cifmw.general.ci_script:
+        output_dir: "{{ cifmw_basedir }}/artifacts"
+        chdir: "{{ watcher_repo }}"
+        script: make watcher
+        extra_args:
+          CATALOG_IMAGE: "{{ watcher_catalog_image | default('quay.io/openstack-k8s-operators/watcher-operator-index:latest') }}"
+          WATCHER_API_CI_IMAGE: "{{ _registry_url }}/openstack-watcher-api:{{ _tag }}"
+          WATCHER_DECISION_ENGINE_CI_IMAGE: "{{ _registry_url }}/openstack-watcher-decision-engine:{{ _tag }}"
+          WATCHER_APPLIER_CI_IMAGE: "{{ _registry_url }}/openstack-watcher-applier:{{ _tag }}"

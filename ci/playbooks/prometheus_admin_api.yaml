@@ -1,0 +1,20 @@
+# This hook is used to enable the Prometheus Admin API.
+
+- name: Enable Prometheus Admin API
+  hosts: "{{ cifmw_target_hook_host | default('localhost') }}"
+  gather_facts: false
+  environment:
+    KUBECONFIG: "{{ cifmw_openshift_kubeconfig }}"
+    PATH: "{{ cifmw_path }}"
+  tasks:
+    - name: Patch prometheuses.monitoring.rhobs metric-storage to enable Admin API
+      ansible.builtin.command:
+        cmd: >-
+          oc patch prometheuses.monitoring.rhobs metric-storage --namespace=openstack --type=merge -p '{"spec":{"enableAdminAPI":true}}'
+
+    - name: Wait for prometheuses.monitoring.rhobs metric-storage associated pod to be redeployed
+      ansible.builtin.command:
+        cmd: >-
+          oc wait pod prometheus-metric-storage-0 --for=condition=Ready -n openstack --timeout=1m
+      retries: 10
+      delay: 30
