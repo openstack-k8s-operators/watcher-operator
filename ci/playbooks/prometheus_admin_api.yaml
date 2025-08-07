@@ -11,7 +11,6 @@
       ansible.builtin.command:
         cmd: >-
           oc patch prometheuses.monitoring.rhobs metric-storage --namespace=openstack --type=merge -p '{"spec":{"enableAdminAPI":true}}'
-
     - name: Wait for prometheuses.monitoring.rhobs metric-storage associated pod to be redeployed
       ansible.builtin.command:
         cmd: >-

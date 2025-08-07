@@ -64,6 +64,38 @@ cifmw_edpm_prepare_kustomizations:
                 monitoringStack: null
       target:
         kind: OpenStackControlPlane
+    {% if watcher_uses_notifications | bool %}
+    - patch: |-
+        apiVersion: core.openstack.org/v1beta1
+        kind: OpenStackControlPlane
+        metadata:
+          name: controlplane
+        spec:
+          rabbitmq:
+            templates:
+              rabbitmq-notifications:
+                delayStartSeconds: 30
+                override:
+                  service:
+                    metadata:
+                      annotations:
+                        metallb.universe.tf/address-pool: internalapi
+                        metallb.universe.tf/loadBalancerIPs: 172.17.0.87
+                    spec:
+                      type: LoadBalancer
+      target:
+        kind: OpenStackControlPlane
+    - patch: |-
+        apiVersion: core.openstack.org/v1beta1
+        kind: OpenStackControlPlane
+        metadata:
+          name: controlplane
+        spec:
+          nova:
+            template:
+              notificationsBusInstance: rabbitmq-notifications
+      target:
+        kind: OpenStackControlPlane
     - patch : |-
         apiVersion: core.openstack.org/v1beta1
         kind: OpenStackControlPlane
@@ -73,14 +105,10 @@ cifmw_edpm_prepare_kustomizations:
           watcher:
             enabled: true
             template:
-              decisionengineServiceTemplate:
-                customServiceConfig: |
-                  [watcher_cluster_data_model_collectors.compute]
-                  period = 60
-                  [watcher_cluster_data_model_collectors.storage]
-                  period = 60
+              notificationsBusInstance: rabbitmq-notifications
       target:
         kind: OpenStackControlPlane
+    {% endif %}
 
 cifmw_edpm_prepare_timeout: 60
 
