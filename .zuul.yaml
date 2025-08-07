@@ -32,6 +32,7 @@
 - job:
     name: periodic-watcher-operator-validation-master
     parent: watcher-operator-base
+    nodeset: centos-9-medium-2x-centos-9-crc-cloud-ocp-4-18-1-3xl
     description: |
       A multinode EDPM Zuul job which has one ansible controller, one
       extracted crc and two computes. It will be used for testing watcher
@@ -143,6 +144,7 @@
 
 - job:
     name: watcher-operator-validation-epoxy
+    nodeset: centos-9-medium-2x-centos-9-crc-cloud-ocp-4-18-1-3xl
     parent: watcher-operator-validation-base
     dependencies: ["openstack-meta-content-provider-epoxy"]
     description: |
@@ -180,6 +182,7 @@
         - repository: "https://opendev.org/openstack/watcher-tempest-plugin.git"
           changeRepository: "https://review.opendev.org/openstack/watcher-tempest-plugin"
           changeRefspec: "380572db57798530b64dcac14c6b01b0382c5d8e"
+      watcher_disable_notifications: true
 
 - job:
     name: watcher-operator-validation-epoxy-ocp4-16
@@ -220,6 +223,7 @@
           image_base: watcher
 - job:
     name: watcher-operator-validation-master
+    nodeset: centos-9-medium-2x-centos-9-crc-cloud-ocp-4-18-1-3xl
     parent: watcher-operator-validation-base
     # Note(Chandankumar): Make it voting once
     # github.com/openstack-k8s-operators/watcher-operator/pull/168#issuecomment-2897402858
