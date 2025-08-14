@@ -5,6 +5,8 @@ import "github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 const (
 	// WatcherRabbitMQTransportURLReadyCondition -
 	WatcherRabbitMQTransportURLReadyCondition condition.Type = "WatcherRabbitMQTransportURLReady"
+	// WatcherNotificationsBusTransportURLReadyCondition -
+	WatcherNotificationTransportURLReadyCondition condition.Type = "WatcherNotificationTransportURLReady"
 	// WatcherAPIReadyCondition -
 	WatcherAPIReadyCondition condition.Type = "WatcherAPIReady"
 	// WatcherApplierReadyCondition -
@@ -20,6 +22,12 @@ const (
 	WatcherRabbitMQTransportURLReadyMessage = "WatcherRabbitMQTransportURL successfully created"
 	// WatcherRabbitMQTransportURLReadyErrorMessage -
 	WatcherRabbitMQTransportURLReadyErrorMessage = "WatcherRabbitMQTransportURL error occured %s"
+	// WatcherNotificationTransportURLReadyRunningMessage -
+	WatcherNotificationTransportURLReadyRunningMessage = "WatcherNotificationTransportURL creation in progress"
+	// WatcherNotificationTransportURLReadyMessage -
+	WatcherNotificationTransportURLReadyMessage = "WatcherNotificationTransportURL successfully created"
+	// WatcherNotificationTransportURLReadyErrorMessage -
+	WatcherNotificationTransportURLReadyErrorMessage = "WatcherNotificationTransportURL error occured %s"
 	// WatcherAPIReadyInitMessage -
 	WatcherAPIReadyInitMessage = "WatcherAPI creation not started"
 	// WatcherAPIReadyRunningMessage -
