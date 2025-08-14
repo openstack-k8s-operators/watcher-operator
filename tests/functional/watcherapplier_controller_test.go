@@ -126,6 +126,7 @@ var _ = Describe("WatcherApplier controller", func() {
 					"database_hostname":     []byte("hostname"),
 					"database_account":      []byte("watcher"),
 					"01-global-custom.conf": []byte(""),
+					"notification_url":      []byte(""),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -220,11 +221,20 @@ endpoint_type = internal`, `
 [nova_client]
 endpoint_type = internal`, `
 [placement_client]
-interface = internal`,
+interface = internal`, `
+[oslo_messaging_notifications]
+
+driver = noop`,
 			}
 			for _, val := range expectedSections {
 				Expect(string(configData)).Should(ContainSubstring(val))
 			}
+			unexpectedNotificationSection := `
+[oslo_messaging_notifications]
+
+driver = messagingv2
+transport_url =`
+			Expect(string(configData)).Should(Not(ContainSubstring(unexpectedNotificationSection)))
 		})
 		It("creates a deployment for the watcher-applier service", func() {
 			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherApplierStatefulSet)
@@ -348,6 +358,7 @@ interface = internal`,
 					"database_hostname":     []byte("hostname"),
 					"database_account":      []byte("watcher"),
 					"01-global-custom.conf": []byte(""),
+					"notification_url":      []byte(""),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -385,6 +396,7 @@ interface = internal`,
 					"database_hostname":     []byte("hostname"),
 					"database_account":      []byte("watcher"),
 					"01-global-custom.conf": []byte(""),
+					"notification_url":      []byte(""),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -441,6 +453,7 @@ interface = internal`,
 					"database_hostname":     []byte("hostname"),
 					"database_account":      []byte("watcher"),
 					"01-global-custom.conf": []byte(""),
+					"notification_url":      []byte(""),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -528,6 +541,7 @@ interface = internal`,
 					"database_hostname":     []byte("hostname"),
 					"database_account":      []byte("watcher"),
 					"01-global-custom.conf": []byte(""),
+					"notification_url":      []byte(""),
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
@@ -709,6 +723,130 @@ interface = internal`,
 				g.Expect(finalizers).ToNot(ContainElement(
 					fmt.Sprintf("openstack.org/watcherapplier-%s", watcherTest.WatcherApplier.Name)))
 			}, timeout, interval).Should(Succeed())
+		})
+	})
+	When("the secret is created with a notification_url field in the secret", func() {
+		var keystoneAPIName types.NamespacedName
+
+		BeforeEach(func() {
+			secret := th.CreateSecret(
+				watcherTest.InternalTopLevelSecretName,
+				map[string][]byte{
+					"WatcherPassword":       []byte("service-password"),
+					"transport_url":         []byte("url"),
+					"database_username":     []byte("username"),
+					"database_password":     []byte("password"),
+					"database_hostname":     []byte("hostname"),
+					"database_account":      []byte("watcher"),
+					"01-global-custom.conf": []byte(""),
+					"notification_url":      []byte("rabbit://rabbitmq-notification-secret/fake"),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, secret)
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.WatcherApplier.Namespace,
+					"openstack",
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+			mariadb.CreateMariaDBAccountAndSecret(
+				watcherTest.WatcherDatabaseAccount,
+				mariadbv1.MariaDBAccountSpec{
+					UserName: "watcher",
+				},
+			)
+			mariadb.CreateMariaDBDatabase(
+				watcherTest.WatcherApplier.Namespace,
+				"watcher",
+				mariadbv1.MariaDBDatabaseSpec{
+					Name: "watcher",
+				},
+			)
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+			keystoneAPIName = keystone.CreateKeystoneAPI(watcherTest.WatcherApplier.Namespace)
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystoneAPIName)
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.WatcherApplier.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+			DeferCleanup(th.DeleteInstance, CreateWatcherApplier(watcherTest.WatcherApplier, GetDefaultWatcherApplierSpec()))
+		})
+		It("should have input ready", func() {
+			th.ExpectCondition(
+				watcherTest.WatcherApplier,
+				ConditionGetterFunc(WatcherApplierConditionGetter),
+				condition.InputReadyCondition,
+				corev1.ConditionTrue,
+			)
+		})
+		It("should have memcached ready true", func() {
+			th.ExpectCondition(
+				watcherTest.WatcherApplier,
+				ConditionGetterFunc(WatcherApplierConditionGetter),
+				condition.MemcachedReadyCondition,
+				corev1.ConditionTrue,
+			)
+		})
+		It("should have config service input ready", func() {
+			th.ExpectCondition(
+				watcherTest.WatcherApplier,
+				ConditionGetterFunc(WatcherApplierConditionGetter),
+				condition.ServiceConfigReadyCondition,
+				corev1.ConditionTrue,
+			)
+		})
+		It("should have cretaed the config secrete with the expected content", func() {
+			th.ExpectCondition(
+				watcherTest.WatcherApplier,
+				ConditionGetterFunc(WatcherApplierConditionGetter),
+				condition.ServiceConfigReadyCondition,
+				corev1.ConditionTrue,
+			)
+			// assert that the top level secret is created with proper content
+			createdSecret := th.GetSecret(watcherTest.WatcherApplierSecret)
+			Expect(createdSecret).ShouldNot(BeNil())
+			Expect(createdSecret.Data["00-default.conf"]).ShouldNot(BeNil())
+
+			// extract default config data
+			configData := createdSecret.Data["00-default.conf"]
+			Expect(configData).ShouldNot(BeNil())
+
+			// indentaion is forced by use of raw literal
+			expectedSections := []string{`
+[cinder_client]
+endpoint_type = internal`, `
+[glance_client]
+endpoint_type = internal`, `
+[ironic_client]
+endpoint_type = internal`, `
+[keystone_client]
+interface = internal`, `
+[neutron_client]
+endpoint_type = internal`, `
+[nova_client]
+endpoint_type = internal`, `
+[placement_client]
+interface = internal`, `
+[oslo_messaging_notifications]
+
+driver = messagingv2
+transport_url = rabbit://rabbitmq-notification-secret/fake`, `
+[oslo_messaging_rabbit]
+amqp_durable_queues=false
+amqp_auto_delete=false
+heartbeat_in_pthread=false`,
+			}
+			for _, val := range expectedSections {
+				Expect(string(configData)).Should(ContainSubstring(val))
+			}
 		})
 	})
 })
