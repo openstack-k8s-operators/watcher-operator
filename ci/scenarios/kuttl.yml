@@ -1,6 +1,6 @@
 ---
 watcher_repo: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator"
-watcher_hook: "{{ watcher_repo }}/ci/playbooks/deploy_watcher_service.yaml"
+watcher_operator_hook: "{{ watcher_repo }}/ci/playbooks/deploy_watcher_operator.yaml"
 
 cifmw_install_yamls_whitelisted_vars:
   - 'WATCHER_REPO'
@@ -9,19 +9,18 @@ cifmw_install_yamls_whitelisted_vars:
 
 operator_name: watcher-operator
 
-# run the hook to install watcher after installing openstack-operator.
+# run the hook to install watcher operator
 # If we try to run the hook
 # as a standalone plabyook, it tries to load the cifmw ci_script action
 # plugin from the zuul executor and doesn't find it
 post_install_operators_kuttl_from_operator:
-  - name: Deploy watcher service
+  - name: Deploy watcher operator
     type: playbook
-    source: "{{ watcher_hook }}"
+    source: "{{ watcher_operator_hook }}"
     extra_vars: >-
       {{
-        deploy_watcher_service_extra_vars | default({}) |
+        deploy_watcher_operator_extra_vars | default({}) |
         combine({ 'watcher_repo': watcher_repo })
       }}
-
 # Enable observability operator
 cifmw_deploy_obs: true

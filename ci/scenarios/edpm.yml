@@ -1,7 +1,7 @@
 ---
 watcher_repo: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator"
-watcher_hook: "{{ watcher_repo }}/ci/playbooks/deploy_watcher_service.yaml"
 watcher_coo_hook: "{{ watcher_repo }}/ci/playbooks/deploy_cluster_observability_operator.yaml"
+prometheus_admin_api_hook: "{{ watcher_repo }}/ci/playbooks/prometheus_admin_api.yaml"
 
 # Watcher deploy playbooks
 pre_deploy_create_coo_subscription:
@@ -13,15 +13,74 @@ post_deploy:
     type: playbook
     inventory: "/home/zuul/src/github.com/openstack-k8s-operators/install_yamls/devsetup/hosts"
     source: "/home/zuul/src/github.com/openstack-k8s-operators/install_yamls/devsetup/download_tools.yaml"
-
-  - name: Deploy watcher service
+  - name: Patch Openstack Prometheus to enable admin API
     type: playbook
-    source: "{{ watcher_hook }}"
-    extra_vars: >-
-      {{
-        deploy_watcher_service_extra_vars | default({}) |
-        combine({ 'watcher_repo': watcher_repo })
-      }}
+    source: "{{ prometheus_admin_api_hook }}"
+
+cifmw_edpm_prepare_kustomizations:
+  - apiVersion: kustomize.config.k8s.io/v1beta1
+    kind: Kustomization
+    namespace: openstack
+    patches:
+    - patch: |-
+        apiVersion: core.openstack.org/v1beta1
+        kind: OpenStackControlPlane
+        metadata:
+          name: controlplane
+        spec:
+          telemetry:
+            enabled: true
+            template:
+              ceilometer:
+                enabled: true
+              metricStorage:
+                enabled: true
+                customMonitoringStack:
+                  alertmanagerConfig:
+                    disabled: true
+                  prometheusConfig:
+                    enableRemoteWriteReceiver: true
+                    persistentVolumeClaim:
+                      resources:
+                        requests:
+                          storage: 20G
+                    replicas: 1
+                    scrapeInterval: 30s
+                  resourceSelector:
+                    matchLabels:
+                      service: metricStorage
+                  retention: 24h
+      target:
+        kind: OpenStackControlPlane
+    - patch: |-
+        apiVersion: core.openstack.org/v1beta1
+        kind: OpenStackControlPlane
+        metadata:
+          name: controlplane
+        spec:
+          telemetry:
+            template:
+              metricStorage:
+                monitoringStack: null
+      target:
+        kind: OpenStackControlPlane
+    - patch : |-
+        apiVersion: core.openstack.org/v1beta1
+        kind: OpenStackControlPlane
+        metadata:
+          name: controlplane
+        spec:
+          watcher:
+            enabled: true
+            template:
+              decisionengineServiceTemplate:
+                customServiceConfig: |
+                  [watcher_cluster_data_model_collectors.compute]
+                  period = 60
+                  [watcher_cluster_data_model_collectors.storage]
+                  period = 60
+      target:
+        kind: OpenStackControlPlane
 
 cifmw_edpm_prepare_timeout: 60
 
