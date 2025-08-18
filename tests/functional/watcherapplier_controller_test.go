@@ -849,4 +849,116 @@ heartbeat_in_pthread=false`,
 			}
 		})
 	})
+	When("A WatcherApplier instance is created with MTLS memcached", func() {
+		BeforeEach(func() {
+			// Create the required secret for WatcherApplier
+			secret := th.CreateSecret(
+				watcherTest.InternalTopLevelSecretName,
+				map[string][]byte{
+					"WatcherPassword":       []byte("service-password"),
+					"transport_url":         []byte("url"),
+					"database_username":     []byte("username"),
+					"database_password":     []byte("password"),
+					"database_hostname":     []byte("hostname"),
+					"database_account":      []byte("watcher"),
+					"01-global-custom.conf": []byte(""),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, secret)
+
+			// Create prometheus secret
+			prometheusSecret := th.CreateSecret(
+				watcherTest.PrometheusSecretName,
+				map[string][]byte{
+					"host": []byte("prometheus.example.com"),
+					"port": []byte("9090"),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, prometheusSecret)
+
+			mariadb.CreateMariaDBDatabase(watcherTest.WatcherDatabaseName.Namespace, watcherTest.WatcherDatabaseName.Name, mariadbv1.MariaDBDatabaseSpec{})
+			DeferCleanup(k8sClient.Delete, ctx, mariadb.GetMariaDBDatabase(watcherTest.WatcherDatabaseName))
+
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+			applierMariaDBAccount, applierMariaDBSecret := mariadb.CreateMariaDBAccountAndSecret(
+				watcherTest.WatcherDatabaseAccount, mariadbv1.MariaDBAccountSpec{})
+			DeferCleanup(k8sClient.Delete, ctx, applierMariaDBAccount)
+			DeferCleanup(k8sClient.Delete, ctx, applierMariaDBSecret)
+
+			memcachedSpec := infra.GetDefaultMemcachedSpec()
+			// Create Memcached with MTLS auth
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMTLSMemcached(watcherTest.WatcherApplier.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMTLSMemcachedReady(watcherTest.MemcachedNamespace)
+
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherApplier.Namespace))
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.WatcherApplier.Namespace,
+					"openstack",
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+
+			DeferCleanup(th.DeleteInstance, CreateWatcherApplier(watcherTest.WatcherApplier, GetDefaultWatcherApplierSpec()))
+		})
+
+		It("should have MTLS volumes mounted in StatefulSet", func() {
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherApplierStatefulSet)
+			Eventually(func(g Gomega) {
+				ss := th.GetStatefulSet(watcherTest.WatcherApplierStatefulSet)
+
+				// Check that MTLS volume is present
+				mtlsVolumeFound := false
+				for _, volume := range ss.Spec.Template.Spec.Volumes {
+					if volume.Name == "cert-memcached-mtls" {
+						mtlsVolumeFound = true
+						g.Expect(volume.Secret).ToNot(BeNil())
+						g.Expect(volume.Secret.SecretName).To(Equal("cert-memcached-mtls"))
+						break
+					}
+				}
+				g.Expect(mtlsVolumeFound).To(BeTrue(), "MTLS volume should be mounted")
+
+				// Check that MTLS volume mounts are present
+				for _, container := range ss.Spec.Template.Spec.Containers {
+					if container.Name == "watcher-applier" {
+						mtlsVolumeMountFound := false
+						for _, volumeMount := range container.VolumeMounts {
+							if volumeMount.Name == "cert-memcached-mtls" {
+								mtlsVolumeMountFound = true
+								break
+							}
+						}
+						g.Expect(mtlsVolumeMountFound).To(BeTrue(), "MTLS volume mount should be present in watcher-applier container")
+					}
+				}
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("should have MTLS configuration in config secret", func() {
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherApplierStatefulSet)
+			Eventually(func(g Gomega) {
+				configSecret := th.GetSecret(watcherTest.WatcherApplierConfigSecret)
+				g.Expect(configSecret).ToNot(BeNil())
+
+				configData, exists := configSecret.Data["00-default.conf"]
+				g.Expect(exists).To(BeTrue())
+				configString := string(configData)
+
+				// Check for MTLS configuration in keystone_authtoken section
+				g.Expect(configString).To(ContainSubstring("memcache_tls_certfile"))
+				g.Expect(configString).To(ContainSubstring("memcache_tls_keyfile"))
+				g.Expect(configString).To(ContainSubstring("memcache_tls_cafile"))
+				g.Expect(configString).To(ContainSubstring("memcache_tls_enabled = true"))
+
+				// Check for MTLS configuration in cache section
+				g.Expect(configString).To(ContainSubstring("tls_certfile"))
+				g.Expect(configString).To(ContainSubstring("tls_keyfile"))
+				g.Expect(configString).To(ContainSubstring("tls_cafile"))
+			}, timeout, interval).Should(Succeed())
+		})
+	})
 })

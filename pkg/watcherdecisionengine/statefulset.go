@@ -3,6 +3,7 @@ package watcherdecisionengine
 import (
 	"path/filepath"
 
+	memcachedv1 "github.com/openstack-k8s-operators/infra-operator/apis/memcached/v1beta1"
 	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
 	"github.com/openstack-k8s-operators/lib-common/modules/common"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/affinity"
@@ -29,6 +30,7 @@ func StatefulSet(
 	prometheusCaCertSecret map[string]string,
 	labels map[string]string,
 	topology *topologyv1.Topology,
+	memcached *memcachedv1.Memcached,
 ) *appsv1.StatefulSet {
 
 	// This allows the pod to start up slowly. The pod will only be killed
@@ -114,6 +116,12 @@ func StatefulSet(
 				ReadOnly:  true,
 			},
 		)
+	}
+
+	// add MTLS cert if defined
+	if memcached.Status.MTLSCert != "" {
+		volumes = append(volumes, memcached.CreateMTLSVolume())
+		volumeMounts = append(volumeMounts, memcached.CreateMTLSVolumeMounts(nil, nil)...)
 	}
 
 	statefulset := &appsv1.StatefulSet{

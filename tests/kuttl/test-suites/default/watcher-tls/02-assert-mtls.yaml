@@ -1,0 +1,65 @@
+apiVersion: memcached.openstack.org/v1beta1
+kind: Memcached
+metadata:
+  name: memcached
+status:
+  mtlsCert: cert-memcached-mtls
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+namespaced: true
+commands:
+  - script: |
+      set -euxo pipefail
+
+      oc project ${NAMESPACE}
+      # Get pod names for each watcher service
+      APIPOD=$(oc get pods -l service=watcher-api -o jsonpath='{.items[0].metadata.name}')
+      APPLIERPOD=$(oc get pods -l service=watcher-applier -o jsonpath='{.items[0].metadata.name}')
+      DECISIONENGINEPOD=$(oc get pods -l service=watcher-decision-engine -o jsonpath='{.items[0].metadata.name}')
+
+      # Verify memcached mTLS config parameters in watcher-api config
+      if [ -n "${APIPOD}" ]; then
+        echo "Checking watcher-api config..."
+        [ $(echo $(oc rsh -c watcher-api $APIPOD cat /etc/watcher/watcher.conf.d/00-default.conf) | grep -c "memcache_tls_certfile = /etc/pki/tls/certs/mtls.crt ") == 1 ]
+        [ $(echo $(oc rsh -c watcher-api $APIPOD cat /etc/watcher/watcher.conf.d/00-default.conf) | grep -c "memcache_tls_keyfile = /etc/pki/tls/private/mtls.key") == 1 ]
+        [ $(echo $(oc rsh -c watcher-api $APIPOD cat /etc/watcher/watcher.conf.d/00-default.conf) | grep -c "memcache_tls_cafile = /etc/pki/tls/certs/mtls-ca.crt") == 1 ]
+        [ $(echo $(oc rsh -c watcher-api $APIPOD cat /etc/watcher/watcher.conf.d/00-default.conf) | grep -c "memcache_tls_enabled = true") == 1 ]
+
+        # Verify mTLS config parameters in memcached backend config
+        [ $(echo $(oc rsh -c watcher-api $APIPOD cat /etc/watcher/watcher.conf.d/00-default.conf) | grep -c "tls_certfile=/etc/pki/tls/certs/mtls.crt") == 1 ]
+        [ $(echo $(oc rsh -c watcher-api $APIPOD cat /etc/watcher/watcher.conf.d/00-default.conf) | grep -c "tls_keyfile=/etc/pki/tls/private/mtls.key") == 1 ]
+        [ $(echo $(oc rsh -c watcher-api $APIPOD cat /etc/watcher/watcher.conf.d/00-default.conf) | grep -c "tls_cafile=/etc/pki/tls/certs/mtls-ca.crt") == 1 ]
+      else
+        exit 1
+      fi
+
+      # Verify memcached mTLS config parameters in watcher-applier config
+      if [ -n "${APPLIERPOD}" ]; then
+        echo "Checking watcher-applier config..."
+        [ $(echo $(oc rsh -c watcher-applier $APPLIERPOD cat /etc/watcher/watcher.conf.d/00-default.conf) | grep -c "memcache_tls_certfile = /etc/pki/tls/certs/mtls.crt ") == 1 ]
+        [ $(echo $(oc rsh -c watcher-applier $APPLIERPOD cat /etc/watcher/watcher.conf.d/00-default.conf) | grep -c "memcache_tls_keyfile = /etc/pki/tls/private/mtls.key") == 1 ]
+        [ $(echo $(oc rsh -c watcher-applier $APPLIERPOD cat /etc/watcher/watcher.conf.d/00-default.conf) | grep -c "memcache_tls_cafile = /etc/pki/tls/certs/mtls-ca.crt") == 1 ]
+        [ $(echo $(oc rsh -c watcher-applier $APPLIERPOD cat /etc/watcher/watcher.conf.d/00-default.conf) | grep -c "memcache_tls_enabled = true") == 1 ]
+
+        [ $(echo $(oc rsh -c watcher-applier $APPLIERPOD cat /etc/watcher/watcher.conf.d/00-default.conf) | grep -c "tls_certfile=/etc/pki/tls/certs/mtls.crt") == 1 ]
+        [ $(echo $(oc rsh -c watcher-applier $APPLIERPOD cat /etc/watcher/watcher.conf.d/00-default.conf) | grep -c "tls_keyfile=/etc/pki/tls/private/mtls.key") == 1 ]
+        [ $(echo $(oc rsh -c watcher-applier $APPLIERPOD cat /etc/watcher/watcher.conf.d/00-default.conf) | grep -c "tls_cafile=/etc/pki/tls/certs/mtls-ca.crt") == 1 ]
+      else
+        exit 1
+      fi
+
+      # Verify memcached mTLS config parameters in watcher-decision-engine config
+      if [ -n "${DECISIONENGINEPOD}" ]; then
+        echo "Checking watcher-decision-engine config..."
+        [ $(echo $(oc rsh -c watcher-decision-engine $DECISIONENGINEPOD cat /etc/watcher/watcher.conf.d/00-default.conf) | grep -c "memcache_tls_certfile = /etc/pki/tls/certs/mtls.crt ") == 1 ]
+        [ $(echo $(oc rsh -c watcher-decision-engine $DECISIONENGINEPOD cat /etc/watcher/watcher.conf.d/00-default.conf) | grep -c "memcache_tls_keyfile = /etc/pki/tls/private/mtls.key") == 1 ]
+        [ $(echo $(oc rsh -c watcher-decision-engine $DECISIONENGINEPOD cat /etc/watcher/watcher.conf.d/00-default.conf) | grep -c "memcache_tls_cafile = /etc/pki/tls/certs/mtls-ca.crt") == 1 ]
+        [ $(echo $(oc rsh -c watcher-decision-engine $DECISIONENGINEPOD cat /etc/watcher/watcher.conf.d/00-default.conf) | grep -c "memcache_tls_enabled = true") == 1 ]
+
+        [ $(echo $(oc rsh -c watcher-decision-engine $DECISIONENGINEPOD cat /etc/watcher/watcher.conf.d/00-default.conf) | grep -c "tls_certfile=/etc/pki/tls/certs/mtls.crt") == 1 ]
+        [ $(echo $(oc rsh -c watcher-decision-engine $DECISIONENGINEPOD cat /etc/watcher/watcher.conf.d/00-default.conf) | grep -c "tls_keyfile=/etc/pki/tls/private/mtls.key") == 1 ]
+        [ $(echo $(oc rsh -c watcher-decision-engine $DECISIONENGINEPOD cat /etc/watcher/watcher.conf.d/00-default.conf) | grep -c "tls_cafile=/etc/pki/tls/certs/mtls-ca.crt") == 1 ]
+      else
+        exit 1
+      fi

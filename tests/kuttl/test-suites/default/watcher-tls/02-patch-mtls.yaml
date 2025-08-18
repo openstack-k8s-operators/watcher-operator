@@ -1,0 +1,7 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+namespaced: true
+commands:
+  - script: |
+      set -euxo pipefail
+      oc patch oscp -n $NAMESPACE openstack --type='json' -p='[{"op": "replace", "path": "/spec/memcached/templates/memcached/tls/mtls/sslVerifyMode", "value": "Request"}]'

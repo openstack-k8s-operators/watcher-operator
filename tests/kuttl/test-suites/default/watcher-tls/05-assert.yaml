@@ -1,1 +1,248 @@
-../common/cleanup-assert.yaml
+apiVersion: watcher.openstack.org/v1beta1
+kind: Watcher
+metadata:
+  finalizers:
+  - openstack.org/watcher
+  name: watcher-kuttl
+spec:
+  apiContainerImageURL: "quay.io/podified-master-centos9/openstack-watcher-api:current-podified"
+  decisionengineContainerImageURL: "quay.io/podified-master-centos9/openstack-watcher-decision-engine:current-podified"
+  applierContainerImageURL: "quay.io/podified-master-centos9/openstack-watcher-applier:current-podified"
+  databaseAccount: watcher
+  databaseInstance: openstack
+  passwordSelectors:
+    service: WatcherPassword
+  preserveJobs: false
+  rabbitMqClusterName: rabbitmq
+  secret: osp-secret
+  serviceUser: watcher
+  apiServiceTemplate:
+    replicas: 1
+    tls:
+      caBundleSecretName: "combined-ca-bundle"
+      api:
+        internal: {}
+        public: {}
+    resources: {}
+status:
+  apiServiceReadyCount: 1
+  conditions:
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: Ready
+  - message: CronJob completed
+    reason: Ready
+    status: "True"
+    type: CronJobReady
+  - message: DB create completed
+    reason: Ready
+    status: "True"
+    type: DBReady
+  - message: DBsync completed
+    reason: Ready
+    status: "True"
+    type: DBSyncReady
+  - message: Input data complete
+    reason: Ready
+    status: "True"
+    type: InputReady
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: KeystoneServiceReady
+  - message: MariaDBAccount creation complete
+    reason: Ready
+    status: "True"
+    type: MariaDBAccountReady
+  - message: RoleBinding created
+    reason: Ready
+    status: "True"
+    type: RoleBindingReady
+  - message: Role created
+    reason: Ready
+    status: "True"
+    type: RoleReady
+  - message: ServiceAccount created
+    reason: Ready
+    status: "True"
+    type: ServiceAccountReady
+  - message: Service config create completed
+    reason: Ready
+    status: "True"
+    type: ServiceConfigReady
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: WatcherAPIReady
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: WatcherApplierReady
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: WatcherDecisionEngineReady
+  - message: WatcherRabbitMQTransportURL successfully created
+    reason: Ready
+    status: "True"
+    type: WatcherRabbitMQTransportURLReady
+---
+apiVersion: watcher.openstack.org/v1beta1
+kind: WatcherAPI
+metadata:
+  finalizers:
+  - openstack.org/watcherapi
+  name: watcher-kuttl-api
+spec:
+  containerImage: quay.io/podified-master-centos9/openstack-watcher-api:current-podified
+  memcachedInstance: memcached
+  passwordSelectors:
+    service: WatcherPassword
+  preserveJobs: false
+  replicas: 1
+  resources: {}
+  secret: watcher-kuttl
+  serviceAccount: watcher-watcher-kuttl
+  serviceUser: watcher
+  tls:
+    caBundleSecretName: "combined-ca-bundle"
+    api:
+      internal: {}
+      public: {}
+status:
+  conditions:
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: Ready
+  - message: Create service completed
+    reason: Ready
+    status: "True"
+    type: CreateServiceReady
+  - message: Deployment completed
+    reason: Ready
+    status: "True"
+    type: DeploymentReady
+  - message: Input data complete
+    reason: Ready
+    status: "True"
+    type: InputReady
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: KeystoneEndpointReady
+  - message: " Memcached instance has been provisioned"
+    reason: Ready
+    status: "True"
+    type: MemcachedReady
+  - message: Service config create completed
+    reason: Ready
+    status: "True"
+    type: ServiceConfigReady
+  - message: Input data complete
+    reason: Ready
+    status: "True"
+    type: TLSInputReady
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: watcher-kuttl-api
+  labels:
+    service: watcher-api
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+      - name: watcher-kuttl-api-log
+      - name: watcher-api
+status:
+  readyReplicas: 1
+  replicas: 1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: watcher-kuttl-api-0
+  labels:
+    service: watcher-api
+spec:
+  containers:
+  - name: watcher-kuttl-api-log
+  - name: watcher-api
+status:
+  phase: Running
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    endpoint: public
+    service: watcher-api
+  name: watcher-public
+spec:
+  ports:
+  - name: watcher-public
+    port: 9322
+    protocol: TCP
+    targetPort: 9322
+  selector:
+    service: watcher-api
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    endpoint: internal
+    service: watcher-api
+  name: watcher-internal
+spec:
+  ports:
+  - name: watcher-internal
+    port: 9322
+    protocol: TCP
+    targetPort: 9322
+  selector:
+    service: watcher-api
+  type: ClusterIP
+---
+apiVersion: keystone.openstack.org/v1beta1
+kind: KeystoneEndpoint
+metadata:
+  name: watcher
+spec:
+  serviceName: watcher
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+namespaced: true
+commands:
+  - script: |
+      set -euxo pipefail
+      oc exec -n ${NAMESPACE} openstackclient -- openstack service list -f value -c Name -c Type |[ $(grep -c ^watcher) == 1 ]
+      SERVICEID=$(oc exec -n ${NAMESPACE} openstackclient -- openstack service list -f value -c Name -c Type -c ID | grep watcher| awk '{print $1}')
+      [ $(oc get -n ${NAMESPACE} keystoneservice watcher -o jsonpath={.status.serviceID}) == ${SERVICEID} ]
+      [ -n "$(oc get -n ${NAMESPACE} watcher watcher-kuttl -o jsonpath={.status.hash.dbsync})" ]
+      # If we are running the container locally, skip following test
+      if [ "$(oc get pods -n openstack-operators -o name -l openstack.org/operator-name=watcher)" == "" ]; then
+          exit 0
+      fi
+      env_variables=$(oc set env $(oc get pods -n openstack-operators -o name -l openstack.org/operator-name=watcher) -n openstack-operators --list)
+      counter=0
+      for i in ${env_variables}; do
+          if echo ${i} | grep '_URL_DEFAULT' &> /dev/null; then
+              echo ${i}
+              counter=$((counter + 1))
+          fi
+      done
+      if [ ${counter} -lt 3 ]; then
+        echo "Error: Less than 3 _URL_DEFAULT variables found."
+        exit 1
+      else
+        echo "Success: ${counter} _URL_DEFAULT variables found."
+      fi
+      # check that no watcher endpoint uses https
+      oc exec -n ${NAMESPACE} openstackclient -- openstack endpoint list | grep infra-optim | [ $(grep -c https) == 0 ]
