@@ -115,19 +115,7 @@ var _ = Describe("WatcherDecisionEngine controller", func() {
 		var keystoneAPIName types.NamespacedName
 
 		BeforeEach(func() {
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_username":     []byte("username"),
-					"database_password":     []byte("password"),
-					"database_hostname":     []byte("hostname"),
-					"database_account":      []byte("watcher"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte(""),
-				},
-			)
+			secret := CreateInternalTopLevelSecret()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 
 			prometheusSecret := th.CreateSecret(
@@ -360,19 +348,7 @@ transport_url =`
 	})
 	When("WatcherDecisionEngine is created with a wrong topologyRef", func() {
 		BeforeEach(func() {
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_username":     []byte("username"),
-					"database_password":     []byte("password"),
-					"database_hostname":     []byte("hostname"),
-					"database_account":      []byte("watcher"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte(""),
-				},
-			)
+			secret := CreateInternalTopLevelSecret()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 			prometheusSecret := th.CreateSecret(
 				watcherTest.PrometheusSecretName,
@@ -456,19 +432,7 @@ transport_url =`
 					Name:      "watcher"},
 				topologySpec)
 
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_username":     []byte("username"),
-					"database_password":     []byte("password"),
-					"database_hostname":     []byte("hostname"),
-					"database_account":      []byte("watcher"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte(""),
-				},
-			)
+			secret := CreateInternalTopLevelSecret()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 			prometheusSecret := th.CreateSecret(
 				watcherTest.PrometheusSecretName,
@@ -662,19 +626,7 @@ transport_url =`
 		var keystoneAPIName types.NamespacedName
 
 		BeforeEach(func() {
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_username":     []byte("username"),
-					"database_password":     []byte("password"),
-					"database_hostname":     []byte("hostname"),
-					"database_account":      []byte("watcher"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte("rabbit://rabbitmq-notification-secret/fake"),
-				},
-			)
+			secret := CreateInternalTopLevelSecretNotification()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 
 			prometheusSecret := th.CreateSecret(

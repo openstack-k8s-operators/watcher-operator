@@ -163,6 +163,7 @@ func (r *WatcherDecisionEngineReconciler) Reconcile(ctx context.Context, req ctr
 		[]string{
 			*instance.Spec.PasswordSelectors.Service,
 			TransportURLSelector,
+			QuorumQueuesSelector,
 			DatabaseAccount,
 			DatabaseUsername,
 			DatabaseHostname,
@@ -372,6 +373,15 @@ func (r *WatcherDecisionEngineReconciler) SetupWithManager(mgr ctrl.Manager) err
 		return err
 	}
 
+	// index transportURLSecretField
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &watcherv1beta1.WatcherDecisionEngine{}, transportURLSecretField, func(rawObj client.Object) []string {
+		// Return the expected transportURL secret name
+		cr := rawObj.(*watcherv1beta1.WatcherDecisionEngine)
+		return []string{cr.Name + "-watcher-transport"}
+	}); err != nil {
+		return err
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&watcherv1beta1.WatcherDecisionEngine{}).
 		Owns(&corev1.Secret{}).
@@ -532,6 +542,7 @@ func (r *WatcherDecisionEngineReconciler) generateServiceConfigs(
 		"ServicePassword":          string(secret.Data[*instance.Spec.PasswordSelectors.Service]),
 		"ServiceUser":              *instance.Spec.ServiceUser,
 		"TransportURL":             string(secret.Data[TransportURLSelector]),
+		"QuorumQueues":             string(secret.Data[QuorumQueuesSelector]) == "true",
 		"MemcachedServers":         memcachedInstance.GetMemcachedServerListString(),
 		"MemcachedServersWithInet": memcachedInstance.GetMemcachedServerListWithInetString(),
 		"MemcachedTLS":             memcachedInstance.GetMemcachedTLSSupport(),
