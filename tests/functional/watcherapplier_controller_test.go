@@ -116,19 +116,7 @@ var _ = Describe("WatcherApplier controller", func() {
 		var keystoneAPIName types.NamespacedName
 
 		BeforeEach(func() {
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_username":     []byte("username"),
-					"database_password":     []byte("password"),
-					"database_hostname":     []byte("hostname"),
-					"database_account":      []byte("watcher"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte(""),
-				},
-			)
+			secret := CreateInternalTopLevelSecret()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 			DeferCleanup(
 				mariadb.DeleteDBService,
@@ -348,19 +336,7 @@ transport_url =`
 	})
 	When("secret and db are created, but there is no memcached", func() {
 		BeforeEach(func() {
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_username":     []byte("username"),
-					"database_password":     []byte("password"),
-					"database_hostname":     []byte("hostname"),
-					"database_account":      []byte("watcher"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte(""),
-				},
-			)
+			secret := CreateInternalTopLevelSecret()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 
 			DeferCleanup(th.DeleteInstance, CreateWatcherApplier(watcherTest.WatcherApplier, GetDefaultWatcherApplierSpec()))
@@ -386,19 +362,7 @@ transport_url =`
 	})
 	When("secret, db and memcached are created, but there is no keystoneapi", func() {
 		BeforeEach(func() {
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_username":     []byte("username"),
-					"database_password":     []byte("password"),
-					"database_hostname":     []byte("hostname"),
-					"database_account":      []byte("watcher"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte(""),
-				},
-			)
+			secret := CreateInternalTopLevelSecret()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 			memcachedSpec := memcachedv1.MemcachedSpec{
 				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
@@ -443,19 +407,7 @@ transport_url =`
 	})
 	When("WatcherApplier is created with a wrong topologyRef", func() {
 		BeforeEach(func() {
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_username":     []byte("username"),
-					"database_password":     []byte("password"),
-					"database_hostname":     []byte("hostname"),
-					"database_account":      []byte("watcher"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte(""),
-				},
-			)
+			secret := CreateInternalTopLevelSecret()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 			DeferCleanup(
 				mariadb.DeleteDBService,
@@ -531,19 +483,7 @@ transport_url =`
 					Name:      "watcher"},
 				topologySpec)
 
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_username":     []byte("username"),
-					"database_password":     []byte("password"),
-					"database_hostname":     []byte("hostname"),
-					"database_account":      []byte("watcher"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte(""),
-				},
-			)
+			secret := CreateInternalTopLevelSecret()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 			spec := GetDefaultWatcherApplierSpec()
 			spec["topologyRef"] = map[string]interface{}{"name": topologyRefApplier.Name}
@@ -729,19 +669,7 @@ transport_url =`
 		var keystoneAPIName types.NamespacedName
 
 		BeforeEach(func() {
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_username":     []byte("username"),
-					"database_password":     []byte("password"),
-					"database_hostname":     []byte("hostname"),
-					"database_account":      []byte("watcher"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte("rabbit://rabbitmq-notification-secret/fake"),
-				},
-			)
+			secret := CreateInternalTopLevelSecretNotification()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 			DeferCleanup(
 				mariadb.DeleteDBService,
@@ -852,18 +780,7 @@ heartbeat_in_pthread=false`,
 	When("A WatcherApplier instance is created with MTLS memcached", func() {
 		BeforeEach(func() {
 			// Create the required secret for WatcherApplier
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_username":     []byte("username"),
-					"database_password":     []byte("password"),
-					"database_hostname":     []byte("hostname"),
-					"database_account":      []byte("watcher"),
-					"01-global-custom.conf": []byte(""),
-				},
-			)
+			secret := CreateInternalTopLevelSecret()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 
 			// Create prometheus secret
@@ -958,6 +875,259 @@ heartbeat_in_pthread=false`,
 				g.Expect(configString).To(ContainSubstring("tls_certfile"))
 				g.Expect(configString).To(ContainSubstring("tls_keyfile"))
 				g.Expect(configString).To(ContainSubstring("tls_cafile"))
+			}, timeout, interval).Should(Succeed())
+		})
+	})
+
+	When("the secret is created with quorumqueues=true in the top level secret", func() {
+		var keystoneAPIName types.NamespacedName
+
+		BeforeEach(func() {
+			secret := CreateInternalTopLevelSecretQuorum()
+			DeferCleanup(k8sClient.Delete, ctx, secret)
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.WatcherApplier.Namespace,
+					"openstack",
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+			mariadb.CreateMariaDBAccountAndSecret(
+				watcherTest.WatcherDatabaseAccount,
+				mariadbv1.MariaDBAccountSpec{
+					UserName: "watcher",
+				},
+			)
+			mariadb.CreateMariaDBDatabase(
+				watcherTest.WatcherApplier.Namespace,
+				"watcher",
+				mariadbv1.MariaDBDatabaseSpec{
+					Name: "watcher",
+				},
+			)
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+			keystoneAPIName = keystone.CreateKeystoneAPI(watcherTest.WatcherApplier.Namespace)
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystoneAPIName)
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.WatcherApplier.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+			DeferCleanup(th.DeleteInstance, CreateWatcherApplier(watcherTest.WatcherApplier, GetDefaultWatcherApplierSpec()))
+		})
+		It("should have input ready", func() {
+			th.ExpectCondition(
+				watcherTest.WatcherApplier,
+				ConditionGetterFunc(WatcherApplierConditionGetter),
+				condition.InputReadyCondition,
+				corev1.ConditionTrue,
+			)
+		})
+		It("should have memcached ready true", func() {
+			th.ExpectCondition(
+				watcherTest.WatcherApplier,
+				ConditionGetterFunc(WatcherApplierConditionGetter),
+				condition.MemcachedReadyCondition,
+				corev1.ConditionTrue,
+			)
+		})
+		It("should have config service input ready", func() {
+			th.ExpectCondition(
+				watcherTest.WatcherApplier,
+				ConditionGetterFunc(WatcherApplierConditionGetter),
+				condition.ServiceConfigReadyCondition,
+				corev1.ConditionTrue,
+			)
+		})
+		It("should have the expected config secret content with quorum queue configuration", func() {
+			createdSecret := th.GetSecret(watcherTest.WatcherApplierSecret)
+			Expect(createdSecret).ShouldNot(BeNil())
+			Expect(createdSecret.Data["00-default.conf"]).ShouldNot(BeNil())
+
+			// extract default config data
+			configData := createdSecret.Data["00-default.conf"]
+			Expect(configData).ShouldNot(BeNil())
+
+			// Only check quorum queue specific configuration
+			expectedSections := []string{`
+[oslo_messaging_rabbit]
+rabbit_quorum_queue=true
+rabbit_transient_quorum_queue=true
+amqp_durable_queues=true`,
+			}
+			for _, val := range expectedSections {
+				Expect(string(configData)).Should(ContainSubstring(val))
+			}
+		})
+	})
+
+	When("the secret is created with quorumqueues=false in the top level secret", func() {
+		var keystoneAPIName types.NamespacedName
+		BeforeEach(func() {
+			secret := CreateInternalTopLevelSecret() // This has quorumqueues=false by default
+			DeferCleanup(k8sClient.Delete, ctx, secret)
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.WatcherApplier.Namespace,
+					"openstack",
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+			mariadb.CreateMariaDBAccountAndSecret(
+				watcherTest.WatcherDatabaseAccount,
+				mariadbv1.MariaDBAccountSpec{
+					UserName: "watcher",
+				},
+			)
+			mariadb.CreateMariaDBDatabase(
+				watcherTest.WatcherApplier.Namespace,
+				"watcher",
+				mariadbv1.MariaDBDatabaseSpec{
+					Name: "watcher",
+				},
+			)
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+			keystoneAPIName = keystone.CreateKeystoneAPI(watcherTest.WatcherApplier.Namespace)
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystoneAPIName)
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.WatcherApplier.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+			DeferCleanup(th.DeleteInstance, CreateWatcherApplier(watcherTest.WatcherApplier, GetDefaultWatcherApplierSpec()))
+
+		})
+		It("should have input ready", func() {
+			th.ExpectCondition(
+				watcherTest.WatcherApplier,
+				ConditionGetterFunc(WatcherApplierConditionGetter),
+				condition.InputReadyCondition,
+				corev1.ConditionTrue,
+			)
+		})
+
+		It("should have config service input ready", func() {
+			th.ExpectCondition(
+				watcherTest.WatcherApplier,
+				ConditionGetterFunc(WatcherApplierConditionGetter),
+				condition.ServiceConfigReadyCondition,
+				corev1.ConditionTrue,
+			)
+		})
+
+		It("should have the expected config secret content with default quorum queue settings", func() {
+
+			createdSecret := th.GetSecret(watcherTest.WatcherApplierSecret)
+			Expect(createdSecret).ShouldNot(BeNil())
+			Expect(createdSecret.Data["00-default.conf"]).ShouldNot(BeNil())
+
+			// extract default config data
+			configData := createdSecret.Data["00-default.conf"]
+			Expect(configData).ShouldNot(BeNil())
+
+			expectedSections := []string{`
+[oslo_messaging_rabbit]
+amqp_durable_queues=false
+amqp_auto_delete=false
+heartbeat_in_pthread=false`,
+			}
+			for _, val := range expectedSections {
+				Expect(string(configData)).Should(ContainSubstring(val))
+			}
+
+			// Ensure quorum queue settings are NOT present
+			Expect(string(configData)).Should(Not(ContainSubstring("rabbit_quorum_queue=true")))
+			Expect(string(configData)).Should(Not(ContainSubstring("rabbit_transient_quorum_queue=true")))
+			Expect(string(configData)).Should(Not(ContainSubstring("amqp_durable_queues=true")))
+		})
+	})
+
+	When("the secret is updated to change quorum queues configuration", func() {
+		var keystoneAPIName types.NamespacedName
+		BeforeEach(func() {
+			secret := CreateInternalTopLevelSecretQuorum() // Start with quorum enabled
+			DeferCleanup(k8sClient.Delete, ctx, secret)
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.WatcherApplier.Namespace,
+					"openstack",
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+			mariadb.CreateMariaDBAccountAndSecret(
+				watcherTest.WatcherDatabaseAccount,
+				mariadbv1.MariaDBAccountSpec{
+					UserName: "watcher",
+				},
+			)
+			mariadb.CreateMariaDBDatabase(
+				watcherTest.WatcherApplier.Namespace,
+				"watcher",
+				mariadbv1.MariaDBDatabaseSpec{
+					Name: "watcher",
+				},
+			)
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+			keystoneAPIName = keystone.CreateKeystoneAPI(watcherTest.WatcherApplier.Namespace)
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystoneAPIName)
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.WatcherApplier.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+			DeferCleanup(th.DeleteInstance, CreateWatcherApplier(watcherTest.WatcherApplier, GetDefaultWatcherApplierSpec()))
+
+		})
+
+		It("should reconfigure when quorum queues are disabled", func() {
+			// First verify quorum queues are enabled initially
+			Eventually(func(g Gomega) {
+				createdSecret := th.GetSecret(watcherTest.WatcherApplierSecret)
+				g.Expect(createdSecret).ShouldNot(BeNil())
+				configData := string(createdSecret.Data["00-default.conf"])
+				g.Expect(configData).Should(ContainSubstring("rabbit_quorum_queue=true"))
+				g.Expect(configData).Should(ContainSubstring("rabbit_transient_quorum_queue=true"))
+				g.Expect(configData).Should(ContainSubstring("amqp_durable_queues=true"))
+			}, timeout, interval).Should(Succeed())
+
+			// Update the secret to disable quorum queues
+			Eventually(func(g Gomega) {
+				secret := &corev1.Secret{}
+				g.Expect(k8sClient.Get(ctx, watcherTest.InternalTopLevelSecretName, secret)).Should(Succeed())
+				secret.Data["quorumqueues"] = []byte("false")
+				g.Expect(k8sClient.Update(ctx, secret)).Should(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			// Verify configuration is updated to default settings
+			Eventually(func(g Gomega) {
+				createdSecret := th.GetSecret(watcherTest.WatcherApplierSecret)
+				g.Expect(createdSecret).ShouldNot(BeNil())
+				configData := string(createdSecret.Data["00-default.conf"])
+				g.Expect(configData).Should(ContainSubstring("amqp_durable_queues=false"))
+				g.Expect(configData).Should(ContainSubstring("amqp_auto_delete=false"))
+				g.Expect(configData).Should(ContainSubstring("heartbeat_in_pthread=false"))
+				// Ensure quorum queue settings are removed
+				g.Expect(configData).Should(Not(ContainSubstring("rabbit_quorum_queue=true")))
+				g.Expect(configData).Should(Not(ContainSubstring("rabbit_transient_quorum_queue=true")))
+				g.Expect(configData).Should(Not(ContainSubstring("amqp_durable_queues=true")))
 			}, timeout, interval).Should(Succeed())
 		})
 	})

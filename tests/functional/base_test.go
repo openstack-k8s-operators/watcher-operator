@@ -39,6 +39,63 @@ func GetDefaultWatcherSpec() map[string]interface{} {
 	}
 }
 
+func CreateInternalTopLevelSecret() *corev1.Secret {
+	s := th.CreateSecret(
+		watcherTest.InternalTopLevelSecretName,
+		map[string][]byte{
+			"WatcherPassword":       []byte("service-password"),
+			"transport_url":         []byte("url"),
+			"quorumqueues":          []byte("false"),
+			"database_username":     []byte("username"),
+			"database_password":     []byte("password"),
+			"database_hostname":     []byte("hostname"),
+			"database_account":      []byte("watcher"),
+			"01-global-custom.conf": []byte(""),
+			"notification_url":      []byte(""),
+		},
+	)
+	logger.Info("InternalTopLevelSecret created")
+	return s
+}
+
+func CreateInternalTopLevelSecretNotification() *corev1.Secret {
+	s := th.CreateSecret(
+		watcherTest.InternalTopLevelSecretName,
+		map[string][]byte{
+			"WatcherPassword":       []byte("service-password"),
+			"transport_url":         []byte("url"),
+			"quorumqueues":          []byte("false"),
+			"database_username":     []byte("username"),
+			"database_password":     []byte("password"),
+			"database_hostname":     []byte("hostname"),
+			"database_account":      []byte("watcher"),
+			"01-global-custom.conf": []byte(""),
+			"notification_url":      []byte("rabbit://rabbitmq-notification-secret/fake"),
+		},
+	)
+	logger.Info("InternalTopLevelSecret created with notification_url")
+	return s
+}
+
+func CreateInternalTopLevelSecretQuorum() *corev1.Secret {
+	s := th.CreateSecret(
+		watcherTest.InternalTopLevelSecretName,
+		map[string][]byte{
+			"WatcherPassword":       []byte("service-password"),
+			"transport_url":         []byte("url"),
+			"quorumqueues":          []byte("true"),
+			"database_username":     []byte("username"),
+			"database_password":     []byte("password"),
+			"database_hostname":     []byte("hostname"),
+			"database_account":      []byte("watcher"),
+			"01-global-custom.conf": []byte(""),
+			"notification_url":      []byte(""),
+		},
+	)
+	logger.Info("InternalTopLevelSecret created with quorumqueues=true")
+	return s
+}
+
 // Second Watcher Spec to test proper parameters substitution
 func GetNonDefaultWatcherSpec() map[string]interface{} {
 	return map[string]interface{}{

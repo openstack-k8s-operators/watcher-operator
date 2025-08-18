@@ -11,7 +11,6 @@ import (
 	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
 	condition "github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 	. "github.com/openstack-k8s-operators/lib-common/modules/common/test/helpers"
-	"github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
@@ -117,19 +116,7 @@ var _ = Describe("WatcherAPI controller", func() {
 	When("the secret is created with all the expected fields and has all the required infra", func() {
 		var keystoneAPIName types.NamespacedName
 		BeforeEach(func() {
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_username":     []byte("username"),
-					"database_password":     []byte("password"),
-					"database_hostname":     []byte("hostname"),
-					"database_account":      []byte("watcher"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte(""),
-				},
-			)
+			secret := CreateInternalTopLevelSecret()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 			prometheusSecret := th.CreateSecret(
 				watcherTest.PrometheusSecretName,
@@ -396,19 +383,7 @@ transport_url =`
 	})
 	When("secret and db are created, but there is no memcached", func() {
 		BeforeEach(func() {
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_username":     []byte("username"),
-					"database_password":     []byte("password"),
-					"database_hostname":     []byte("hostname"),
-					"database_account":      []byte("watcher"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte(""),
-				},
-			)
+			secret := CreateInternalTopLevelSecret()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 			prometheusSecret := th.CreateSecret(
 				watcherTest.PrometheusSecretName,
@@ -442,19 +417,7 @@ transport_url =`
 	})
 	When("prometheus config secret is not created", func() {
 		BeforeEach(func() {
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_username":     []byte("username"),
-					"database_password":     []byte("password"),
-					"database_hostname":     []byte("hostname"),
-					"database_account":      []byte("watcher"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte(""),
-				},
-			)
+			secret := CreateInternalTopLevelSecret()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 
 			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, GetDefaultWatcherAPISpec()))
@@ -474,19 +437,7 @@ transport_url =`
 
 	When("secret, db and memcached are created, but there is no keystoneapi", func() {
 		BeforeEach(func() {
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_username":     []byte("username"),
-					"database_password":     []byte("password"),
-					"database_hostname":     []byte("hostname"),
-					"database_account":      []byte("watcher"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte(""),
-				},
-			)
+			secret := CreateInternalTopLevelSecret()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 			prometheusSecret := th.CreateSecret(
 				watcherTest.PrometheusSecretName,
@@ -539,19 +490,7 @@ transport_url =`
 	})
 	When("WatcherAPI is created with service overrides", func() {
 		BeforeEach(func() {
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_account":      []byte("watcher"),
-					"database_username":     []byte("watcher"),
-					"database_password":     []byte("watcher-password"),
-					"database_hostname":     []byte("db-hostname"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte(""),
-				},
-			)
+			secret := CreateInternalTopLevelSecret()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 			prometheusSecret := th.CreateSecret(
 				watcherTest.PrometheusSecretName,
@@ -633,19 +572,7 @@ transport_url =`
 	})
 	When("WatcherAPI is created with service TLS", func() {
 		BeforeEach(func() {
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_account":      []byte("watcher"),
-					"database_username":     []byte("watcher"),
-					"database_password":     []byte("watcher-password"),
-					"database_hostname":     []byte("db-hostname"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte(""),
-				},
-			)
+			secret := CreateInternalTopLevelSecret()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 			prometheusSecret := th.CreateSecret(
 				watcherTest.PrometheusSecretName,
@@ -732,19 +659,7 @@ transport_url =`
 	})
 	When("WatcherAPI is created with service TLS but invalid cert secret", func() {
 		BeforeEach(func() {
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_account":      []byte("watcher"),
-					"database_username":     []byte("watcher"),
-					"database_password":     []byte("watcher-password"),
-					"database_hostname":     []byte("db-hostname"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte(""),
-				},
-			)
+			secret := CreateInternalTopLevelSecret()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 			prometheusSecret := th.CreateSecret(
 				watcherTest.PrometheusSecretName,
@@ -818,19 +733,7 @@ transport_url =`
 	})
 	When("WatcherAPI is created with an invalid CA bundle secret", func() {
 		BeforeEach(func() {
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_account":      []byte("watcher"),
-					"database_username":     []byte("watcher"),
-					"database_password":     []byte("watcher-password"),
-					"database_hostname":     []byte("db-hostname"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte(""),
-				},
-			)
+			secret := CreateInternalTopLevelSecret()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 			prometheusSecret := th.CreateSecret(
 				watcherTest.PrometheusSecretName,
@@ -895,19 +798,7 @@ transport_url =`
 	})
 	When("WatcherAPI is created with a wrong topologyRef", func() {
 		BeforeEach(func() {
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_account":      []byte("watcher"),
-					"database_username":     []byte("watcher"),
-					"database_password":     []byte("watcher-password"),
-					"database_hostname":     []byte("db-hostname"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte(""),
-				},
-			)
+			secret := CreateInternalTopLevelSecret()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 			prometheusSecret := th.CreateSecret(
 				watcherTest.PrometheusSecretName,
@@ -999,19 +890,7 @@ transport_url =`
 					Name:      "watcher"},
 				topologySpec)
 
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_account":      []byte("watcher"),
-					"database_username":     []byte("watcher"),
-					"database_password":     []byte("watcher-password"),
-					"database_hostname":     []byte("db-hostname"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte(""),
-				},
-			)
+			secret := CreateInternalTopLevelSecret()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 			prometheusSecret := th.CreateSecret(
 				watcherTest.PrometheusSecretName,
@@ -1212,19 +1091,7 @@ transport_url =`
 	When("the secret is created with notification_url field in the top level secret", func() {
 		var keystoneAPIName types.NamespacedName
 		BeforeEach(func() {
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_username":     []byte("username"),
-					"database_password":     []byte("password"),
-					"database_hostname":     []byte("hostname"),
-					"database_account":      []byte("watcher"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte("rabbit://rabbitmq-notification-secret/fake"),
-				},
-			)
+			secret := CreateInternalTopLevelSecretNotification()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 
 			prometheusSecret := th.CreateSecret(
@@ -1248,14 +1115,14 @@ transport_url =`
 
 			mariadb.CreateMariaDBAccountAndSecret(
 				watcherTest.WatcherDatabaseAccount,
-				v1beta1.MariaDBAccountSpec{
+				mariadbv1.MariaDBAccountSpec{
 					UserName: "watcher",
 				},
 			)
 			mariadb.CreateMariaDBDatabase(
 				watcherTest.WatcherAPI.Namespace,
 				"watcher",
-				v1beta1.MariaDBDatabaseSpec{
+				mariadbv1.MariaDBDatabaseSpec{
 					Name: "watcher",
 				},
 			)
@@ -1342,18 +1209,7 @@ heartbeat_in_pthread=false`,
 	When("A WatcherAPI instance is created with MTLS memcached", func() {
 		BeforeEach(func() {
 			// Create the required secret for WatcherAPI
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_username":     []byte("username"),
-					"database_password":     []byte("password"),
-					"database_hostname":     []byte("hostname"),
-					"database_account":      []byte("watcher"),
-					"01-global-custom.conf": []byte(""),
-				},
-			)
+			secret := CreateInternalTopLevelSecret()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 
 			// Create prometheus secret
@@ -1381,6 +1237,7 @@ heartbeat_in_pthread=false`,
 			infra.SimulateMTLSMemcachedReady(watcherTest.MemcachedNamespace)
 
 			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
+
 			DeferCleanup(
 				mariadb.DeleteDBService,
 				mariadb.CreateDBService(
@@ -1448,6 +1305,284 @@ heartbeat_in_pthread=false`,
 				g.Expect(configString).To(ContainSubstring("tls_certfile"))
 				g.Expect(configString).To(ContainSubstring("tls_keyfile"))
 				g.Expect(configString).To(ContainSubstring("tls_cafile"))
+			}, timeout, interval).Should(Succeed())
+		})
+	})
+
+	When("the secret is created with quorumqueues=true in the top level secret", func() {
+		var keystoneAPIName types.NamespacedName
+		BeforeEach(func() {
+			secret := CreateInternalTopLevelSecretQuorum()
+			DeferCleanup(k8sClient.Delete, ctx, secret)
+			prometheusSecret := th.CreateSecret(
+				watcherTest.PrometheusSecretName,
+				map[string][]byte{
+					"host": []byte("prometheus.example.com"),
+					"port": []byte("9090"),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, prometheusSecret)
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.WatcherAPI.Namespace,
+					"openstack",
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+			mariadb.CreateMariaDBAccountAndSecret(
+				watcherTest.WatcherDatabaseAccount,
+				mariadbv1.MariaDBAccountSpec{
+					UserName: "watcher",
+				},
+			)
+			mariadb.CreateMariaDBDatabase(
+				watcherTest.WatcherAPI.Namespace,
+				"watcher",
+				mariadbv1.MariaDBDatabaseSpec{
+					Name: "watcher",
+				},
+			)
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, GetDefaultWatcherAPISpec()))
+			keystoneAPIName = keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace)
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystoneAPIName)
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.WatcherAPI.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
+			keystone.SimulateKeystoneEndpointReady(watcherTest.WatcherKeystoneEndpointName)
+
+		})
+		It("should have input ready", func() {
+			th.ExpectCondition(
+				watcherTest.WatcherAPI,
+				ConditionGetterFunc(WatcherAPIConditionGetter),
+				condition.InputReadyCondition,
+				corev1.ConditionTrue,
+			)
+		})
+
+		It("should have config service input ready", func() {
+			th.ExpectCondition(
+				watcherTest.WatcherAPI,
+				ConditionGetterFunc(WatcherAPIConditionGetter),
+				condition.ServiceConfigReadyCondition,
+				corev1.ConditionTrue,
+			)
+		})
+
+		It("should have the expected config secret content with quorum queue configuration", func() {
+
+			createdSecret := th.GetSecret(watcherTest.WatcherAPIConfigSecret)
+			Expect(createdSecret).ShouldNot(BeNil())
+			Expect(createdSecret.Data["00-default.conf"]).ShouldNot(BeNil())
+
+			// extract default config data
+			configData := createdSecret.Data["00-default.conf"]
+			Expect(configData).ShouldNot(BeNil())
+
+			// Only check quorum queue specific configuration
+			expectedSections := []string{`
+[oslo_messaging_rabbit]
+rabbit_quorum_queue=true
+rabbit_transient_quorum_queue=true
+amqp_durable_queues=true`,
+			}
+			for _, val := range expectedSections {
+				Expect(string(configData)).Should(ContainSubstring(val))
+			}
+		})
+	})
+
+	When("the secret is created with quorumqueues=false in the top level secret", func() {
+		var keystoneAPIName types.NamespacedName
+		BeforeEach(func() {
+			secret := CreateInternalTopLevelSecret() // This has quorumqueues=false by default
+			DeferCleanup(k8sClient.Delete, ctx, secret)
+			prometheusSecret := th.CreateSecret(
+				watcherTest.PrometheusSecretName,
+				map[string][]byte{
+					"host": []byte("prometheus.example.com"),
+					"port": []byte("9090"),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, prometheusSecret)
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.WatcherAPI.Namespace,
+					"openstack",
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+			mariadb.CreateMariaDBAccountAndSecret(
+				watcherTest.WatcherDatabaseAccount,
+				mariadbv1.MariaDBAccountSpec{
+					UserName: "watcher",
+				},
+			)
+			mariadb.CreateMariaDBDatabase(
+				watcherTest.WatcherAPI.Namespace,
+				"watcher",
+				mariadbv1.MariaDBDatabaseSpec{
+					Name: "watcher",
+				},
+			)
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, GetDefaultWatcherAPISpec()))
+			keystoneAPIName = keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace)
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystoneAPIName)
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.WatcherAPI.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
+			keystone.SimulateKeystoneEndpointReady(watcherTest.WatcherKeystoneEndpointName)
+
+		})
+		It("should have input ready", func() {
+			th.ExpectCondition(
+				watcherTest.WatcherAPI,
+				ConditionGetterFunc(WatcherAPIConditionGetter),
+				condition.InputReadyCondition,
+				corev1.ConditionTrue,
+			)
+		})
+
+		It("should have config service input ready", func() {
+			th.ExpectCondition(
+				watcherTest.WatcherAPI,
+				ConditionGetterFunc(WatcherAPIConditionGetter),
+				condition.ServiceConfigReadyCondition,
+				corev1.ConditionTrue,
+			)
+		})
+
+		It("should have the expected config secret content with default quorum queue settings", func() {
+
+			createdSecret := th.GetSecret(watcherTest.WatcherAPIConfigSecret)
+			Expect(createdSecret).ShouldNot(BeNil())
+			Expect(createdSecret.Data["00-default.conf"]).ShouldNot(BeNil())
+
+			// extract default config data
+			configData := createdSecret.Data["00-default.conf"]
+			Expect(configData).ShouldNot(BeNil())
+
+			expectedSections := []string{`
+[oslo_messaging_rabbit]
+amqp_durable_queues=false
+amqp_auto_delete=false
+heartbeat_in_pthread=false`,
+			}
+			for _, val := range expectedSections {
+				Expect(string(configData)).Should(ContainSubstring(val))
+			}
+
+			// Ensure quorum queue settings are NOT present
+			Expect(string(configData)).Should(Not(ContainSubstring("rabbit_quorum_queue=true")))
+			Expect(string(configData)).Should(Not(ContainSubstring("rabbit_transient_quorum_queue=true")))
+			Expect(string(configData)).Should(Not(ContainSubstring("amqp_durable_queues=true")))
+		})
+	})
+
+	When("the secret is updated to change quorum queues configuration", func() {
+		var keystoneAPIName types.NamespacedName
+		BeforeEach(func() {
+			secret := CreateInternalTopLevelSecretQuorum() // Start with quorum enabled
+			DeferCleanup(k8sClient.Delete, ctx, secret)
+			prometheusSecret := th.CreateSecret(
+				watcherTest.PrometheusSecretName,
+				map[string][]byte{
+					"host": []byte("prometheus.example.com"),
+					"port": []byte("9090"),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, prometheusSecret)
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.WatcherAPI.Namespace,
+					"openstack",
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+			mariadb.CreateMariaDBAccountAndSecret(
+				watcherTest.WatcherDatabaseAccount,
+				mariadbv1.MariaDBAccountSpec{
+					UserName: "watcher",
+				},
+			)
+			mariadb.CreateMariaDBDatabase(
+				watcherTest.WatcherAPI.Namespace,
+				"watcher",
+				mariadbv1.MariaDBDatabaseSpec{
+					Name: "watcher",
+				},
+			)
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, GetDefaultWatcherAPISpec()))
+			keystoneAPIName = keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace)
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystoneAPIName)
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.WatcherAPI.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
+			keystone.SimulateKeystoneEndpointReady(watcherTest.WatcherKeystoneEndpointName)
+
+		})
+
+		It("should reconfigure when quorum queues are disabled", func() {
+			// First verify quorum queues are enabled initially
+			Eventually(func(g Gomega) {
+				createdSecret := th.GetSecret(watcherTest.WatcherAPIConfigSecret)
+				g.Expect(createdSecret).ShouldNot(BeNil())
+				configData := string(createdSecret.Data["00-default.conf"])
+				g.Expect(configData).Should(ContainSubstring("rabbit_quorum_queue=true"))
+				g.Expect(configData).Should(ContainSubstring("rabbit_transient_quorum_queue=true"))
+				g.Expect(configData).Should(ContainSubstring("amqp_durable_queues=true"))
+			}, timeout, interval).Should(Succeed())
+
+			// Update the secret to disable quorum queues
+			Eventually(func(g Gomega) {
+				secret := &corev1.Secret{}
+				g.Expect(k8sClient.Get(ctx, watcherTest.InternalTopLevelSecretName, secret)).Should(Succeed())
+				secret.Data["quorumqueues"] = []byte("false")
+				g.Expect(k8sClient.Update(ctx, secret)).Should(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			// Verify configuration is updated to default settings
+			Eventually(func(g Gomega) {
+				createdSecret := th.GetSecret(watcherTest.WatcherAPIConfigSecret)
+				g.Expect(createdSecret).ShouldNot(BeNil())
+				configData := string(createdSecret.Data["00-default.conf"])
+				g.Expect(configData).Should(ContainSubstring("amqp_durable_queues=false"))
+				g.Expect(configData).Should(ContainSubstring("amqp_auto_delete=false"))
+				g.Expect(configData).Should(ContainSubstring("heartbeat_in_pthread=false"))
+				// Ensure quorum queue settings are removed
+				g.Expect(configData).Should(Not(ContainSubstring("rabbit_quorum_queue=true")))
+				g.Expect(configData).Should(Not(ContainSubstring("rabbit_transient_quorum_queue=true")))
+				g.Expect(configData).Should(Not(ContainSubstring("amqp_durable_queues=true")))
 			}, timeout, interval).Should(Succeed())
 		})
 	})
