@@ -878,6 +878,7 @@ func (r *WatcherReconciler) createSubLevelSecret(
 	data := map[string]string{
 		*instance.Spec.PasswordSelectors.Service: string(inputSecret.Data[*instance.Spec.PasswordSelectors.Service]),
 		TransportURLSelector:                     string(transportURLSecret.Data[TransportURLSelector]),
+		QuorumQueuesSelector:                     string(transportURLSecret.Data[QuorumQueuesSelector]),
 		DatabaseAccount:                          databaseAccount.Name,
 		DatabaseUsername:                         databaseAccount.Spec.UserName,
 		DatabasePassword:                         string(databaseSecret.Data[mariadbv1.DatabasePasswordSelector]),
