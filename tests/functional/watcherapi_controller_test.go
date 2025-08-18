@@ -12,6 +12,7 @@ import (
 	condition "github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 	. "github.com/openstack-k8s-operators/lib-common/modules/common/test/helpers"
 	"github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
+	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -150,14 +151,14 @@ var _ = Describe("WatcherAPI controller", func() {
 			)
 			mariadb.CreateMariaDBAccountAndSecret(
 				watcherTest.WatcherDatabaseAccount,
-				v1beta1.MariaDBAccountSpec{
+				mariadbv1.MariaDBAccountSpec{
 					UserName: "watcher",
 				},
 			)
 			mariadb.CreateMariaDBDatabase(
 				watcherTest.WatcherAPI.Namespace,
 				"watcher",
-				v1beta1.MariaDBDatabaseSpec{
+				mariadbv1.MariaDBDatabaseSpec{
 					Name: "watcher",
 				},
 			)
@@ -581,14 +582,14 @@ transport_url =`
 			)
 			mariadb.CreateMariaDBAccountAndSecret(
 				watcherTest.WatcherDatabaseAccount,
-				v1beta1.MariaDBAccountSpec{
+				mariadbv1.MariaDBAccountSpec{
 					UserName: "watcher",
 				},
 			)
 			mariadb.CreateMariaDBDatabase(
 				watcherTest.WatcherAPI.Namespace,
 				"watcher",
-				v1beta1.MariaDBDatabaseSpec{
+				mariadbv1.MariaDBDatabaseSpec{
 					Name: "watcher",
 				},
 			)
@@ -685,14 +686,14 @@ transport_url =`
 			)
 			mariadb.CreateMariaDBAccountAndSecret(
 				watcherTest.WatcherDatabaseAccount,
-				v1beta1.MariaDBAccountSpec{
+				mariadbv1.MariaDBAccountSpec{
 					UserName: "watcher",
 				},
 			)
 			mariadb.CreateMariaDBDatabase(
 				watcherTest.WatcherAPI.Namespace,
 				"watcher",
-				v1beta1.MariaDBDatabaseSpec{
+				mariadbv1.MariaDBDatabaseSpec{
 					Name: "watcher",
 				},
 			)
@@ -790,14 +791,14 @@ transport_url =`
 			)
 			mariadb.CreateMariaDBAccountAndSecret(
 				watcherTest.WatcherDatabaseAccount,
-				v1beta1.MariaDBAccountSpec{
+				mariadbv1.MariaDBAccountSpec{
 					UserName: "watcher",
 				},
 			)
 			mariadb.CreateMariaDBDatabase(
 				watcherTest.WatcherAPI.Namespace,
 				"watcher",
-				v1beta1.MariaDBDatabaseSpec{
+				mariadbv1.MariaDBDatabaseSpec{
 					Name: "watcher",
 				},
 			)
@@ -867,14 +868,14 @@ transport_url =`
 			)
 			mariadb.CreateMariaDBAccountAndSecret(
 				watcherTest.WatcherDatabaseAccount,
-				v1beta1.MariaDBAccountSpec{
+				mariadbv1.MariaDBAccountSpec{
 					UserName: "watcher",
 				},
 			)
 			mariadb.CreateMariaDBDatabase(
 				watcherTest.WatcherAPI.Namespace,
 				"watcher",
-				v1beta1.MariaDBDatabaseSpec{
+				mariadbv1.MariaDBDatabaseSpec{
 					Name: "watcher",
 				},
 			)
@@ -943,14 +944,14 @@ transport_url =`
 			)
 			mariadb.CreateMariaDBAccountAndSecret(
 				watcherTest.WatcherDatabaseAccount,
-				v1beta1.MariaDBAccountSpec{
+				mariadbv1.MariaDBAccountSpec{
 					UserName: "watcher",
 				},
 			)
 			mariadb.CreateMariaDBDatabase(
 				watcherTest.WatcherAPI.Namespace,
 				"watcher",
-				v1beta1.MariaDBDatabaseSpec{
+				mariadbv1.MariaDBDatabaseSpec{
 					Name: "watcher",
 				},
 			)
@@ -1050,14 +1051,14 @@ transport_url =`
 			)
 			mariadb.CreateMariaDBAccountAndSecret(
 				watcherTest.WatcherDatabaseAccount,
-				v1beta1.MariaDBAccountSpec{
+				mariadbv1.MariaDBAccountSpec{
 					UserName: "watcher",
 				},
 			)
 			mariadb.CreateMariaDBDatabase(
 				watcherTest.WatcherAPI.Namespace,
 				"watcher",
-				v1beta1.MariaDBDatabaseSpec{
+				mariadbv1.MariaDBDatabaseSpec{
 					Name: "watcher",
 				},
 			)
@@ -1225,6 +1226,7 @@ transport_url =`
 				},
 			)
 			DeferCleanup(k8sClient.Delete, ctx, secret)
+
 			prometheusSecret := th.CreateSecret(
 				watcherTest.PrometheusSecretName,
 				map[string][]byte{
@@ -1243,6 +1245,7 @@ transport_url =`
 					},
 				),
 			)
+
 			mariadb.CreateMariaDBAccountAndSecret(
 				watcherTest.WatcherDatabaseAccount,
 				v1beta1.MariaDBAccountSpec{
@@ -1333,6 +1336,119 @@ heartbeat_in_pthread=false`,
 			for _, val := range expectedSections {
 				Expect(string(configData)).Should(ContainSubstring(val))
 			}
+		})
+	})
+
+	When("A WatcherAPI instance is created with MTLS memcached", func() {
+		BeforeEach(func() {
+			// Create the required secret for WatcherAPI
+			secret := th.CreateSecret(
+				watcherTest.InternalTopLevelSecretName,
+				map[string][]byte{
+					"WatcherPassword":       []byte("service-password"),
+					"transport_url":         []byte("url"),
+					"database_username":     []byte("username"),
+					"database_password":     []byte("password"),
+					"database_hostname":     []byte("hostname"),
+					"database_account":      []byte("watcher"),
+					"01-global-custom.conf": []byte(""),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, secret)
+
+			// Create prometheus secret
+			prometheusSecret := th.CreateSecret(
+				watcherTest.PrometheusSecretName,
+				map[string][]byte{
+					"host": []byte("prometheus.example.com"),
+					"port": []byte("9090"),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, prometheusSecret)
+
+			mariadb.CreateMariaDBDatabase(watcherTest.WatcherDatabaseName.Namespace, watcherTest.WatcherDatabaseName.Name, mariadbv1.MariaDBDatabaseSpec{})
+			DeferCleanup(k8sClient.Delete, ctx, mariadb.GetMariaDBDatabase(watcherTest.WatcherDatabaseName))
+
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+			apiMariaDBAccount, apiMariaDBSecret := mariadb.CreateMariaDBAccountAndSecret(
+				watcherTest.WatcherDatabaseAccount, mariadbv1.MariaDBAccountSpec{})
+			DeferCleanup(k8sClient.Delete, ctx, apiMariaDBAccount)
+			DeferCleanup(k8sClient.Delete, ctx, apiMariaDBSecret)
+
+			memcachedSpec := infra.GetDefaultMemcachedSpec()
+			// Create Memcached with MTLS auth
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMTLSMemcached(watcherTest.WatcherAPI.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMTLSMemcachedReady(watcherTest.MemcachedNamespace)
+
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.WatcherAPI.Namespace,
+					"openstack",
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+
+			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, GetDefaultWatcherAPISpec()))
+		})
+
+		It("should have MTLS volumes mounted in StatefulSet", func() {
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
+			Eventually(func(g Gomega) {
+				ss := th.GetStatefulSet(watcherTest.WatcherAPIStatefulSet)
+
+				// Check that MTLS volume is present
+				mtlsVolumeFound := false
+				for _, volume := range ss.Spec.Template.Spec.Volumes {
+					if volume.Name == "cert-memcached-mtls" {
+						mtlsVolumeFound = true
+						g.Expect(volume.Secret).ToNot(BeNil())
+						g.Expect(volume.Secret.SecretName).To(Equal("cert-memcached-mtls"))
+						break
+					}
+				}
+				g.Expect(mtlsVolumeFound).To(BeTrue(), "MTLS volume should be mounted")
+
+				// Check that MTLS volume mounts are present
+				for _, container := range ss.Spec.Template.Spec.Containers {
+					if container.Name == "watcher-api" {
+						mtlsVolumeMountFound := false
+						for _, volumeMount := range container.VolumeMounts {
+							if volumeMount.Name == "cert-memcached-mtls" {
+								mtlsVolumeMountFound = true
+								break
+							}
+						}
+						g.Expect(mtlsVolumeMountFound).To(BeTrue(), "MTLS volume mount should be present in watcher-api container")
+					}
+				}
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("should have MTLS configuration in config secret", func() {
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
+			Eventually(func(g Gomega) {
+				configSecret := th.GetSecret(watcherTest.WatcherAPIConfigSecret)
+				g.Expect(configSecret).ToNot(BeNil())
+
+				configData, exists := configSecret.Data["00-default.conf"]
+				g.Expect(exists).To(BeTrue())
+				configString := string(configData)
+
+				// Check for MTLS configuration in keystone_authtoken section
+				g.Expect(configString).To(ContainSubstring("memcache_tls_certfile"))
+				g.Expect(configString).To(ContainSubstring("memcache_tls_keyfile"))
+				g.Expect(configString).To(ContainSubstring("memcache_tls_cafile"))
+				g.Expect(configString).To(ContainSubstring("memcache_tls_enabled = true"))
+
+				// Check for MTLS configuration in cache section
+				g.Expect(configString).To(ContainSubstring("tls_certfile"))
+				g.Expect(configString).To(ContainSubstring("tls_keyfile"))
+				g.Expect(configString).To(ContainSubstring("tls_cafile"))
+			}, timeout, interval).Should(Succeed())
 		})
 	})
 })
