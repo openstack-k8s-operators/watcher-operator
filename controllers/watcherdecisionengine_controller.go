@@ -275,7 +275,7 @@ func (r *WatcherDecisionEngineReconciler) Reconcile(ctx context.Context, req ctr
 		return ctrl.Result{}, fmt.Errorf("waiting for Topology requirements: %w", err)
 	}
 
-	result, err = r.ensureDeployment(ctx, helper, instance, prometheusSecret, inputHash, topology)
+	result, err = r.ensureDeployment(ctx, helper, instance, prometheusSecret, inputHash, topology, memcached)
 	if err != nil {
 		return result, err
 	}
@@ -542,6 +542,13 @@ func (r *WatcherDecisionEngineReconciler) generateServiceConfigs(
 		"PrometheusCaCertPath":     prometheusCaCertPath,
 	}
 
+	// MTLS
+	if memcachedInstance.GetMemcachedMTLSSecret() != "" {
+		templateParameters["MemcachedAuthCert"] = fmt.Sprint(memcachedv1.CertMountPath())
+		templateParameters["MemcachedAuthKey"] = fmt.Sprint(memcachedv1.KeyMountPath())
+		templateParameters["MemcachedAuthCa"] = fmt.Sprint(memcachedv1.CaMountPath())
+	}
+
 	return GenerateConfigsGeneric(ctx, helper, instance, envVars, templateParameters, customData, labels, false)
 }
 
@@ -552,6 +559,7 @@ func (r *WatcherDecisionEngineReconciler) ensureDeployment(
 	prometheusSecret corev1.Secret,
 	inputHash string,
 	topology *topologyv1.Topology,
+	memcached *memcachedv1.Memcached,
 ) (ctrl.Result, error) {
 	Log := r.GetLogger(ctx)
 	Log.Info(fmt.Sprintf("Defining WatcherDecisionEngine deployment '%s'", instance.Name))
@@ -569,7 +577,7 @@ func (r *WatcherDecisionEngineReconciler) ensureDeployment(
 	}
 
 	ss := statefulset.NewStatefulSet(watcherdecisionengine.StatefulSet(
-		instance, inputHash, prometheusCaCert, getDecisionEngineServiceLabels(), topology), r.RequeueTimeout)
+		instance, inputHash, prometheusCaCert, getDecisionEngineServiceLabels(), topology, memcached), r.RequeueTimeout)
 
 	ctrlResult, err := ss.CreateOrPatch(ctx, h)
 	if err != nil && !k8s_errors.IsNotFound(err) {
