@@ -39,6 +39,8 @@
               oc wait pod prometheus-metric-storage-0 --for=condition=Ready -n openstack --timeout=1m
           retries: 10
           delay: 30
+          register: oc_wait_result
+          until: oc_wait_result.rc == 0
 
     # If the watcher-operator installation is already included in the openstack-operator we don't need to install it as
     # an standalone operator.
