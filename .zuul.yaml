@@ -5,12 +5,14 @@
     merge-mode: rebase
     templates:
       - opendev-master-watcher-operator-pipeline
-      - opendev-epoxy-watcher-operator-pipeline
+      # DNM jgilaber temporarily restrict jobs to the one that is testing the
+      # changes to avoid wasting resources
+      # - opendev-epoxy-watcher-operator-pipeline
     github-check:
       jobs:
         - noop
-        - watcher-operator-doc-preview
-        - watcher-operator-kuttl
+        # - watcher-operator-doc-preview
+        # - watcher-operator-kuttl
 
 - job:
     name: watcher-operator-base
@@ -240,6 +242,19 @@
       cifmw_update_containers_tag: current-tested
       cifmw_update_containers_registry: quay.rdoproject.org
       cifmw_test_operator_tempest_image_tag: watcher_latest
+      cifmw_extras:
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
+           src_dir }}/scenarios/centos-9/multinode-ci.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
+           src_dir }}/scenarios/centos-9/horizon.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/scenarios/edpm.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/tests/watcher-tempest.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/tests/watcher-tempest-nfs.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/scenarios/nfs.yml"
 
     extra-vars:
       # Override zuul meta content provider provided content_provider_dlrn_md5_hash
