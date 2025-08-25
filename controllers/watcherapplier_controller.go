@@ -165,6 +165,7 @@ func (r *WatcherApplierReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		[]string{
 			*instance.Spec.PasswordSelectors.Service,
 			TransportURLSelector,
+			QuorumQueuesSelector,
 			DatabaseAccount,
 			DatabaseUsername,
 			DatabaseHostname,
@@ -422,6 +423,7 @@ func (r *WatcherApplierReconciler) generateServiceConfigs(
 		"ServicePassword":          string(secret.Data[*instance.Spec.PasswordSelectors.Service]),
 		"ServiceUser":              *instance.Spec.ServiceUser,
 		"TransportURL":             string(secret.Data[TransportURLSelector]),
+		"QuorumQueues":             string(secret.Data[QuorumQueuesSelector]) == "true",
 		"MemcachedServers":         memcachedInstance.GetMemcachedServerListString(),
 		"MemcachedServersWithInet": memcachedInstance.GetMemcachedServerListWithInetString(),
 		"MemcachedTLS":             memcachedInstance.GetMemcachedTLSSupport(),
