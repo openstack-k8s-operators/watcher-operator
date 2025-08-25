@@ -101,12 +101,13 @@
         watcher_catalog_image: "{{ cifmw_operator_build_output['operators']['watcher-operator'].image_catalog }}"
       cifmw_extras:
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
-           src_dir }}/ci/scenarios/kuttl.yml"
+          src_dir }}/ci/scenarios/kuttl.yml"
+      zuul_log_collection: false
     extra-vars:
       # Override zuul meta content provider provided content_provider_dlrn_md5_hash
       # var. As returned dlrn md5 hash comes from master release but job is using
       # antelope content.
-      content_provider_dlrn_md5_hash: ''
+      content_provider_dlrn_md5_hash: ""
       # We also need to override the registry otherwise kuttl test will fail
       content_provider_os_registry_url: "quay.io/podified-master-centos9"
 
@@ -180,6 +181,7 @@
         - repository: "https://opendev.org/openstack/watcher-tempest-plugin.git"
           changeRepository: "https://review.opendev.org/openstack/watcher-tempest-plugin"
           changeRefspec: "380572db57798530b64dcac14c6b01b0382c5d8e"
+      zuul_log_collection: false
 
 - job:
     name: watcher-operator-validation-epoxy-ocp4-16
@@ -218,6 +220,7 @@
         - name: openstack-operator
           src: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/openstack-operator"
           image_base: watcher
+      zuul_log_collection: false
 - job:
     name: watcher-operator-validation-master
     parent: watcher-operator-validation-base
