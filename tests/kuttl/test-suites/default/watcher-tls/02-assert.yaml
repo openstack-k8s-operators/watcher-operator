@@ -227,9 +227,9 @@ commands:
       [ $(oc get -n ${NAMESPACE} keystoneservice watcher -o jsonpath={.status.serviceID}) == ${SERVICEID} ]
       [ -n "$(oc get -n ${NAMESPACE} watcher watcher-kuttl -o jsonpath={.status.hash.dbsync})" ]
       # check that watcher internal endpoint does not use https
-      oc exec -n ${NAMESPACE} openstackclient -- openstack endpoint list | grep infra-optim | grep internal  | [ $(grep -c https) == 0 ]
+      oc exec -n ${NAMESPACE} openstackclient -- openstack endpoint list | grep resource-optimization | grep internal  | [ $(grep -c https) == 0 ]
       # check that watcher public endpoint does use https
-      oc exec -n ${NAMESPACE} openstackclient -- openstack endpoint list | grep infra-optim | grep public  | [ $(grep -c https) == 1 ]
+      oc exec -n ${NAMESPACE} openstackclient -- openstack endpoint list | grep resource-optimization | grep public  | [ $(grep -c https) == 1 ]
       # If we are running the container locally, skip following test
       if [ "$(oc get pods -n openstack-operators -o name -l openstack.org/operator-name=watcher)" == "" ]; then
           exit 0

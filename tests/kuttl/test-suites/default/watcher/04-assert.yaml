@@ -176,7 +176,7 @@ spec:
   secret: osp-secret
   serviceDescription: Watcher Service
   serviceName: watcher
-  serviceType: infra-optim
+  serviceType: resource-optimization
   serviceUser: watcher
 ---
 apiVersion: batch/v1

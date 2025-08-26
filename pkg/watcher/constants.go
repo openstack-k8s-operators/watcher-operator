@@ -5,7 +5,7 @@ const (
 	ServiceName = "watcher"
 
 	// ServiceType - Type of Watcher keystone service
-	ServiceType = "infra-optim"
+	ServiceType = "resource-optimization"
 
 	// DatabaseName - Name of the database used in CREATE DATABASE statement
 	DatabaseName = "watcher"

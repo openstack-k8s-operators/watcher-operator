@@ -245,4 +245,4 @@ commands:
         echo "Success: ${counter} _URL_DEFAULT variables found."
       fi
       # check that no watcher endpoint uses https
-      oc exec -n ${NAMESPACE} openstackclient -- openstack endpoint list | grep infra-optim | [ $(grep -c https) == 0 ]
+      oc exec -n ${NAMESPACE} openstackclient -- openstack endpoint list | grep resource-optimization | [ $(grep -c https) == 0 ]
