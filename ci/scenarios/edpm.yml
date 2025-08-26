@@ -88,3 +88,23 @@ cifmw_install_yamls_whitelisted_vars:
   - 'WATCHER_REPO'
   - 'WATCHER_BRANCH'
   - 'OUTPUT_DIR'
+
+cifmw_update_containers_registry: >-
+  {%- if content_provider_os_registry_url is defined and content_provider_os_registry_url != 'null' and cifmw_repo_setup_release == 'master' -%}
+  {{ content_provider_os_registry_url | split('/') | first }}
+  {%- elif content_provider_os_registry_url is defined and content_provider_os_registry_url == 'null' and cifmw_repo_setup_release == 'master' -%}
+  quay.rdoproject.org
+  {%- elif watcher_registry_url is defined -%}
+  {{ watcher_registry_url | split('/') | first }}
+  {%- else -%}
+  quay.io
+  {%- endif -%}
+
+cifmw_update_containers_tag: >-
+  {%- if content_provider_os_registry_url is defined and content_provider_os_registry_url != 'null' -%}
+  watcher_latest
+  {%- elif content_provider_os_registry_url is defined and content_provider_os_registry_url == 'null' and cifmw_repo_setup_release == 'master' -%}
+  current-tested
+  {%- else -%}
+  current-podified
+  {%- endif -%}
