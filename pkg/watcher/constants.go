@@ -1,3 +1,4 @@
+// Package watcher provides constants and utilities for OpenStack Watcher service functionality
 package watcher
 
 const (
@@ -32,7 +33,7 @@ const (
 	// WatcherPublicPort - public port of watcher containers
 	WatcherPublicPort int32 = 9322
 
-	// WatcherPublicPort - internal port of watcher containers
+	// WatcherInternalPort - internal port of watcher containers
 	WatcherInternalPort int32 = 9322
 
 	// WatcherLogPath is the path used by WatcherAPI to stream/store its logs
@@ -41,7 +42,7 @@ const (
 	// ConfigVolume is the default volume name used to mount service config
 	ConfigVolume = "config-data"
 
-	// Path to deploy the Prometheus CaCert if needed
+	// PrometheusCaCertFolderPath is the path to deploy the Prometheus CaCert if needed
 	PrometheusCaCertFolderPath = "/etc/pki/ca-trust/extracted/pem/prometheus/"
 
 	// WatcherUserID is the linux user ID used by Kolla for watcher service

@@ -18,7 +18,6 @@ package controllers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -277,7 +276,7 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		)
 		if err != nil || hashNotificationURL == "" {
 			// Empty hash means that there is some problem retrieving the key from the secret
-			return ctrl.Result{}, errors.New("error retrieving required data from notificationURL secret")
+			return ctrl.Result{}, ErrRetrievingNotificationURLSecretData
 		}
 		notificationURLSecret = &notificationSecret
 		_ = op
@@ -298,7 +297,7 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	)
 	if err != nil || hash == "" {
 		// Empty hash means that there is some problem retrieving the key from the secret
-		return ctrl.Result{}, errors.New("error retrieving required data from secret")
+		return ctrl.Result{}, ErrRetrievingSecretData
 	}
 
 	// TransportURL Secret
@@ -314,7 +313,7 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	)
 	if err != nil || hashTransporturl == "" {
 		// Empty hash means that there is some problem retrieving the key from the secret
-		return ctrl.Result{}, errors.New("error retrieving required data from transporturl secret")
+		return ctrl.Result{}, ErrRetrievingTransportURLSecretData
 	}
 
 	// Prometheus config secret
@@ -337,7 +336,7 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 			condition.RequestedReason,
 			condition.SeverityWarning,
 			watcherv1beta1.WatcherPrometheusSecretErrorMessage))
-		return ctrl.Result{}, errors.New("error retrieving required data from prometheus secret")
+		return ctrl.Result{}, ErrRetrievingPrometheusSecretData
 	}
 
 	// Add finalizer to prometheus config secret to prevent it from being deleted now that we're using it
@@ -709,8 +708,7 @@ func (r *WatcherReconciler) ensureMQ(
 
 	_, ok := secret.Data[TransportURLSelector]
 	if !ok {
-		return nil, op, fmt.Errorf(
-			"the TransportURL secret %s does not have 'transport_url' field", transportURL.Status.SecretName)
+		return nil, op, fmt.Errorf("%w: %s", ErrTransportURLFieldMissing, transportURL.Status.SecretName)
 	}
 
 	return transportURL, op, nil
@@ -782,7 +780,7 @@ func (r *WatcherReconciler) generateServiceConfigDBJobs(
 	Log.Info("generateServiceConfigs - reconciling config for Watcher CR")
 
 	var tlsCfg *tls.Service
-	if instance.Spec.APIServiceTemplate.TLS.Ca.CaBundleSecretName != "" {
+	if instance.Spec.APIServiceTemplate.TLS.CaBundleSecretName != "" {
 		tlsCfg = &tls.Service{}
 	}
 	// customData hold any customization for the service.

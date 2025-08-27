@@ -18,7 +18,6 @@ package controllers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -204,7 +203,7 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			condition.RequestedReason,
 			condition.SeverityWarning,
 			watcherv1beta1.WatcherPrometheusSecretErrorMessage))
-		return ctrl.Result{}, errors.New("error retrieving required data from prometheus secret")
+		return ctrl.Result{}, ErrRetrievingPrometheusSecretData
 	}
 
 	configVars[*instance.Spec.PrometheusSecret] = env.SetValue(hashPrometheus)
@@ -280,7 +279,7 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 					condition.TLSInputReadyCondition,
 					condition.RequestedReason,
 					condition.SeverityInfo,
-					fmt.Sprintf(condition.TLSInputReadyWaitingMessage, instance.Spec.TLS.CaBundleSecretName),
+					condition.TLSInputReadyWaitingMessage, instance.Spec.TLS.CaBundleSecretName,
 				))
 				return ctrl.Result{}, nil
 			}
@@ -305,7 +304,7 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				condition.TLSInputReadyCondition,
 				condition.RequestedReason,
 				condition.SeverityInfo,
-				fmt.Sprintf(condition.TLSInputReadyWaitingMessage, err.Error()),
+				condition.TLSInputReadyWaitingMessage, err.Error(),
 			))
 			return ctrl.Result{}, nil
 		}
@@ -416,7 +415,7 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 	}
 	// customData hold any customization for the service.
 	var tlsCfg *tls.Service
-	if instance.Spec.TLS.Ca.CaBundleSecretName != "" {
+	if instance.Spec.TLS.CaBundleSecretName != "" {
 		tlsCfg = &tls.Service{}
 	}
 	// customData hold any customization for the service.
