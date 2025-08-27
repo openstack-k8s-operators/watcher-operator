@@ -11,17 +11,17 @@ resources:
 patches:
 # [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix.
 # patches here are for enabling the conversion webhook for each CRD
-#- patches/webhook_in_watchers.yaml
-#- patches/webhook_in_watcherdecisionengines.yaml
-#- patches/webhook_in_watcherappliers.yaml
+#- path: patches/webhook_in_watchers.yaml
+#- path: patches/webhook_in_watcherdecisionengines.yaml
+#- path: patches/webhook_in_watcherappliers.yaml
 #+kubebuilder:scaffold:crdkustomizewebhookpatch
 
 # [CERTMANAGER] To enable cert-manager, uncomment all the sections with [CERTMANAGER] prefix.
 # patches here are for enabling the CA injection for each CRD
 #- path: patches/cainjection_in_watcherapis.yaml
-#- patches/cainjection_in_watchers.yaml
-#- patches/cainjection_in_watcherdecisionengines.yaml
-#- patches/cainjection_in_watcherappliers.yaml
+#- path: patches/cainjection_in_watchers.yaml
+#- path: patches/cainjection_in_watcherdecisionengines.yaml
+#- path: patches/cainjection_in_watcherappliers.yaml
 #+kubebuilder:scaffold:crdkustomizecainjectionpatch
 
 # [WEBHOOK] To enable webhook, uncomment the following section
