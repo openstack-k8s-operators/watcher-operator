@@ -12,6 +12,8 @@ metadata:
     features.operators.openshift.io/token-auth-azure: "false"
     features.operators.openshift.io/token-auth-gcp: "false"
     operatorframework.io/suggested-namespace: openstack-operators
+    operators.openshift.io/valid-subscription: '["OpenShift Container Platform", "OpenShift
+      Platform Plus"]'
     operators.operatorframework.io/operator-type: non-standalone
   name: watcher-operator.v0.0.0
   namespace: placeholder
