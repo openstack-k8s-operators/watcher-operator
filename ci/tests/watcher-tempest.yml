@@ -1,4 +1,4 @@
-# # Tempest and test-operator configurations
+# # Tempest and test-operator configurations.
 cifmw_tempest_tempestconf_config:
   overrides: |
     compute.min_microversion 2.56
