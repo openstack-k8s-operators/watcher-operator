@@ -8,11 +8,11 @@ require (
 	github.com/onsi/ginkgo/v2 v2.20.1
 	github.com/onsi/gomega v1.34.1
 	github.com/openshift/api v3.9.0+incompatible
-	github.com/openstack-k8s-operators/infra-operator/apis v0.6.1-0.20250813080805-939d454063fa
+	github.com/openstack-k8s-operators/infra-operator/apis v0.6.1-0.20250825154944-f18bd7894ed6
 	github.com/openstack-k8s-operators/keystone-operator/api v0.6.1-0.20250818150612-8a8731ecd811
 	github.com/openstack-k8s-operators/lib-common/modules/common v0.6.1-0.20250605082218-a58074898dd7
 	github.com/openstack-k8s-operators/lib-common/modules/test v0.6.1-0.20250605082218-a58074898dd7
-	github.com/openstack-k8s-operators/mariadb-operator/api v0.6.1-0.20250805111929-e9cf53277ec8
+	github.com/openstack-k8s-operators/mariadb-operator/api v0.6.1-0.20250825154944-213306df7441
 	github.com/openstack-k8s-operators/watcher-operator/api v0.0.0-00010101000000-000000000000
 	go.uber.org/zap v1.27.0
 	gopkg.in/yaml.v3 v3.0.1
