@@ -85,6 +85,7 @@
       cifmw_edpm_telemetry_enabled_exporters:
         - podman_exporter
         - openstack_network_exporter
+      zuul_log_collection: false
 
 - job:
     name: watcher-operator-kuttl
@@ -102,6 +103,7 @@
       cifmw_extras:
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
            src_dir }}/ci/scenarios/kuttl.yml"
+      zuul_log_collection: false
     extra-vars:
       # Override zuul meta content provider provided content_provider_dlrn_md5_hash
       # var. As returned dlrn md5 hash comes from master release but job is using
