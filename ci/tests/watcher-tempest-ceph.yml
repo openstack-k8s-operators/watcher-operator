@@ -1,0 +1,39 @@
+# get the tempest configuration from watcher-waster.yml, with the exception of
+# not skipping volume_migration tests
+cifmw_test_operator_tempest_exclude_list: |
+  watcher_tempest_plugin.*client_functional.*
+  watcher_tempest_plugin.tests.scenario.test_execute_strategies.TestExecuteStrategies.test_execute_storage_capacity_balance_strategy
+  watcher_tempest_plugin.*\[.*\breal_load\b.*\].*
+
+# jgilaber: because of how its implemented cifmw_test_operator_tempest_tempestconf_config
+# takes precedence over cifmw_tempest_tempestconf
+# https://github.com/openstack-k8s-operators/ci-framework/blob/3c126ed07810244e4700e0030db1def684056fd0/roles/test_operator/defaults/main.yml#L166
+# and we need to override the value defined in ci-framework/scenarios/centos-9/hci_ceph_backends.yml
+# https://github.com/openstack-k8s-operators/ci-framework/blob/3c126ed07810244e4700e0030db1def684056fd0/scenarios/centos-9/hci_ceph_backends.yml#L43
+cifmw_test_operator_tempest_tempestconf_config:
+    overrides: |
+      identity.v3_endpoint_type public
+      share.run_share_group_tests false
+      share.capability_storage_protocol cephfs
+      share.suppress_errors_in_cleanup true
+      compute.min_microversion 2.56
+      compute.min_compute_nodes 2
+      placement.min_microversion 1.29
+      compute-feature-enabled.live_migration true
+      compute-feature-enabled.block_migration_for_live_migration true
+      service_available.sg_core true
+      telemetry_services.metric_backends prometheus
+      telemetry.disable_ssl_certificate_validation true
+      telemetry.ceilometer_polling_interval 15
+      optimize.min_microversion {{ watcher_tempest_min_microversion | default('1.0') }}
+      optimize.max_microversion {{ watcher_tempest_max_microversion | default('latest') }}
+      optimize.datasource prometheus
+      optimize.openstack_type podified
+      optimize.proxy_host_address {{ hostvars['controller']['ansible_host'] }}
+      optimize.proxy_host_user zuul
+      optimize.prometheus_host metric-storage-prometheus.openstack.svc
+      optimize.prometheus_ssl_enabled true
+      optimize.prometheus_ssl_cert_dir /etc/prometheus/secrets/combined-ca-bundle
+      optimize.podified_kubeconfig_path /home/zuul/.crc/machines/crc/kubeconfig
+      optimize.podified_namespace openstack
+      optimize.run_continuous_audit_tests true
