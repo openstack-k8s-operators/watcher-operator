@@ -1,0 +1,44 @@
+
+- name: Apply watcher post-deploy tasks
+  hosts: "{{ cifmw_target_hook_host | default('localhost') }}"
+  gather_facts: false
+  environment:
+    KUBECONFIG: "{{ cifmw_openshift_kubeconfig }}"
+    PATH: "{{ cifmw_path }}"
+  tasks:
+    - name: Enable Prometheus Admin API
+      block:
+        # This hook is used to enable the Prometheus Admin API.
+        - name: Patch prometheuses.monitoring.rhobs metric-storage to enable Admin API
+          ansible.builtin.command:
+            cmd: >-
+              oc patch prometheuses.monitoring.rhobs metric-storage --namespace=openstack --type=merge -p '{"spec":{"enableAdminAPI":true}}'
+        - name: Wait for prometheuses.monitoring.rhobs metric-storage associated pod to be redeployed
+          ansible.builtin.command:
+            cmd: >-
+              oc wait pod prometheus-metric-storage-0 --for=condition=Ready -n openstack --timeout=1m
+          retries: 10
+          delay: 30
+          register: oc_wait_result
+          until: oc_wait_result.rc == 0
+    - name: Disable nova notifications if not needed
+      block:
+        - name: Disable nova notifications if not needed
+          ansible.builtin.command:
+            cmd: >-
+              oc patch openstackcontrolplanes.core.openstack.org controlplane --namespace=openstack --type=merge -p '{"spec":{"watcher":{"template":{"notificationsBusInstance":null}}}}'
+        - name: Reduce decision engine collector period
+          ansible.builtin.command:
+            cmd: >-
+              oc patch openstackcontrolplanes.core.openstack.org controlplane --namespace=openstack --type=merge 
+              -p '{"spec":{"watcher":{"template":{"decisionengineServiceTemplate":{"customServiceConfig":"[watcher_cluster_data_model_collectors.compute]\nperiod = 60\n[watcher_cluster_data_model_collectors.storage]\nperiod = 60\n"}}}}}'
+
+        - name: Wait for watcher pods to be redeployed
+          ansible.builtin.command:
+            cmd: >-
+              oc wait pod -l "service in (watcher-api,watcher-applier,watcher-decision-engine)" --for=condition=Ready -n openstack --timeout=1m
+          retries: 10
+          delay: 30
+          register: oc_wait_result2
+          until: oc_wait_result2.rc == 0
+      when: watcher_disable_notifications | default(false) | bool
