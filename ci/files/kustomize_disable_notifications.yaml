@@ -1,0 +1,24 @@
+cifmw_edpm_prepare_extra_kustomizations:
+  - apiVersion: kustomize.config.k8s.io/v1beta1
+    kind: Kustomization
+    patches:
+      - patch: |-
+          - op: remove
+            path: /spec/rabbitmq/templates/rabbitmq-notifications
+        target:
+          kind: OpenStackControlPlane
+      - patch: |-
+          - op: remove
+            path: /spec/nova/template/notificationsBusInstance
+        target:
+          kind: OpenStackControlPlane
+      - patch: |-
+          - op: remove
+            path: /spec/watcher/template/decisionengineServiceTemplate/customServiceConfig
+        target:
+          kind: OpenStackControlPlane
+      - patch: |-
+          - op: remove
+            path: /spec/watcher/template/notificationsBusInstance
+        target:
+          kind: OpenStackControlPlane
