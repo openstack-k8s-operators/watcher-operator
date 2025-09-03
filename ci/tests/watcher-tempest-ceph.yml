@@ -1,0 +1,19 @@
+# get the tempest configuration from watcher-waster.yml, with the exception of
+# not skipping volume_migration tests
+cifmw_test_operator_tempest_exclude_list: |
+  watcher_tempest_plugin.*client_functional.*
+  watcher_tempest_plugin.tests.scenario.test_execute_strategies.TestExecuteStrategies.test_execute_storage_capacity_balance_strategy
+  watcher_tempest_plugin.*\[.*\breal_load\b.*\].*
+
+# jgilaber: because of how its implemented cifmw_test_operator_tempest_tempestconf_config
+# takes precedence over cifmw_tempest_tempestconf 
+# https://github.com/openstack-k8s-operators/ci-framework/blob/3c126ed07810244e4700e0030db1def684056fd0/roles/test_operator/defaults/main.yml#L166
+# and we need to override the value defined in ci-framework/scenarios/centos-9/hci_ceph_backends.yml
+# https://github.com/openstack-k8s-operators/ci-framework/blob/3c126ed07810244e4700e0030db1def684056fd0/scenarios/centos-9/hci_ceph_backends.yml#L43
+cifmw_test_operator_tempest_tempestconf_config:
+    overrides: |
+      {{ cifmw_tempest_tempestconf_config.overrides }}
+      identity.v3_endpoint_type public
+      share.run_share_group_tests false
+      share.capability_storage_protocol cephfs
+      share.suppress_errors_in_cleanup true
