@@ -116,19 +116,7 @@ var _ = Describe("WatcherApplier controller", func() {
 		var keystoneAPIName types.NamespacedName
 
 		BeforeEach(func() {
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_username":     []byte("username"),
-					"database_password":     []byte("password"),
-					"database_hostname":     []byte("hostname"),
-					"database_account":      []byte("watcher"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte(""),
-				},
-			)
+			secret := CreateInternalTopLevelSecret()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 			DeferCleanup(
 				mariadb.DeleteDBService,
@@ -348,19 +336,7 @@ transport_url =`
 	})
 	When("secret and db are created, but there is no memcached", func() {
 		BeforeEach(func() {
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_username":     []byte("username"),
-					"database_password":     []byte("password"),
-					"database_hostname":     []byte("hostname"),
-					"database_account":      []byte("watcher"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte(""),
-				},
-			)
+			secret := CreateInternalTopLevelSecret()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 
 			DeferCleanup(th.DeleteInstance, CreateWatcherApplier(watcherTest.WatcherApplier, GetDefaultWatcherApplierSpec()))
@@ -386,19 +362,7 @@ transport_url =`
 	})
 	When("secret, db and memcached are created, but there is no keystoneapi", func() {
 		BeforeEach(func() {
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_username":     []byte("username"),
-					"database_password":     []byte("password"),
-					"database_hostname":     []byte("hostname"),
-					"database_account":      []byte("watcher"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte(""),
-				},
-			)
+			secret := CreateInternalTopLevelSecret()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 			memcachedSpec := memcachedv1.MemcachedSpec{
 				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
@@ -443,19 +407,7 @@ transport_url =`
 	})
 	When("WatcherApplier is created with a wrong topologyRef", func() {
 		BeforeEach(func() {
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_username":     []byte("username"),
-					"database_password":     []byte("password"),
-					"database_hostname":     []byte("hostname"),
-					"database_account":      []byte("watcher"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte(""),
-				},
-			)
+			secret := CreateInternalTopLevelSecret()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 			DeferCleanup(
 				mariadb.DeleteDBService,
@@ -531,19 +483,7 @@ transport_url =`
 					Name:      "watcher"},
 				topologySpec)
 
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_username":     []byte("username"),
-					"database_password":     []byte("password"),
-					"database_hostname":     []byte("hostname"),
-					"database_account":      []byte("watcher"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte(""),
-				},
-			)
+			secret := CreateInternalTopLevelSecret()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 			spec := GetDefaultWatcherApplierSpec()
 			spec["topologyRef"] = map[string]interface{}{"name": topologyRefApplier.Name}
@@ -729,19 +669,7 @@ transport_url =`
 		var keystoneAPIName types.NamespacedName
 
 		BeforeEach(func() {
-			secret := th.CreateSecret(
-				watcherTest.InternalTopLevelSecretName,
-				map[string][]byte{
-					"WatcherPassword":       []byte("service-password"),
-					"transport_url":         []byte("url"),
-					"database_username":     []byte("username"),
-					"database_password":     []byte("password"),
-					"database_hostname":     []byte("hostname"),
-					"database_account":      []byte("watcher"),
-					"01-global-custom.conf": []byte(""),
-					"notification_url":      []byte("rabbit://rabbitmq-notification-secret/fake"),
-				},
-			)
+			secret := CreateInternalTopLevelSecretNotification()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 			DeferCleanup(
 				mariadb.DeleteDBService,

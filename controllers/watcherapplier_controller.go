@@ -165,6 +165,7 @@ func (r *WatcherApplierReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		[]string{
 			*instance.Spec.PasswordSelectors.Service,
 			TransportURLSelector,
+			QuorumQueuesSelector,
 			DatabaseAccount,
 			DatabaseUsername,
 			DatabaseHostname,
@@ -422,6 +423,7 @@ func (r *WatcherApplierReconciler) generateServiceConfigs(
 		"ServicePassword":          string(secret.Data[*instance.Spec.PasswordSelectors.Service]),
 		"ServiceUser":              *instance.Spec.ServiceUser,
 		"TransportURL":             string(secret.Data[TransportURLSelector]),
+		"QuorumQueues":             string(secret.Data[QuorumQueuesSelector]) == "true",
 		"MemcachedServers":         memcachedInstance.GetMemcachedServerListString(),
 		"MemcachedServersWithInet": memcachedInstance.GetMemcachedServerListWithInetString(),
 		"MemcachedTLS":             memcachedInstance.GetMemcachedTLSSupport(),
@@ -481,6 +483,15 @@ func (r *WatcherApplierReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			return nil
 		}
 		return []string{cr.Spec.TopologyRef.Name}
+	}); err != nil {
+		return err
+	}
+
+	// index transportURLSecretField
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &watcherv1beta1.WatcherApplier{}, transportURLSecretField, func(rawObj client.Object) []string {
+		// Return the expected transportURL secret name
+		cr := rawObj.(*watcherv1beta1.WatcherApplier)
+		return []string{cr.Name + "-watcher-transport"}
 	}); err != nil {
 		return err
 	}
