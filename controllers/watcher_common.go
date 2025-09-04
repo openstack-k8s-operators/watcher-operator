@@ -33,6 +33,7 @@ const (
 	tlsAPIInternalField     = ".spec.tls.api.internal.secretName"
 	tlsAPIPublicField       = ".spec.tls.api.public.secretName"
 	topologyField           = ".spec.topologyRef.Name"
+	memcachedInstanceField  = ".spec.memcachedInstance"
 )
 
 var (
@@ -43,12 +44,14 @@ var (
 		tlsAPIPublicField,
 		caBundleSecretNameField,
 		topologyField,
+		memcachedInstanceField,
 	}
 	applierWatchFields = []string{
 		passwordSecretField,
 		prometheusSecretField,
 		caBundleSecretNameField,
 		topologyField,
+		memcachedInstanceField,
 	}
 	watcherWatchFields = []string{
 		passwordSecretField,
@@ -59,6 +62,7 @@ var (
 		prometheusSecretField,
 		caBundleSecretNameField,
 		topologyField,
+		memcachedInstanceField,
 	}
 )
 

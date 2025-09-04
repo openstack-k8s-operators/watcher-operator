@@ -344,7 +344,7 @@ func (r *WatcherAPIReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	instance.Status.Conditions.MarkTrue(condition.ServiceConfigReadyCondition, condition.ServiceConfigReadyMessage)
 
-	result, err = r.ensureDeployment(ctx, helper, instance, prometheusSecret, inputHash, topology)
+	result, err = r.ensureDeployment(ctx, helper, instance, prometheusSecret, inputHash, topology, memcached)
 	if (err != nil || result != ctrl.Result{}) {
 		return result, err
 	}
@@ -469,6 +469,12 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 	if string(secret.Data[NotificationURLSelector]) != "" {
 		templateParameters["NotificationURL"] = string(secret.Data[NotificationURLSelector])
 	}
+	// MTLS
+	if memcachedInstance.GetMemcachedMTLSSecret() != "" {
+		templateParameters["MemcachedAuthCert"] = fmt.Sprint(memcachedv1.CertMountPath())
+		templateParameters["MemcachedAuthKey"] = fmt.Sprint(memcachedv1.KeyMountPath())
+		templateParameters["MemcachedAuthCa"] = fmt.Sprint(memcachedv1.CaMountPath())
+	}
 
 	// create httpd  vhost template parameters
 	httpdVhostConfig := map[string]interface{}{}
@@ -497,6 +503,7 @@ func (r *WatcherAPIReconciler) ensureDeployment(
 	prometheusSecret corev1.Secret,
 	configHash string,
 	topology *topologyv1.Topology,
+	memcached *memcachedv1.Memcached,
 ) (ctrl.Result, error) {
 	Log := r.GetLogger(ctx)
 	Log.Info(fmt.Sprintf("Defining WatcherAPI deployment '%s'", instance.Name))
@@ -514,7 +521,7 @@ func (r *WatcherAPIReconciler) ensureDeployment(
 	}
 
 	// define a new StatefulSet object
-	statefulSetDef, err := watcherapi.StatefulSet(instance, configHash, prometheusCaCert, getAPIServiceLabels(), topology)
+	statefulSetDef, err := watcherapi.StatefulSet(instance, configHash, prometheusCaCert, getAPIServiceLabels(), topology, memcached)
 	if err != nil {
 		Log.Error(err, "Defining statefulSet failed")
 		instance.Status.Conditions.Set(condition.FalseCondition(
@@ -907,6 +914,18 @@ func (r *WatcherAPIReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
+	// index memcachedInstanceField
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &watcherv1beta1.WatcherAPI{}, memcachedInstanceField, func(rawObj client.Object) []string {
+		// Extract the memcached instance name from the spec, if one is provided
+		cr := rawObj.(*watcherv1beta1.WatcherAPI)
+		if *cr.Spec.MemcachedInstance == "" {
+			return nil
+		}
+		return []string{*cr.Spec.MemcachedInstance}
+	}); err != nil {
+		return err
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&watcherv1beta1.WatcherAPI{}).
 		Owns(&corev1.Secret{}).
@@ -918,6 +937,10 @@ func (r *WatcherAPIReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(r.findObjectsForSrc),
 			builder.WithPredicates(predicate.ResourceVersionChangedPredicate{}),
 		).
+		Watches(
+			&memcachedv1.Memcached{},
+			handler.EnqueueRequestsFromMapFunc(r.findObjectsForSrc),
+			builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Watches(&topologyv1.Topology{},
 			handler.EnqueueRequestsFromMapFunc(r.findObjectsForSrc),
 			builder.WithPredicates(predicate.GenerationChangedPredicate{})).

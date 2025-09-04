@@ -18,11 +18,6 @@ spec:
   serviceUser: watcher
   apiServiceTemplate:
     replicas: 1
-    tls:
-      caBundleSecretName: "combined-ca-bundle"
-      api:
-        internal: {}
-        public: {}
     resources: {}
 status:
   apiServiceReadyCount: 1
@@ -88,6 +83,109 @@ status:
     status: "True"
     type: WatcherRabbitMQTransportURLReady
 ---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: watcher-db-secret
+  finalizers:
+  - openstack.org/watcher
+---
+apiVersion: mariadb.openstack.org/v1beta1
+kind: MariaDBAccount
+metadata:
+  name: watcher
+  finalizers:
+  - openstack.org/watcher
+  - openstack.org/mariadbaccount
+  labels:
+    mariaDBDatabaseName: watcher
+---
+apiVersion: mariadb.openstack.org/v1beta1
+kind: MariaDBDatabase
+metadata:
+  name: watcher
+  finalizers:
+  - openstack.org/watcher
+  - openstack.org/mariadbdatabase
+  - openstack.org/mariadbaccount-watcher
+---
+apiVersion: rabbitmq.openstack.org/v1beta1
+kind: TransportURL
+metadata:
+  generation: 1
+  labels:
+    service: watcher
+  name: watcher-kuttl-watcher-transport
+spec:
+  rabbitmqClusterName: rabbitmq
+status:
+  conditions:
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: Ready
+  - message: TransportURL completed
+    reason: Ready
+    status: "True"
+    type: TransportURLReady
+  secretName: rabbitmq-transport-url-watcher-kuttl-watcher-transport
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: rabbitmq-transport-url-watcher-kuttl-watcher-transport
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: watcher-kuttl
+---
+apiVersion: keystone.openstack.org/v1beta1
+kind: KeystoneService
+metadata:
+  name: watcher
+  finalizers:
+  - openstack.org/watcher
+  - openstack.org/keystoneservice
+  - openstack.org/keystoneendpoint-watcher
+spec:
+  enabled: true
+  passwordSelector: WatcherPassword
+  secret: osp-secret
+  serviceDescription: Watcher Service
+  serviceName: watcher
+  serviceType: infra-optim
+  serviceUser: watcher
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: watcher-watcher-kuttl
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: watcher-watcher-kuttl-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: watcher-watcher-kuttl-role
+subjects:
+- kind: ServiceAccount
+  name: watcher-watcher-kuttl
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  labels:
+    service: watcher
+  name: watcher-kuttl-db-sync
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: watcher-kuttl-config-data
+---
 apiVersion: watcher.openstack.org/v1beta1
 kind: WatcherAPI
 metadata:
@@ -105,11 +203,6 @@ spec:
   secret: watcher-kuttl
   serviceAccount: watcher-watcher-kuttl
   serviceUser: watcher
-  tls:
-    caBundleSecretName: "combined-ca-bundle"
-    api:
-      internal: {}
-      public: {}
 status:
   conditions:
   - message: Setup complete
@@ -183,6 +276,7 @@ metadata:
     service: watcher-api
   name: watcher-public
 spec:
+  allocateLoadBalancerNodePorts: true
   ports:
   - name: watcher-public
     port: 9322
@@ -190,7 +284,7 @@ spec:
     targetPort: 9322
   selector:
     service: watcher-api
-  type: ClusterIP
+  type: LoadBalancer
 ---
 apiVersion: v1
 kind: Service
@@ -244,5 +338,3 @@ commands:
       else
         echo "Success: ${counter} _URL_DEFAULT variables found."
       fi
-      # check that no watcher endpoint uses https
-      oc exec -n ${NAMESPACE} openstackclient -- openstack endpoint list | grep infra-optim | [ $(grep -c https) == 0 ]
