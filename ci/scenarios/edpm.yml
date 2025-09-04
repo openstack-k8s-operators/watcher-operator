@@ -22,65 +22,91 @@ cifmw_edpm_prepare_kustomizations:
     kind: Kustomization
     namespace: openstack
     patches:
-    - patch: |-
-        apiVersion: core.openstack.org/v1beta1
-        kind: OpenStackControlPlane
-        metadata:
-          name: controlplane
-        spec:
-          telemetry:
-            enabled: true
-            template:
-              ceilometer:
-                enabled: true
-              metricStorage:
-                enabled: true
-                customMonitoringStack:
-                  alertmanagerConfig:
-                    disabled: true
-                  prometheusConfig:
-                    enableRemoteWriteReceiver: true
-                    persistentVolumeClaim:
-                      resources:
-                        requests:
-                          storage: 20G
-                    replicas: 1
-                    scrapeInterval: 30s
-                  resourceSelector:
-                    matchLabels:
-                      service: metricStorage
-                  retention: 24h
-      target:
-        kind: OpenStackControlPlane
-    - patch: |-
-        apiVersion: core.openstack.org/v1beta1
-        kind: OpenStackControlPlane
-        metadata:
-          name: controlplane
-        spec:
-          telemetry:
-            template:
-              metricStorage:
-                monitoringStack: null
-      target:
-        kind: OpenStackControlPlane
-    - patch : |-
-        apiVersion: core.openstack.org/v1beta1
-        kind: OpenStackControlPlane
-        metadata:
-          name: controlplane
-        spec:
-          watcher:
-            enabled: true
-            template:
-              decisionengineServiceTemplate:
-                customServiceConfig: |
-                  [watcher_cluster_data_model_collectors.compute]
-                  period = 60
-                  [watcher_cluster_data_model_collectors.storage]
-                  period = 60
-      target:
-        kind: OpenStackControlPlane
+      - patch: |-
+          apiVersion: core.openstack.org/v1beta1
+          kind: OpenStackControlPlane
+          metadata:
+            name: controlplane
+          spec:
+            telemetry:
+              enabled: true
+              template:
+                ceilometer:
+                  enabled: true
+                metricStorage:
+                  enabled: true
+                  customMonitoringStack:
+                    alertmanagerConfig:
+                      disabled: true
+                    prometheusConfig:
+                      enableRemoteWriteReceiver: true
+                      persistentVolumeClaim:
+                        resources:
+                          requests:
+                            storage: 20G
+                      replicas: 1
+                      scrapeInterval: 30s
+                    resourceSelector:
+                      matchLabels:
+                        service: metricStorage
+                    retention: 24h
+        target:
+          kind: OpenStackControlPlane
+      - patch: |-
+          apiVersion: core.openstack.org/v1beta1
+          kind: OpenStackControlPlane
+          metadata:
+            name: controlplane
+          spec:
+            telemetry:
+              template:
+                metricStorage:
+                  monitoringStack: null
+        target:
+          kind: OpenStackControlPlane
+      - patch: |-
+          apiVersion: core.openstack.org/v1beta1
+          kind: OpenStackControlPlane
+          metadata:
+            name: controlplane
+          spec:
+            nova:
+              template:
+                notificationsBusInstance: rabbitmq-notifications
+        target:
+          kind: OpenStackControlPlane
+      - patch: |-
+          apiVersion: core.openstack.org/v1beta1
+          kind: OpenStackControlPlane
+          metadata:
+            name: controlplane
+          spec:
+            rabbitmq:
+              templates:
+                rabbitmq-notifications:
+                  delayStartSeconds: 30
+                  override:
+                    service:
+                      metadata:
+                        annotations:
+                          metallb.universe.tf/address-pool: internalapi
+                          metallb.universe.tf/loadBalancerIPs: 172.17.0.87
+                      spec:
+                        type: LoadBalancer
+        target:
+          kind: OpenStackControlPlane
+      - patch: |-
+          apiVersion: core.openstack.org/v1beta1
+          kind: OpenStackControlPlane
+          metadata:
+            name: controlplane
+          spec:
+            watcher:
+              enabled: true
+              template:
+                notificationsBusInstance: rabbitmq-notifications
+        target:
+          kind: OpenStackControlPlane
 
 cifmw_edpm_prepare_timeout: 60
 
