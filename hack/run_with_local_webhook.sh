@@ -15,11 +15,12 @@ TMPDIR=${TMPDIR:-"/tmp/k8s-webhook-server/serving-certs"}
 SKIP_CERT=${SKIP_CERT:-false}
 CRC_IP=${CRC_IP:-$(/sbin/ip -o -4 addr list crc | awk '{print $4}' | cut -d/ -f1)}
 FIREWALL_ZONE=${FIREWALL_ZONE:-"libvirt"}
+WEBHOOK_PORT=${WEBHOOK_PORT:-${WEBHOOK_PORT}}
 SKIP_FIREWALL=${SKIP_FIREWALL:-false}
 
 if [ "$SKIP_FIREWALL" = false ] ; then
-    #Open 9443
-    sudo firewall-cmd --zone=${FIREWALL_ZONE} --add-port=9443/tcp
+    #Open ${WEBHOOK_PORT}
+    sudo firewall-cmd --zone=${FIREWALL_ZONE} --add-port=${WEBHOOK_PORT}/tcp
     sudo firewall-cmd --runtime-to-permanent
 fi
 
@@ -51,7 +52,7 @@ webhooks:
   - v1
   clientConfig:
     caBundle: ${CA_BUNDLE}
-    url: https://${CRC_IP}:9443/validate-watcher-openstack-org-v1beta1-watcher
+    url: https://${CRC_IP}:${WEBHOOK_PORT}/validate-watcher-openstack-org-v1beta1-watcher
   failurePolicy: Fail
   matchPolicy: Equivalent
   name: vwatcher.kb.io
@@ -79,7 +80,7 @@ webhooks:
   - v1
   clientConfig:
     caBundle: ${CA_BUNDLE}
-    url: https://${CRC_IP}:9443/mutate-watcher-openstack-org-v1beta1-watcher
+    url: https://${CRC_IP}:${WEBHOOK_PORT}/mutate-watcher-openstack-org-v1beta1-watcher
   failurePolicy: Fail
   matchPolicy: Equivalent
   name: mwatcher.kb.io
@@ -107,7 +108,7 @@ webhooks:
   - v1
   clientConfig:
     caBundle: ${CA_BUNDLE}
-    url: https://${CRC_IP}:9443/validate-watcher-openstack-org-v1beta1-watcherapi
+    url: https://${CRC_IP}:${WEBHOOK_PORT}/validate-watcher-openstack-org-v1beta1-watcherapi
   failurePolicy: Fail
   matchPolicy: Equivalent
   name: vwatcherapi.kb.io
@@ -135,7 +136,7 @@ webhooks:
   - v1
   clientConfig:
     caBundle: ${CA_BUNDLE}
-    url: https://${CRC_IP}:9443/mutate-watcher-openstack-org-v1beta1-watcherapi
+    url: https://${CRC_IP}:${WEBHOOK_PORT}/mutate-watcher-openstack-org-v1beta1-watcherapi
   failurePolicy: Fail
   matchPolicy: Equivalent
   name: mwatcherapi.kb.io
@@ -163,7 +164,7 @@ webhooks:
   - v1
   clientConfig:
     caBundle: ${CA_BUNDLE}
-    url: https://${CRC_IP}:9443/validate-watcher-openstack-org-v1beta1-watcherdecisionengine
+    url: https://${CRC_IP}:${WEBHOOK_PORT}/validate-watcher-openstack-org-v1beta1-watcherdecisionengine
   failurePolicy: Fail
   matchPolicy: Equivalent
   name: vwatcherdecisionengine.kb.io
@@ -191,7 +192,7 @@ webhooks:
   - v1
   clientConfig:
     caBundle: ${CA_BUNDLE}
-    url: https://${CRC_IP}:9443/mutate-watcher-openstack-org-v1beta1-watcherdecisionengine
+    url: https://${CRC_IP}:${WEBHOOK_PORT}/mutate-watcher-openstack-org-v1beta1-watcherdecisionengine
   failurePolicy: Fail
   matchPolicy: Equivalent
   name: mwatcherdecisionengine.kb.io
@@ -219,7 +220,7 @@ webhooks:
   - v1
   clientConfig:
     caBundle: ${CA_BUNDLE}
-    url: https://${CRC_IP}:9443/validate-watcher-openstack-org-v1beta1-watcherapplier
+    url: https://${CRC_IP}:${WEBHOOK_PORT}/validate-watcher-openstack-org-v1beta1-watcherapplier
   failurePolicy: Fail
   matchPolicy: Equivalent
   name: vwatcherapplier.kb.io
@@ -247,7 +248,7 @@ webhooks:
   - v1
   clientConfig:
     caBundle: ${CA_BUNDLE}
-    url: https://${CRC_IP}:9443/mutate-watcher-openstack-org-v1beta1-watcherapplier
+    url: https://${CRC_IP}:${WEBHOOK_PORT}/mutate-watcher-openstack-org-v1beta1-watcherapplier
   failurePolicy: Fail
   matchPolicy: Equivalent
   name: mwatcherapplier.kb.io
@@ -292,4 +293,4 @@ if [ -n "${CSV_NAME}" ]; then
     oc patch "${CSV_NAME}" -n openstack-operators --type=json -p="[{'op': 'replace', 'path': '/spec/webhookdefinitions', 'value': []}]"
 fi
 
-go run ./main.go -metrics-bind-address ":${METRICS_PORT}" -health-probe-bind-address ":${HEALTH_PORT}" -pprof-bind-address ":${PPROF_PORT}"
+go run ./main.go -metrics-bind-address ":${METRICS_PORT}" -health-probe-bind-address ":${HEALTH_PORT}" -pprof-bind-address ":${PPROF_PORT}" -webhook-bind-address "${WEBHOOK_PORT}"

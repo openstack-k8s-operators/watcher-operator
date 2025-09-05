@@ -73,11 +73,13 @@ func main() {
 	var enableLeaderElection bool
 	var probeAddr string
 	var pprofBindAddress string
+	var webhookPort int
 	var secureMetrics bool
 	var enableHTTP2 bool
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":33080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":33081", "The address the probe endpoint binds to.")
 	flag.StringVar(&pprofBindAddress, "pprof-bind-address", "", "The address the pprof endpoint binds to. Set to empty to disable pprof.")
+	flag.IntVar(&webhookPort, "webhook-bind-address", 9443, "The port the webhook server binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
@@ -110,6 +112,7 @@ func main() {
 	}
 
 	webhookServer := webhook.NewServer(webhook.Options{
+		Port:    webhookPort,
 		TLSOpts: tlsOpts,
 	})
 
