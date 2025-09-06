@@ -9,7 +9,7 @@ require (
 	github.com/onsi/gomega v1.34.1
 	github.com/openshift/api v3.9.0+incompatible
 	github.com/openstack-k8s-operators/infra-operator/apis v0.6.1-0.20250821143610-c8ef7b9a21ec
-	github.com/openstack-k8s-operators/keystone-operator/api v0.6.1-0.20250823150446-aa5dac847cf1
+	github.com/openstack-k8s-operators/keystone-operator/api v0.6.1-0.20250905083405-40d18a7ca650
 	github.com/openstack-k8s-operators/lib-common/modules/common v0.6.1-0.20250823121217-7e1cd2e3dd03
 	github.com/openstack-k8s-operators/lib-common/modules/test v0.6.1-0.20250823121217-7e1cd2e3dd03
 	github.com/openstack-k8s-operators/mariadb-operator/api v0.6.1-0.20250823120533-e98cf8957b16
