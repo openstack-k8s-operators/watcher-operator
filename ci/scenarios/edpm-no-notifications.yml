@@ -1,0 +1,110 @@
+---
+watcher_repo: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator"
+watcher_coo_hook: "{{ watcher_repo }}/ci/playbooks/deploy_cluster_observability_operator.yaml"
+prometheus_admin_api_hook: "{{ watcher_repo }}/ci/playbooks/prometheus_admin_api.yaml"
+
+# Watcher deploy playbooks
+pre_deploy_create_coo_subscription:
+  - name: Deploy cluster-observability-operator
+    type: playbook
+    source: "{{ watcher_coo_hook }}"
+post_deploy:
+  - name: Download needed tools
+    type: playbook
+    inventory: "/home/zuul/src/github.com/openstack-k8s-operators/install_yamls/devsetup/hosts"
+    source: "/home/zuul/src/github.com/openstack-k8s-operators/install_yamls/devsetup/download_tools.yaml"
+  - name: Patch Openstack Prometheus to enable admin API
+    type: playbook
+    source: "{{ prometheus_admin_api_hook }}"
+
+cifmw_edpm_prepare_kustomizations:
+  - apiVersion: kustomize.config.k8s.io/v1beta1
+    kind: Kustomization
+    namespace: openstack
+    patches:
+    - patch: |-
+        apiVersion: core.openstack.org/v1beta1
+        kind: OpenStackControlPlane
+        metadata:
+          name: controlplane
+        spec:
+          telemetry:
+            enabled: true
+            template:
+              ceilometer:
+                enabled: true
+              metricStorage:
+                enabled: true
+                customMonitoringStack:
+                  alertmanagerConfig:
+                    disabled: true
+                  prometheusConfig:
+                    enableRemoteWriteReceiver: true
+                    persistentVolumeClaim:
+                      resources:
+                        requests:
+                          storage: 20G
+                    replicas: 1
+                    scrapeInterval: 30s
+                  resourceSelector:
+                    matchLabels:
+                      service: metricStorage
+                  retention: 24h
+      target:
+        kind: OpenStackControlPlane
+    - patch: |-
+        apiVersion: core.openstack.org/v1beta1
+        kind: OpenStackControlPlane
+        metadata:
+          name: controlplane
+        spec:
+          telemetry:
+            template:
+              metricStorage:
+                monitoringStack: null
+      target:
+        kind: OpenStackControlPlane
+    - patch : |-
+        apiVersion: core.openstack.org/v1beta1
+        kind: OpenStackControlPlane
+        metadata:
+          name: controlplane
+        spec:
+          watcher:
+            enabled: true
+            template:
+              decisionengineServiceTemplate:
+                customServiceConfig: |
+                  [watcher_cluster_data_model_collectors.compute]
+                  period = 60
+                  [watcher_cluster_data_model_collectors.storage]
+                  period = 60
+      target:
+        kind: OpenStackControlPlane
+
+cifmw_edpm_prepare_timeout: 60
+
+cifmw_install_yamls_whitelisted_vars:
+  - 'WATCHER_REPO'
+  - 'WATCHER_BRANCH'
+  - 'OUTPUT_DIR'
+
+cifmw_update_containers_registry: >-
+  {%- if content_provider_os_registry_url is defined and content_provider_os_registry_url != 'null' and cifmw_repo_setup_release == 'master' -%}
+  {{ content_provider_os_registry_url | split('/') | first }}
+  {%- elif content_provider_os_registry_url is defined and content_provider_os_registry_url == 'null' and cifmw_repo_setup_release == 'master' -%}
+  quay.rdoproject.org
+  {%- elif watcher_registry_url is defined -%}
+  {{ watcher_registry_url | split('/') | first }}
+  {%- else -%}
+  quay.io
+  {%- endif -%}
+
+cifmw_update_containers_tag: >-
+  {%- if content_provider_os_registry_url is defined and content_provider_os_registry_url != 'null' -%}
+  watcher_latest
+  {%- elif content_provider_os_registry_url is defined and content_provider_os_registry_url == 'null' and cifmw_repo_setup_release == 'master' -%}
+  current-tested
+  {%- else -%}
+  current-podified
+  {%- endif -%}
