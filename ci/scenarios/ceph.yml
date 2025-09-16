@@ -36,3 +36,36 @@ post_deploy:
 
 # jgilaber: override hook defined in ci-framework that we don't need
 pre_tests: []
+
+cifmw_edpm_prepare_extra_kustomizations:
+  - apiVersion: kustomize.config.k8s.io/v1beta1
+    kind: Kustomization
+    patches:
+    - patch: |-
+        apiVersion: core.openstack.org/v1beta1
+        kind: OpenStackControlPlane
+        metadata:
+          name: controlplane
+        spec:
+          cinder:
+            template:
+              cinderVolumes:
+                volume2:
+                  customServiceConfig: |
+                    [DEFAULT]
+                    enabled_backends=ceph2
+                    [ceph2]
+                    volume_backend_name=ceph2
+                    volume_driver=cinder.volume.drivers.rbd.RBDDriver
+                    rbd_ceph_conf=/etc/ceph/ceph.conf
+                    rbd_user=openstack
+                    rbd_pool=volumes
+                    rbd_flatten_volume_from_snapshot=False
+                    report_discard_supported=True
+                    backend_host=hostgroup
+                    rbd_secret_uuid=400168b3-90c9-5bdd-bbed-ddfac8e06ae8
+                  networkAttachments:
+                    - storage
+                  replicas: 1
+      target:
+        kind: OpenStackControlPlane
