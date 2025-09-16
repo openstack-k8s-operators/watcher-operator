@@ -19,6 +19,7 @@
     description: |
       A multinode EDPM Zuul job which has one ansible controller, one
       extracted crc and two computes. It will be used for testing watcher-operator.
+      Configures Nova and Cinder to send notifications over a dedicated rabbitmq instance.
     vars:
       watcher_scenario: "edpm"
       cifmw_extras:
@@ -156,7 +157,7 @@
       openstack watcher services containers from meta content provider.
       It will test current-podified control plane EDPM deployment with openstack watcher
       master content. It deploys watcher using TLSe, and creates the certificates to use.
-      Nova notifications are not enabled on this job.
+      Neither Nova nor Cinder notifications are not enabled on this job.
     extra-vars:
       # Override zuul meta content provider provided content_provider_dlrn_md5_hash
       # var. As returned dlrn md5 hash comes from master release but job is using
