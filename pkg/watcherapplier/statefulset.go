@@ -1,3 +1,4 @@
+// Package watcherapplier provides functionality for managing Watcher Applier StatefulSet resources
 package watcherapplier
 
 import (

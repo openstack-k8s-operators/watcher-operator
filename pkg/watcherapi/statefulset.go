@@ -1,3 +1,4 @@
+// Package watcherapi provides functionality for managing Watcher API StatefulSet resources
 package watcherapi
 
 import (
