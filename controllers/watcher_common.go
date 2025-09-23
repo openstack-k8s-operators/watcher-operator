@@ -34,6 +34,8 @@ const (
 	tlsAPIPublicField       = ".spec.tls.api.public.secretName"
 	topologyField           = ".spec.topologyRef.Name"
 	memcachedInstanceField  = ".spec.memcachedInstance"
+	// service label for cinder endpoint
+	endpointCinder = "cinder"
 )
 
 var (
@@ -63,6 +65,9 @@ var (
 		caBundleSecretNameField,
 		topologyField,
 		memcachedInstanceField,
+	}
+	endpointList = []string{
+		endpointCinder,
 	}
 )
 

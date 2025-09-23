@@ -1,0 +1,13 @@
+apiVersion: core.openstack.org/v1beta1
+kind: OpenStackControlPlane
+metadata:
+  name: openstack
+spec:
+  cinder:
+    enabled: true
+    template:
+      databaseInstance: openstack
+      databaseAccount: cinder
+      secret: osp-secret
+      cinderAPI:
+        replicas: 1

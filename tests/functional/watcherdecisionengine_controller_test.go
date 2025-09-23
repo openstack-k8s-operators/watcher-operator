@@ -1137,4 +1137,103 @@ heartbeat_in_pthread=false`,
 			}, timeout, interval).Should(Succeed())
 		})
 	})
+	When("WatcherDecisionEngine is reconfigured", func() {
+		cinderEndpoint := types.NamespacedName{}
+		BeforeEach(func() {
+			secret := CreateInternalTopLevelSecret()
+			DeferCleanup(k8sClient.Delete, ctx, secret)
+			prometheusSecret := th.CreateSecret(
+				watcherTest.PrometheusSecretName,
+				map[string][]byte{
+					"host": []byte("prometheus.example.com"),
+					"port": []byte("9090"),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, prometheusSecret)
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.WatcherDecisionEngine.Namespace,
+					"openstack",
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+			mariadb.CreateMariaDBAccountAndSecret(
+				watcherTest.WatcherDatabaseAccount,
+				mariadbv1.MariaDBAccountSpec{
+					UserName: "watcher",
+				},
+			)
+			mariadb.CreateMariaDBDatabase(
+				watcherTest.WatcherDecisionEngine.Namespace,
+				"watcher",
+				mariadbv1.MariaDBDatabaseSpec{
+					Name: "watcher",
+				},
+			)
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherDecisionEngine.Namespace))
+
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.WatcherDecisionEngine.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+
+			DeferCleanup(th.DeleteInstance, CreateWatcherDecisionEngine(watcherTest.WatcherDecisionEngine, GetDefaultWatcherDecisionEngineSpec()))
+
+			logger.Info("Created cinder endpoint")
+			cinderEndpoint = types.NamespacedName{Name: "cinder", Namespace: watcherTest.WatcherDecisionEngine.Namespace}
+			DeferCleanup(keystone.DeleteKeystoneEndpoint, keystone.CreateKeystoneEndpoint(cinderEndpoint))
+			keystone.SimulateKeystoneEndpointReady(cinderEndpoint)
+
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherDecisionEngineStatefulSet)
+
+			th.ExpectCondition(
+				watcherTest.WatcherDecisionEngine,
+				ConditionGetterFunc(WatcherDecisionEngineConditionGetter),
+				condition.ReadyCondition,
+				corev1.ConditionTrue,
+			)
+
+		})
+		It("updates the deployment if cinder public endpoint gets deleted", func() {
+			originalConfigHash := GetEnvVarValue(
+				th.GetStatefulSet(watcherTest.WatcherDecisionEngine).Spec.Template.Spec.Containers[0].Env, "CONFIG_HASH", "")
+			Expect(originalConfigHash).NotTo(Equal(""))
+
+			keystone.DeleteKeystoneEndpoint(cinderEndpoint)
+			logger.Info("Deleted cinder endpoint")
+
+			// Assert that the CONFIG_HASH of the StateFulSet is changed due to this reconfiguration
+			Eventually(func(g Gomega) {
+				currentConfigHash := GetEnvVarValue(
+					th.GetStatefulSet(watcherTest.WatcherDecisionEngine).Spec.Template.Spec.Containers[0].Env, "CONFIG_HASH", "")
+				g.Expect(originalConfigHash).NotTo(Equal(currentConfigHash))
+
+			}, timeout, interval).Should(Succeed())
+		})
+		It("updates the deployment if cinder internal endpoint is modified", func() {
+			originalConfigHash := GetEnvVarValue(
+				th.GetStatefulSet(watcherTest.WatcherDecisionEngine).Spec.Template.Spec.Containers[0].Env, "CONFIG_HASH", "")
+			Expect(originalConfigHash).NotTo(Equal(""))
+
+			keystone.UpdateKeystoneEndpoint(cinderEndpoint, "internal", "https://cinder-test-internal")
+			logger.Info("Reconfigured")
+
+			// Assert that the CONFIG_HASH of the StateFulSet is changed due to this reconfiguration
+			Eventually(func(g Gomega) {
+				currentConfigHash := GetEnvVarValue(
+					th.GetStatefulSet(watcherTest.WatcherDecisionEngine).Spec.Template.Spec.Containers[0].Env, "CONFIG_HASH", "")
+				g.Expect(originalConfigHash).NotTo(Equal(currentConfigHash))
+
+			}, timeout, interval).Should(Succeed())
+		})
+	})
 })

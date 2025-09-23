@@ -21,6 +21,7 @@ secretGenerator:
   - NovaAPIDatabasePassword=password
   - NovaCell0DatabasePassword=password
   - NovaCell1DatabasePassword=password
+  - CinderPassword=password
   - MetadataSecret=42
   name: osp-secret
 generatorOptions:
