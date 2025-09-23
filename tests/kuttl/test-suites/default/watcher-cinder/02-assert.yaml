@@ -1,0 +1,32 @@
+apiVersion: watcher.openstack.org/v1beta1
+kind: Watcher
+metadata:
+  finalizers:
+  - openstack.org/watcher
+  name: watcher-kuttl
+  namespace: watcher-kuttl-default
+status:
+  # we just want to assert that the watcher is ready in this test
+  apiServiceReadyCount: 1
+  applierServiceReadyCount: 1
+  decisionengineServiceReadyCount: 1
+---
+apiVersion: keystone.openstack.org/v1beta1
+kind: KeystoneService
+metadata:
+  name: cinderv3
+---
+apiVersion: keystone.openstack.org/v1beta1
+kind: KeystoneEndpoint
+metadata:
+  name: cinderv3
+---
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+namespaced: true
+commands:
+  - script: |
+      set -euxo pipefail
+      # check that the decision detects that there is a cinder service and
+      # does not log that storage collector is skipped
+      [ "$(oc logs -n $NAMESPACE watcher-kuttl-decision-engine-0 |grep -c 'Block storage service is not enabled, skipping storage collector')" == 0 ]
