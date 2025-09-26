@@ -537,7 +537,7 @@ func (r *WatcherDecisionEngineReconciler) generateServiceConfigs(
 	if instance.Spec.TLS.CaBundleSecretName != "" {
 		CaFilePath = tls.DownstreamTLSCABundlePath
 	}
-	templateParameters := map[string]interface{}{
+	templateParameters := map[string]any{
 		"DatabaseConnection": fmt.Sprintf("mysql+pymysql://%s:%s@%s/%s?read_default_file=/etc/my.cnf",
 			databaseUsername,
 			databasePassword,

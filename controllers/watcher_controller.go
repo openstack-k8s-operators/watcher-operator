@@ -792,7 +792,7 @@ func (r *WatcherReconciler) generateServiceConfigDBJobs(
 	labels := labels.GetLabels(instance, labels.GetGroupLabel(watcher.ServiceName), map[string]string{})
 	databaseAccount := db.GetAccount()
 	databaseSecret := db.GetSecret()
-	templateParameters := map[string]interface{}{
+	templateParameters := map[string]any{
 		"DatabaseConnection": fmt.Sprintf("mysql+pymysql://%s:%s@%s/%s?read_default_file=/etc/my.cnf",
 			databaseAccount.Spec.UserName,
 			string(databaseSecret.Data[mariadbv1.DatabasePasswordSelector]),

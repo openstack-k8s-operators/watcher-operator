@@ -32,8 +32,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GetDefaultWatcherSpec() map[string]interface{} {
-	return map[string]interface{}{
+func GetDefaultWatcherSpec() map[string]any {
+	return map[string]any{
 		"databaseInstance": "openstack",
 		"secret":           SecretName,
 	}
@@ -97,36 +97,36 @@ func CreateInternalTopLevelSecretQuorum() *corev1.Secret {
 }
 
 // Second Watcher Spec to test proper parameters substitution
-func GetNonDefaultWatcherSpec() map[string]interface{} {
-	return map[string]interface{}{
+func GetNonDefaultWatcherSpec() map[string]any {
+	return map[string]any{
 		"apiContainerImageURL": "fake-API-Container-URL",
 		"secret":               SecretName,
 		"preserveJobs":         true,
 		"databaseInstance":     "fakeopenstack",
 		"serviceUser":          "fakeuser",
 		"customServiceConfig":  "# Global config",
-		"apiServiceTemplate": map[string]interface{}{
+		"apiServiceTemplate": map[string]any{
 			"replicas":            2,
 			"nodeSelector":        map[string]string{"foo": "bar"},
 			"customServiceConfig": "# Service config",
-			"tls": map[string]interface{}{
+			"tls": map[string]any{
 				"caBundleSecretName": "combined-ca-bundle",
 			},
 		},
 		"prometheusSecret":         "custom-prometheus-config",
 		"applierContainerImageURL": "fake-Applier-Container-URL",
-		"applierServiceTemplate": map[string]interface{}{
+		"applierServiceTemplate": map[string]any{
 			"replicas":            1,
 			"nodeSelector":        map[string]string{"foo": "bar"},
 			"customServiceConfig": "# Service config Applier",
 		},
 		"decisionengineContainerImageURL": "fake-DecisionEngine-Container-URL",
-		"decisionengineServiceTemplate": map[string]interface{}{
+		"decisionengineServiceTemplate": map[string]any{
 			"replicas":            1,
 			"nodeSelector":        map[string]string{"foo": "bar"},
 			"customServiceConfig": "# Service config DecisionEngine",
 		},
-		"dbPurge": map[string]interface{}{
+		"dbPurge": map[string]any{
 			"schedule": "1 2 * * *",
 			"purgeAge": 1,
 		},
@@ -135,14 +135,14 @@ func GetNonDefaultWatcherSpec() map[string]interface{} {
 }
 
 // Watcher Spec to test TLSe
-func GetTLSeWatcherSpec() map[string]interface{} {
-	return map[string]interface{}{
+func GetTLSeWatcherSpec() map[string]any {
+	return map[string]any{
 		"secret":           SecretName,
 		"databaseInstance": "openstack",
-		"apiServiceTemplate": map[string]interface{}{
-			"tls": map[string]interface{}{
+		"apiServiceTemplate": map[string]any{
+			"tls": map[string]any{
 				"caBundleSecretName": "combined-ca-bundle",
-				"api": map[string]interface{}{
+				"api": map[string]any{
 					"internal": map[string]string{
 						"secretName": "cert-watcher-internal-svc",
 					},
@@ -155,26 +155,26 @@ func GetTLSeWatcherSpec() map[string]interface{} {
 	}
 }
 
-func GetTLSIngressWatcherSpec() map[string]interface{} {
-	return map[string]interface{}{
+func GetTLSIngressWatcherSpec() map[string]any {
+	return map[string]any{
 		"secret":           SecretName,
 		"databaseInstance": "openstack",
-		"apiServiceTemplate": map[string]interface{}{
-			"tls": map[string]interface{}{
+		"apiServiceTemplate": map[string]any{
+			"tls": map[string]any{
 				"caBundleSecretName": "combined-ca-bundle",
 			},
 		},
 	}
 }
 
-func GetTLSPodLevelWatcherSpec() map[string]interface{} {
-	return map[string]interface{}{
+func GetTLSPodLevelWatcherSpec() map[string]any {
+	return map[string]any{
 		"secret":           SecretName,
 		"databaseInstance": "openstack",
-		"apiServiceTemplate": map[string]interface{}{
-			"tls": map[string]interface{}{
+		"apiServiceTemplate": map[string]any{
+			"tls": map[string]any{
 				"caBundleSecretName": "combined-ca-bundle",
-				"api": map[string]interface{}{
+				"api": map[string]any{
 					"internal": map[string]string{
 						"secretName": "cert-watcher-internal-svc",
 					},
@@ -187,8 +187,8 @@ func GetTLSPodLevelWatcherSpec() map[string]interface{} {
 	}
 }
 
-func GetDefaultWatcherAPISpec() map[string]interface{} {
-	return map[string]interface{}{
+func GetDefaultWatcherAPISpec() map[string]any {
+	return map[string]any{
 		"databaseInstance":  "openstack",
 		"secret":            SecretName,
 		"memcachedInstance": "memcached",
@@ -197,14 +197,14 @@ func GetDefaultWatcherAPISpec() map[string]interface{} {
 	}
 }
 
-func GetTLSWatcherAPISpec() map[string]interface{} {
-	return map[string]interface{}{
+func GetTLSWatcherAPISpec() map[string]any {
+	return map[string]any{
 		"databaseInstance": "openstack",
 		"secret":           SecretName,
 		"containerImage":   "test://watcher",
-		"tls": map[string]interface{}{
+		"tls": map[string]any{
 			"caBundleSecretName": "combined-ca-bundle",
-			"api": map[string]interface{}{
+			"api": map[string]any{
 				"internal": map[string]string{
 					"secretName": "cert-watcher-internal-svc",
 				},
@@ -216,35 +216,35 @@ func GetTLSWatcherAPISpec() map[string]interface{} {
 	}
 
 }
-func GetTLSCaWatcherAPISpec() map[string]interface{} {
-	return map[string]interface{}{
+func GetTLSCaWatcherAPISpec() map[string]any {
+	return map[string]any{
 		"databaseInstance": "openstack",
 		"secret":           SecretName,
 		"containerImage":   "test://watcher",
-		"tls": map[string]interface{}{
+		"tls": map[string]any{
 			"caBundleSecretName": "combined-ca-bundle",
 		},
 	}
 }
 
-func GetServiceOverrideWatcherAPISpec() map[string]interface{} {
-	return map[string]interface{}{
+func GetServiceOverrideWatcherAPISpec() map[string]any {
+	return map[string]any{
 		"databaseInstance":  "openstack",
 		"secret":            SecretName,
 		"memcachedInstance": "memcached",
 		"serviceAccount":    "watcher-sa",
 		"containerImage":    "test://watcher",
-		"override": map[string]interface{}{
-			"service": map[string]interface{}{
-				"internal": map[string]interface{}{
-					"metadata": map[string]interface{}{
+		"override": map[string]any{
+			"service": map[string]any{
+				"internal": map[string]any{
+					"metadata": map[string]any{
 						"annotations": map[string]string{
 							"metallb.universe.tf/address-pool":    "osp-internalapi",
 							"metallb.universe.tf/loadBalancerIPs": "internal-lb-ip-1,internal-lb-ip-2",
 							"metallb.universe.tf/allow-shared-ip": "osp-internalapi",
 						},
 					},
-					"spec": map[string]interface{}{
+					"spec": map[string]any{
 						"type": "LoadBalancer",
 					},
 				},
@@ -253,8 +253,8 @@ func GetServiceOverrideWatcherAPISpec() map[string]interface{} {
 	}
 }
 
-func GetDefaultWatcherApplierSpec() map[string]interface{} {
-	return map[string]interface{}{
+func GetDefaultWatcherApplierSpec() map[string]any {
+	return map[string]any{
 		"databaseInstance":  "openstack",
 		"secret":            SecretName,
 		"memcachedInstance": "memcached",
@@ -263,8 +263,8 @@ func GetDefaultWatcherApplierSpec() map[string]interface{} {
 	}
 }
 
-func GetDefaultWatcherDecisionEngineSpec() map[string]interface{} {
-	return map[string]interface{}{
+func GetDefaultWatcherDecisionEngineSpec() map[string]any {
+	return map[string]any{
 		"databaseInstance":  "openstack",
 		"secret":            SecretName,
 		"memcachedInstance": "memcached",
@@ -273,11 +273,11 @@ func GetDefaultWatcherDecisionEngineSpec() map[string]interface{} {
 	}
 }
 
-func CreateWatcher(name types.NamespacedName, spec map[string]interface{}) client.Object {
-	raw := map[string]interface{}{
+func CreateWatcher(name types.NamespacedName, spec map[string]any) client.Object {
+	raw := map[string]any{
 		"apiVersion": "watcher.openstack.org/v1beta1",
 		"kind":       "Watcher",
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"name":      name.Name,
 			"namespace": name.Namespace,
 		},
@@ -299,11 +299,11 @@ func WatcherConditionGetter(name types.NamespacedName) condition.Conditions {
 	return instance.Status.Conditions
 }
 
-func CreateWatcherAPI(name types.NamespacedName, spec map[string]interface{}) client.Object {
-	raw := map[string]interface{}{
+func CreateWatcherAPI(name types.NamespacedName, spec map[string]any) client.Object {
+	raw := map[string]any{
 		"apiVersion": "watcher.openstack.org/v1beta1",
 		"kind":       "WatcherAPI",
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"name":      name.Name,
 			"namespace": name.Namespace,
 		},
@@ -325,11 +325,11 @@ func WatcherAPIConditionGetter(name types.NamespacedName) condition.Conditions {
 	return instance.Status.Conditions
 }
 
-func CreateWatcherApplier(name types.NamespacedName, spec map[string]interface{}) client.Object {
-	raw := map[string]interface{}{
+func CreateWatcherApplier(name types.NamespacedName, spec map[string]any) client.Object {
+	raw := map[string]any{
 		"apiVersion": "watcher.openstack.org/v1beta1",
 		"kind":       "WatcherApplier",
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"name":      name.Name,
 			"namespace": name.Namespace,
 		},
@@ -360,18 +360,18 @@ func CreateWatcherMessageBusSecret(namespace string, name string) *corev1.Secret
 	s := th.CreateSecret(
 		types.NamespacedName{Namespace: namespace, Name: name},
 		map[string][]byte{
-			"transport_url": []byte(fmt.Sprintf("rabbit://%s/fake", name)),
+			"transport_url": fmt.Appendf(nil, "rabbit://%s/fake", name),
 		},
 	)
 	logger.Info("Secret created", "name", name)
 	return s
 }
 
-func CreateWatcherDecisionEngine(name types.NamespacedName, spec map[string]interface{}) client.Object {
-	raw := map[string]interface{}{
+func CreateWatcherDecisionEngine(name types.NamespacedName, spec map[string]any) client.Object {
+	raw := map[string]any{
 		"apiVersion": "watcher.openstack.org/v1beta1",
 		"kind":       "WatcherDecisionEngine",
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"name":      name.Name,
 			"namespace": name.Namespace,
 		},
@@ -422,16 +422,16 @@ func CreateCertSecret(name types.NamespacedName) *corev1.Secret {
 // test Watcher components. It returns both the user input representation
 // in the form of map[string]string, and the Golang expected representation
 // used in the test asserts.
-func GetSampleTopologySpec(label string) (map[string]interface{}, []corev1.TopologySpreadConstraint) {
+func GetSampleTopologySpec(label string) (map[string]any, []corev1.TopologySpreadConstraint) {
 	// Build the topology Spec yaml representation
-	topologySpec := map[string]interface{}{
-		"topologySpreadConstraints": []map[string]interface{}{
+	topologySpec := map[string]any{
+		"topologySpreadConstraints": []map[string]any{
 			{
 				"maxSkew":           1,
 				"topologyKey":       corev1.LabelHostname,
 				"whenUnsatisfiable": "ScheduleAnyway",
-				"labelSelector": map[string]interface{}{
-					"matchLabels": map[string]interface{}{
+				"labelSelector": map[string]any{
+					"matchLabels": map[string]any{
 						"service": label,
 					},
 				},

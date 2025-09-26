@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	MinimalWatcherDecisionEngineSpec = map[string]interface{}{
+	MinimalWatcherDecisionEngineSpec = map[string]any{
 		"secret":            "osp-secret",
 		"memcachedInstance": "memcached",
 	}
@@ -388,7 +388,7 @@ transport_url =`
 			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.WatcherDecisionEngine.Namespace, MemcachedInstance, memcachedSpec))
 			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
 			spec := GetDefaultWatcherDecisionEngineSpec()
-			spec["topologyRef"] = map[string]interface{}{"name": "foo"}
+			spec["topologyRef"] = map[string]any{"name": "foo"}
 			DeferCleanup(th.DeleteInstance, CreateWatcherDecisionEngine(watcherTest.WatcherDecisionEngine, spec))
 		})
 		It("points to a non existing topology CR", func() {
@@ -412,7 +412,7 @@ transport_url =`
 		var topologyRefAlt topologyv1.TopoRef
 		var expectedTopologySpec []corev1.TopologySpreadConstraint
 		BeforeEach(func() {
-			var topologySpec map[string]interface{}
+			var topologySpec map[string]any
 			// Build the topology Spec
 			topologySpec, expectedTopologySpec = GetSampleTopologySpec("watcher-decision-engine")
 			_ = expectedTopologySpec
@@ -439,7 +439,7 @@ transport_url =`
 			)
 			DeferCleanup(k8sClient.Delete, ctx, prometheusSecret)
 			spec := GetDefaultWatcherDecisionEngineSpec()
-			spec["topologyRef"] = map[string]interface{}{"name": topologyRefDecEng.Name}
+			spec["topologyRef"] = map[string]any{"name": topologyRefDecEng.Name}
 			DeferCleanup(th.DeleteInstance, CreateWatcherDecisionEngine(watcherTest.WatcherDecisionEngine, spec))
 			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherDecisionEngine.Namespace))
 			memcachedSpec := memcachedv1.MemcachedSpec{

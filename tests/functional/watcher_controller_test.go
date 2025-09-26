@@ -27,11 +27,11 @@ import (
 )
 
 var (
-	MinimalWatcherSpec = map[string]interface{}{
+	MinimalWatcherSpec = map[string]any{
 		"databaseInstance": "openstack",
 	}
 
-	MinimalWatcherContainerSpec = map[string]interface{}{
+	MinimalWatcherContainerSpec = map[string]any{
 		"databaseInstance":                "openstack",
 		"apiContainerImageURL":            "watcher-api-custom-image",
 		"applierContainerImageURL":        "watcher-applier-custom-image",
@@ -711,10 +711,10 @@ var _ = Describe("Watcher controller", func() {
 			spec := GetDefaultWatcherAPISpec()
 			spec["databaseInstance"] = ""
 
-			raw := map[string]interface{}{
+			raw := map[string]any{
 				"apiVersion": "watcher.openstack.org/v1beta1",
 				"kind":       "watcher",
-				"metadata": map[string]interface{}{
+				"metadata": map[string]any{
 					"name":      watcherName.Name,
 					"namespace": watcherName.Namespace,
 				},
@@ -740,12 +740,12 @@ var _ = Describe("Watcher controller", func() {
 		It("should raise an error of wrong topology namespace", func() {
 
 			spec := GetDefaultWatcherAPISpec()
-			spec["topologyRef"] = map[string]interface{}{"name": "foo", "namespace": "bar"}
+			spec["topologyRef"] = map[string]any{"name": "foo", "namespace": "bar"}
 
-			raw := map[string]interface{}{
+			raw := map[string]any{
 				"apiVersion": "watcher.openstack.org/v1beta1",
 				"kind":       "watcher",
-				"metadata": map[string]interface{}{
+				"metadata": map[string]any{
 					"name":      watcherName.Name,
 					"namespace": watcherName.Namespace,
 				},
@@ -772,10 +772,10 @@ var _ = Describe("Watcher controller", func() {
 			spec := GetDefaultWatcherAPISpec()
 			spec["rabbitMqClusterName"] = ""
 
-			raw := map[string]interface{}{
+			raw := map[string]any{
 				"apiVersion": "watcher.openstack.org/v1beta1",
 				"kind":       "watcher",
-				"metadata": map[string]interface{}{
+				"metadata": map[string]any{
 					"name":      watcherName.Name,
 					"namespace": watcherName.Namespace,
 				},
@@ -1415,7 +1415,7 @@ var _ = Describe("Watcher controller", func() {
 		var topologyRefAlt topologyv1.TopoRef
 		var expectedTopologySpec []corev1.TopologySpreadConstraint
 		BeforeEach(func() {
-			var topologySpec map[string]interface{}
+			var topologySpec map[string]any
 			// Build the topology Spec
 			topologySpec, expectedTopologySpec = GetSampleTopologySpec("watcher-api")
 			_ = expectedTopologySpec
@@ -1432,8 +1432,8 @@ var _ = Describe("Watcher controller", func() {
 				topologySpec)
 
 			spec := GetNonDefaultWatcherSpec()
-			spec["topologyRef"] = map[string]interface{}{"name": topologyRefAlt.Name}
-			spec["apiServiceTemplate"] = map[string]interface{}{"topologyRef": map[string]interface{}{"name": topologyRefAPI.Name}}
+			spec["topologyRef"] = map[string]any{"name": topologyRefAlt.Name}
+			spec["apiServiceTemplate"] = map[string]any{"topologyRef": map[string]any{"name": topologyRefAPI.Name}}
 			DeferCleanup(th.DeleteInstance, CreateWatcher(watcherTest.Instance, spec))
 			DeferCleanup(k8sClient.Delete, ctx, CreateWatcherMessageBusSecret(watcherTest.Instance.Namespace, "rabbitmq-secret"))
 			memcachedSpec := memcachedv1.MemcachedSpec{
