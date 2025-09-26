@@ -53,6 +53,7 @@ import (
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 )
 
 // WatcherDecisionEngineReconciler reconciles a WatcherDecisionEngine object
@@ -229,6 +230,25 @@ func (r *WatcherDecisionEngineReconciler) Reconcile(ctx context.Context, req ctr
 		return ctrl.Result{}, err
 	}
 
+	// hash the endpoint URLs of the services this depends on
+	// By adding the hash to the hash of hashes being added to the deployment
+	// allows it to get restarted, in case the endpoint changes and it requires
+	// the current cached ones to be updated.
+
+	endpointUrlsHash, err := keystonev1.GetHashforKeystoneEndpointUrlsForServices(
+		ctx,
+		helper,
+		instance.Namespace,
+		ptr.To(string(endpoint.EndpointInternal)),
+		endpointList,
+	)
+
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	configVars["endpointUrlsHash"] = env.SetValue(endpointUrlsHash)
+
 	Log.Info(fmt.Sprintf("[DecisionEngine] Getting input hash '%s'", instance.Name))
 	//
 	// create hash over all the different input resources to identify if any those changed
@@ -403,6 +423,9 @@ func (r *WatcherDecisionEngineReconciler) SetupWithManager(mgr ctrl.Manager) err
 		Watches(&keystonev1.KeystoneAPI{},
 			handler.EnqueueRequestsFromMapFunc(r.findObjectForSrc),
 			builder.WithPredicates(keystonev1.KeystoneAPIStatusChangedPredicate)).
+		Watches(&keystonev1.KeystoneEndpoint{},
+			handler.EnqueueRequestsFromMapFunc(r.findObjectsWithAppSelectorLabelInNamespace),
+			builder.WithPredicates(keystonev1.KeystoneEndpointStatusChangedPredicate)).
 		Complete(r)
 }
 
@@ -699,4 +722,37 @@ func getDecisionEngineServiceLabels() map[string]string {
 	return map[string]string{
 		common.AppSelector: WatcherDecisionEngineLabelPrefix,
 	}
+}
+
+func (r *WatcherDecisionEngineReconciler) findObjectsWithAppSelectorLabelInNamespace(ctx context.Context, src client.Object) []reconcile.Request {
+	requests := []reconcile.Request{}
+
+	l := log.FromContext(ctx).WithName("Controllers").WithName("WatcherDecisionEngine")
+
+	// if the endpoint has the service label and its in our endpointList, reconcile the CR in the namespace
+	if svc, ok := src.GetLabels()[common.AppSelector]; ok && util.StringInSlice(svc, endpointList) {
+		crList := &watcherv1beta1.WatcherDecisionEngineList{}
+		listOps := &client.ListOptions{
+			Namespace: src.GetNamespace(),
+		}
+		err := r.Client.List(ctx, crList, listOps)
+		if err != nil {
+			l.Error(err, fmt.Sprintf("listing %s for namespace: %s", crList.GroupVersionKind().Kind, src.GetNamespace()))
+			return requests
+		}
+
+		for _, item := range crList.Items {
+			l.Info(fmt.Sprintf("input source %s changed, reconcile: %s - %s", src.GetName(), item.GetName(), item.GetNamespace()))
+
+			requests = append(requests,
+				reconcile.Request{
+					NamespacedName: types.NamespacedName{
+						Name:      item.GetName(),
+						Namespace: item.GetNamespace(),
+					},
+				},
+			)
+		}
+	}
+	return requests
 }
