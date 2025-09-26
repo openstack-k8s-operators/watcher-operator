@@ -27,8 +27,8 @@ import (
 
 const SamplesDir = "../../config/samples/"
 
-func ReadSample(sampleFileName string) map[string]interface{} {
-	rawSample := make(map[string]interface{})
+func ReadSample(sampleFileName string) map[string]any {
+	rawSample := make(map[string]any)
 
 	bytes, err := os.ReadFile(filepath.Join(SamplesDir, sampleFileName)) //nolint:gosec // G304: File path is sanitized and controlled in test environment
 	Expect(err).ShouldNot(HaveOccurred())
@@ -43,28 +43,28 @@ func ReadSample(sampleFileName string) map[string]interface{} {
 
 func CreateWatcherFromSample(sampleFileName string, name types.NamespacedName) types.NamespacedName {
 	raw := ReadSample(sampleFileName)
-	instance := CreateWatcher(name, raw["spec"].(map[string]interface{}))
+	instance := CreateWatcher(name, raw["spec"].(map[string]any))
 	DeferCleanup(th.DeleteInstance, instance)
 	return types.NamespacedName{Name: instance.GetName(), Namespace: instance.GetNamespace()}
 }
 
 func CreateWatcherAPIFromSample(sampleFileName string, name types.NamespacedName) types.NamespacedName {
 	raw := ReadSample(sampleFileName)
-	instance := CreateWatcherAPI(name, raw["spec"].(map[string]interface{}))
+	instance := CreateWatcherAPI(name, raw["spec"].(map[string]any))
 	DeferCleanup(th.DeleteInstance, instance)
 	return types.NamespacedName{Name: instance.GetName(), Namespace: instance.GetNamespace()}
 }
 
 func CreateWatcherApplierFromSample(sampleFileName string, name types.NamespacedName) types.NamespacedName {
 	raw := ReadSample(sampleFileName)
-	instance := CreateWatcherApplier(name, raw["spec"].(map[string]interface{}))
+	instance := CreateWatcherApplier(name, raw["spec"].(map[string]any))
 	DeferCleanup(th.DeleteInstance, instance)
 	return types.NamespacedName{Name: instance.GetName(), Namespace: instance.GetNamespace()}
 }
 
 func CreateWatcherDecisionEngineFromSample(sampleFileName string, name types.NamespacedName) types.NamespacedName {
 	raw := ReadSample(sampleFileName)
-	instance := CreateWatcherDecisionEngine(name, raw["spec"].(map[string]interface{}))
+	instance := CreateWatcherDecisionEngine(name, raw["spec"].(map[string]any))
 	DeferCleanup(th.DeleteInstance, instance)
 	return types.NamespacedName{Name: instance.GetName(), Namespace: instance.GetNamespace()}
 }
