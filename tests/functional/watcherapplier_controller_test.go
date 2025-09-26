@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	MinimalWatcherApplierSpec = map[string]interface{}{
+	MinimalWatcherApplierSpec = map[string]any{
 		"secret":            "osp-secret",
 		"memcachedInstance": "memcached",
 	}
@@ -439,7 +439,7 @@ transport_url =`
 			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.WatcherApplier.Namespace, MemcachedInstance, memcachedSpec))
 			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
 			spec := GetDefaultWatcherApplierSpec()
-			spec["topologyRef"] = map[string]interface{}{"name": "foo"}
+			spec["topologyRef"] = map[string]any{"name": "foo"}
 			DeferCleanup(th.DeleteInstance, CreateWatcherApplier(watcherTest.WatcherApplier, spec))
 		})
 		It("points to a non existing topology CR", func() {
@@ -463,7 +463,7 @@ transport_url =`
 		var topologyRefAlt topologyv1.TopoRef
 		var expectedTopologySpec []corev1.TopologySpreadConstraint
 		BeforeEach(func() {
-			var topologySpec map[string]interface{}
+			var topologySpec map[string]any
 			// Build the topology Spec
 			topologySpec, expectedTopologySpec = GetSampleTopologySpec("watcher-applier")
 			_ = expectedTopologySpec
@@ -482,7 +482,7 @@ transport_url =`
 			secret := CreateInternalTopLevelSecret()
 			DeferCleanup(k8sClient.Delete, ctx, secret)
 			spec := GetDefaultWatcherApplierSpec()
-			spec["topologyRef"] = map[string]interface{}{"name": topologyRefApplier.Name}
+			spec["topologyRef"] = map[string]any{"name": topologyRefApplier.Name}
 			DeferCleanup(th.DeleteInstance, CreateWatcherApplier(watcherTest.WatcherApplier, spec))
 			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherApplier.Namespace))
 			memcachedSpec := memcachedv1.MemcachedSpec{

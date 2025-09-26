@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	MinimalWatcherAPISpec = map[string]interface{}{
+	MinimalWatcherAPISpec = map[string]any{
 		"secret":            "osp-secret",
 		"memcachedInstance": "memcached",
 	}
@@ -846,7 +846,7 @@ transport_url =`
 			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
 
 			spec := GetDefaultWatcherAPISpec()
-			spec["topologyRef"] = map[string]interface{}{"name": "foo"}
+			spec["topologyRef"] = map[string]any{"name": "foo"}
 			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, spec))
 		})
 		It("points to a non existing topology CR", func() {
@@ -870,7 +870,7 @@ transport_url =`
 		var topologyRefAlt topologyv1.TopoRef
 		var expectedTopologySpec []corev1.TopologySpreadConstraint
 		BeforeEach(func() {
-			var topologySpec map[string]interface{}
+			var topologySpec map[string]any
 			// Build the topology Spec
 			topologySpec, expectedTopologySpec = GetSampleTopologySpec("watcher-api")
 			_ = expectedTopologySpec
@@ -904,7 +904,7 @@ transport_url =`
 					},
 				))
 			spec := GetDefaultWatcherAPISpec()
-			spec["topologyRef"] = map[string]interface{}{"name": topologyRefAPI.Name}
+			spec["topologyRef"] = map[string]any{"name": topologyRefAPI.Name}
 			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, spec))
 			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
 			memcachedSpec := memcachedv1.MemcachedSpec{

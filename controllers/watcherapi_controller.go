@@ -444,7 +444,7 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 	if instance.Spec.TLS.CaBundleSecretName != "" {
 		CaFilePath = tls.DownstreamTLSCABundlePath
 	}
-	templateParameters := map[string]interface{}{
+	templateParameters := map[string]any{
 		"DatabaseConnection": fmt.Sprintf("mysql+pymysql://%s:%s@%s/%s?read_default_file=/etc/my.cnf",
 			databaseUsername,
 			databasePassword,
@@ -478,9 +478,9 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 	}
 
 	// create httpd  vhost template parameters
-	httpdVhostConfig := map[string]interface{}{}
+	httpdVhostConfig := map[string]any{}
 	for _, endpt := range []service.Endpoint{service.EndpointInternal, service.EndpointPublic} {
-		endptConfig := map[string]interface{}{}
+		endptConfig := map[string]any{}
 		endptConfig["ServerName"] = fmt.Sprintf("%s-%s.%s.svc", watcher.ServiceName, endpt.String(), instance.Namespace)
 		endptConfig["TLS"] = false // default TLS to false, and set it below to true if enabled
 		if instance.Spec.TLS.API.Enabled(endpt) {
