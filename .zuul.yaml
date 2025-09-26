@@ -104,6 +104,9 @@
       fetch_dlrn_hash: false
       deploy_watcher_operator_extra_vars:
         watcher_catalog_image: "{{ cifmw_operator_build_output['operators']['watcher-operator'].image_catalog }}"
+        # use master content for watcher services
+        content_provider_os_registry_url: "{{ content_provider_os_registry_url }}"
+        watcher_services_tag: watcher_latest
       cifmw_extras:
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
            src_dir }}/ci/scenarios/kuttl.yml"
@@ -113,8 +116,6 @@
       # var. As returned dlrn md5 hash comes from master release but job is using
       # antelope content.
       content_provider_dlrn_md5_hash: ''
-      # We also need to override the registry otherwise kuttl test will fail
-      content_provider_os_registry_url: "quay.io/podified-master-centos9"
 
 - job:
     name: watcher-operator-doc-preview

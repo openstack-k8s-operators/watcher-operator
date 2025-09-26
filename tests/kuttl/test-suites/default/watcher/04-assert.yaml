@@ -219,7 +219,6 @@ spec:
               value: COPY_ALWAYS
             - name: PURGE_AGE
               value: "1"
-            image: quay.io/podified-master-centos9/openstack-watcher-api:current-podified
           serviceAccount: watcher-watcher-kuttl
   schedule: "* * * * *"
 ---
@@ -244,7 +243,6 @@ metadata:
   - openstack.org/watcherapi
   name: watcher-kuttl-api
 spec:
-  containerImage: quay.io/podified-master-centos9/openstack-watcher-api:current-podified
   memcachedInstance: memcached
   passwordSelectors:
     service: WatcherPassword
@@ -340,7 +338,6 @@ metadata:
   - openstack.org/watcherapplier
   name: watcher-kuttl-applier
 spec:
-  containerImage: quay.io/podified-master-centos9/openstack-watcher-applier:current-podified
   memcachedInstance: memcached
   passwordSelectors:
     service: WatcherPassword
@@ -385,7 +382,6 @@ spec:
     spec:
       containers:
       - name: watcher-applier
-        image: quay.io/podified-master-centos9/openstack-watcher-applier:current-podified
 status:
   readyReplicas: 1
   replicas: 1
@@ -399,7 +395,6 @@ metadata:
 spec:
   containers:
   - name: watcher-applier
-    image: quay.io/podified-master-centos9/openstack-watcher-applier:current-podified
 status:
   phase: Running
 ---
@@ -410,7 +405,6 @@ metadata:
   - openstack.org/watcherdecisionengine
   name: watcher-kuttl-decision-engine
 spec:
-  containerImage: quay.io/podified-master-centos9/openstack-watcher-decision-engine:current-podified
   memcachedInstance: memcached
   passwordSelectors:
     service: WatcherPassword
@@ -455,7 +449,6 @@ spec:
     spec:
       containers:
       - name: watcher-decision-engine
-        image: quay.io/podified-master-centos9/openstack-watcher-decision-engine:current-podified
 status:
   readyReplicas: 1
   replicas: 1
@@ -469,7 +462,6 @@ metadata:
 spec:
   containers:
   - name: watcher-decision-engine
-    image: quay.io/podified-master-centos9/openstack-watcher-decision-engine:current-podified
 status:
   phase: Running
 ---

@@ -6,9 +6,6 @@ metadata:
   name: watcher-kuttl
   namespace: watcher-kuttl-default
 spec:
-  apiContainerImageURL: "quay.io/podified-master-centos9/openstack-watcher-api:current-podified"
-  decisionengineContainerImageURL: "quay.io/podified-master-centos9/openstack-watcher-decision-engine:current-podified"
-  applierContainerImageURL: "quay.io/podified-master-centos9/openstack-watcher-applier:current-podified"
   databaseAccount: watcher
   databaseInstance: openstack
   passwordSelectors:
@@ -105,7 +102,6 @@ metadata:
   - openstack.org/watcherapi
   name: watcher-kuttl-api
 spec:
-  containerImage: quay.io/podified-master-centos9/openstack-watcher-api:current-podified
   memcachedInstance: memcached
   passwordSelectors:
     service: WatcherPassword
