@@ -18,11 +18,11 @@ spec:
   databaseInstance: "openstack"
   databaseAccount: watcher-precreated
   prometheusSecret: custom-prometheus-config
-  tls:
-    caBundleSecretName: "combined-ca-bundle"
   customServiceConfig: |
     # Global config
   apiServiceTemplate:
+    tls:
+      caBundleSecretName: "combined-ca-bundle"
     replicas: 2
     customServiceConfig: |
       # Service config
