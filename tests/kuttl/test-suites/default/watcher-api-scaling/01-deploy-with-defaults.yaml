@@ -6,4 +6,6 @@ metadata:
 spec:
   databaseInstance: "openstack"
   apiServiceTemplate:
+    tls:
+      caBundleSecretName: "combined-ca-bundle"
     replicas: 2
