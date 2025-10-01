@@ -325,7 +325,7 @@ transport_url =`
 				ConditionGetterFunc(WatcherApplierConditionGetter),
 				condition.InputReadyCondition,
 				corev1.ConditionFalse,
-				condition.RequestedReason,
+				condition.ErrorReason,
 				condition.InputReadyWaitingMessage,
 			)
 		})
@@ -351,7 +351,7 @@ transport_url =`
 				ConditionGetterFunc(WatcherApplierConditionGetter),
 				condition.MemcachedReadyCondition,
 				corev1.ConditionFalse,
-				condition.RequestedReason,
+				condition.ErrorReason,
 				condition.MemcachedReadyWaitingMessage,
 			)
 		})
