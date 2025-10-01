@@ -194,7 +194,7 @@ func (r *WatcherDecisionEngineReconciler) Reconcile(ctx context.Context, req ctr
 		// Empty hash means that there is some problem retrieving the key from the secret
 		instance.Status.Conditions.Set(condition.FalseCondition(
 			condition.InputReadyCondition,
-			condition.RequestedReason,
+			condition.ErrorReason,
 			condition.SeverityWarning,
 			watcherv1beta1.WatcherPrometheusSecretErrorMessage))
 		return ctrl.Result{}, ErrRetrievingPrometheusSecretData

@@ -556,7 +556,7 @@ var _ = Describe("Watcher controller", func() {
 				ConditionGetterFunc(WatcherConditionGetter),
 				condition.InputReadyCondition,
 				corev1.ConditionFalse,
-				condition.RequestedReason,
+				condition.ErrorReason,
 				"Input data resources missing",
 			)
 
@@ -1195,7 +1195,7 @@ var _ = Describe("Watcher controller", func() {
 				ConditionGetterFunc(WatcherConditionGetter),
 				condition.InputReadyCondition,
 				corev1.ConditionFalse,
-				condition.RequestedReason,
+				condition.ErrorReason,
 				"Error with prometheus config secret",
 			)
 		})

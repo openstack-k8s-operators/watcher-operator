@@ -219,7 +219,7 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		Log.Info(fmt.Sprintf("Waiting for TransportURL for %s to be created", instance.Name))
 		instance.Status.Conditions.Set(condition.FalseCondition(
 			watcherv1beta1.WatcherRabbitMQTransportURLReadyCondition,
-			condition.RequestedReason,
+			condition.ErrorReason,
 			condition.SeverityWarning,
 			watcherv1beta1.WatcherRabbitMQTransportURLReadyRunningMessage))
 		return ctrl.Result{RequeueAfter: time.Duration(10) * time.Second}, nil
@@ -333,7 +333,7 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		// Empty hash means that there is some problem retrieving the key from the secret
 		instance.Status.Conditions.Set(condition.FalseCondition(
 			condition.InputReadyCondition,
-			condition.RequestedReason,
+			condition.ErrorReason,
 			condition.SeverityWarning,
 			watcherv1beta1.WatcherPrometheusSecretErrorMessage))
 		return ctrl.Result{}, ErrRetrievingPrometheusSecretData
@@ -345,7 +345,7 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		if err != nil {
 			instance.Status.Conditions.Set(condition.FalseCondition(
 				condition.InputReadyCondition,
-				condition.RequestedReason,
+				condition.ErrorReason,
 				condition.SeverityWarning,
 				watcherv1beta1.WatcherPrometheusSecretErrorMessage))
 			return ctrl.Result{}, err

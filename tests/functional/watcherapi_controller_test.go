@@ -372,7 +372,7 @@ transport_url =`
 				ConditionGetterFunc(WatcherAPIConditionGetter),
 				condition.InputReadyCondition,
 				corev1.ConditionFalse,
-				condition.RequestedReason,
+				condition.ErrorReason,
 				condition.InputReadyWaitingMessage,
 			)
 		})
@@ -406,7 +406,7 @@ transport_url =`
 				ConditionGetterFunc(WatcherAPIConditionGetter),
 				condition.MemcachedReadyCondition,
 				corev1.ConditionFalse,
-				condition.RequestedReason,
+				condition.ErrorReason,
 				condition.MemcachedReadyWaitingMessage,
 			)
 		})
@@ -425,7 +425,7 @@ transport_url =`
 				ConditionGetterFunc(WatcherAPIConditionGetter),
 				condition.InputReadyCondition,
 				corev1.ConditionFalse,
-				condition.RequestedReason,
+				condition.ErrorReason,
 				watcherv1beta1.WatcherPrometheusSecretErrorMessage,
 			)
 		})
