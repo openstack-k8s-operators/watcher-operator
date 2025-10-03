@@ -1,0 +1,30 @@
+---
+watcher_repo: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator"
+cifmw_edpm_deploy_nfs: true
+cifmw_nfs_shares:
+  - cinder_backend_1
+  - cinder_backend_2
+  - cinderbackup
+
+cifmw_update_containers_cindervolumes:
+  - nfs
+  - nfs-2
+
+# NOTE(jgilaber): we might want to merge this file into scenarios/edpm.yml,
+# depending on how many jobs will have cinder volumes enabled
+ci_framework_base_src_dir: "{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].src_dir }}"
+nfs_kustomize_hook: "{{ watcher_repo }}/ci/playbooks/cinder-nfs-enable.yaml"
+post_deploy:
+  - name: Download needed tools
+    type: playbook
+    inventory: "/home/zuul/src/github.com/openstack-k8s-operators/install_yamls/devsetup/hosts"
+    source: "/home/zuul/src/github.com/openstack-k8s-operators/install_yamls/devsetup/download_tools.yaml"
+  - name: Patch Openstack Prometheus to enable admin API
+    type: playbook
+    source: "{{ prometheus_admin_api_hook }}"
+  - name: 81 Kustomize Openstack CR to enable a Generic NFS-based backend
+    type: playbook
+    source: "{{ nfs_kustomize_hook }}"
+  - name: 82 Kustomize and update Control Plane
+    type: playbook
+    source: "{{ ci_framework_base_src_dir }}/hooks/playbooks/control_plane_kustomize_deploy.yml"

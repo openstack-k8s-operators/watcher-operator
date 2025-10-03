@@ -1,0 +1,100 @@
+---
+- name: Kustomize ControlPlane for cinder over NFS
+  hosts: "{{ cifmw_target_hook_host | default('localhost') }}"
+  gather_facts: false
+  vars:
+    cifmw_controlplane_kustomizations_path: "{{ cifmw_basedir }}/artifacts/manifests/kustomizations/controlplane"
+    _cinder_nfs_secret_files:
+      - cinder-volume-nfs-secrets.yaml
+      - cinder-volume-nfs-secrets-2.yaml
+  tasks:
+    - name: Ensure the kustomizations dir exists
+      ansible.builtin.file:
+        path: "{{ cifmw_controlplane_kustomizations_path }}"
+        state: directory
+
+    - name: Create the cinder-backup OpenStackControlPlane configuration file
+      ansible.builtin.copy:
+        dest: "{{ cifmw_controlplane_kustomizations_path }}/cinder-backup.yaml"
+        content: |
+          apiVersion: core.openstack.org/v1beta1
+          kind: OpenStackControlPlane
+          metadata:
+            name: openstack
+          spec:
+            cinder:
+              template:
+                cinderBackup:
+                  replicas: 1
+                  customServiceConfig: |
+                    [DEFAULT]
+                    backup_driver=cinder.backup.drivers.nfs.NFSBackupDriver
+                    backup_mount_options=nosharecache
+                  customServiceConfigSecrets:
+                    - cinder-backup-nfs-secrets
+                  networkAttachments:
+                  - storage
+
+    - name: Create the definition of the secrets for the cinder backup
+      ansible.builtin.template:
+        dest: "{{ cifmw_controlplane_kustomizations_path }}/cinder-backup-nfs-sercrets.yaml"
+        src: "cinder-backup-nfs-secrets.yaml.j2"
+        mode: '640'
+
+    - name: Create the definition of the secrets
+      vars:
+        share: "{{ cifmw_nfs_shares[indx] }}"
+        name: "{{ filename | splitext | first }}"
+      ansible.builtin.template:
+        dest: "{{ cifmw_controlplane_kustomizations_path }}/{{ filename }}"
+        src: "cinder-volume-nfs-secrets.yaml.j2"
+        mode: '640'
+      loop: "{{ _cinder_nfs_secret_files }}"
+      loop_control:
+        loop_var: filename
+        index_var: indx
+
+    - name: Apply the secrets
+      environment:
+        KUBECONFIG: "{{ cifmw_openshift_kubeconfig }}"
+        PATH: "{{ cifmw_path }}"
+      ansible.builtin.shell: |
+        oc project {{ namespace }}
+        oc apply -f {{ cifmw_controlplane_kustomizations_path }}/{{ item }}
+      register: apply_result
+      changed_when: ('stdout' in apply_result) and ('unchanged' not in apply_result.stdout)
+      failed_when: ( apply_result.rc | int ) > 1
+      loop: "{{ _cinder_nfs_secret_files + ['cinder-backup-nfs-sercrets.yaml'] }}"
+
+    - name: Create the nfs backend cinderVolume patch
+      ansible.builtin.template:
+        dest: "{{ cifmw_controlplane_kustomizations_path }}/nfs_backend.yaml"
+        src: "nfs_backend.yaml.j2"
+        mode: '640'
+
+    # FIXME: copy with inline content does not support templating, so this should be reworked
+    - name: Create kustomization to really enable NFS shares as backends for cinder and cinder-backup
+      ansible.builtin.copy:
+        dest: "{{ cifmw_controlplane_kustomizations_path }}/90-cinder-nfs.yaml"
+        content: |-
+          apiVersion: kustomize.config.k8s.io/v1beta1
+          kind: Kustomization
+          resources:
+          namespace: {{ namespace }}
+          # FIXME: patch the IP address of the NFS share using a better way to identify the exact volume
+          patches:
+          - target:
+              kind: OpenStackControlPlane
+              name: .*
+            patch: |-
+              - op: replace
+                path: /metadata/name
+                value: openstack
+          - target:
+              kind: OpenStackControlPlane
+              name: .*
+            patch: |-
+              - op: remove
+                path: /metadata/namespace
+          - path: {{ cifmw_controlplane_kustomizations_path + '/nfs_backend.yaml'}}
+          - path: {{ cifmw_controlplane_kustomizations_path + '/cinder-backup.yaml' }}
