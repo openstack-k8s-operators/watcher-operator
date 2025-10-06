@@ -63,20 +63,7 @@ cifmw_edpm_prepare_kustomizations:
           metadata:
             name: controlplane
           spec:
-            nova:
-              template:
-                notificationsBusInstance: rabbitmq-notifications
-        target:
-          kind: OpenStackControlPlane
-      - patch: |-
-          apiVersion: core.openstack.org/v1beta1
-          kind: OpenStackControlPlane
-          metadata:
-            name: controlplane
-          spec:
-            cinder:
-              template:
-                notificationsBusInstance: rabbitmq-notifications
+            notificationsBusInstance: rabbitmq-notifications
         target:
           kind: OpenStackControlPlane
       - patch: |-
@@ -88,7 +75,6 @@ cifmw_edpm_prepare_kustomizations:
             rabbitmq:
               templates:
                 rabbitmq-notifications:
-                  delayStartSeconds: 30
                   override:
                     service:
                       metadata:
@@ -107,10 +93,9 @@ cifmw_edpm_prepare_kustomizations:
           spec:
             watcher:
               enabled: true
-              template:
-                notificationsBusInstance: rabbitmq-notifications
         target:
           kind: OpenStackControlPlane
+
 
 cifmw_edpm_prepare_timeout: 60
 
