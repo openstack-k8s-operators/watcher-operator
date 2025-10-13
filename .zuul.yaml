@@ -10,7 +10,10 @@
       jobs:
         - noop
         - watcher-operator-doc-preview
-        - watcher-operator-kuttl
+        - watcher-operator-kuttl:
+            required-projects: &cifmw_main
+              - name: openstack-k8s-operators/ci-framework
+                override-checkout: main
 
 - job:
     name: watcher-operator-base
@@ -20,6 +23,7 @@
       A multinode EDPM Zuul job which has one ansible controller, one
       extracted crc and two computes. It will be used for testing watcher-operator.
       Configures Nova and Cinder to send notifications over a dedicated rabbitmq instance.
+    required-projects: *cifmw_main
     vars:
       watcher_scenario: "edpm"
       cifmw_extras:
@@ -269,21 +273,6 @@
 
 ##########################################################
 #                                                        #
-#               Zuul Pragma to alter Zuul Config         #
-#                                                        #
-##########################################################
-
-  # Note(Chandan Kumar): Keep Zuul Pragma config only in
-  # main branch. Whenever we create FR* branch, We should
-  # delete Pragma config manually from FR* branch.
-- pragma:
-    implied-branch-matchers: True
-    implied-branches:
-      - master
-      - main
-
-##########################################################
-#                                                        #
 #               Project Template                         #
 #                                                        #
 ##########################################################
@@ -292,14 +281,16 @@
     name: opendev-master-watcher-operator-pipeline
     github-check:
       jobs:
-        - openstack-meta-content-provider-master
+        - openstack-meta-content-provider-master:
+            required-projects:  *cifmw_main
         - watcher-operator-validation-master
 
 - project-template:
     name: opendev-epoxy-watcher-operator-pipeline
     github-check:
       jobs:
-        - openstack-meta-content-provider-epoxy
+        - openstack-meta-content-provider-epoxy:
+            required-projects: *cifmw_main
         - watcher-operator-validation-epoxy
         - watcher-operator-validation-epoxy-ocp4-16
 
