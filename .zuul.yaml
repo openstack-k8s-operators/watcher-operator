@@ -8,7 +8,6 @@
       - opendev-epoxy-watcher-operator-pipeline
     github-check:
       jobs:
-        - noop
         - watcher-operator-doc-preview
         - watcher-operator-kuttl
 
