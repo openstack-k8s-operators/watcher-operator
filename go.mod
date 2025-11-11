@@ -8,11 +8,11 @@ require (
 	github.com/onsi/ginkgo/v2 v2.27.2
 	github.com/onsi/gomega v1.38.2
 	github.com/openshift/api v3.9.0+incompatible
-	github.com/openstack-k8s-operators/infra-operator/apis v0.6.1-0.20251016082205-e3c27566d96e
-	github.com/openstack-k8s-operators/keystone-operator/api v0.6.1-0.20251014160540-0b7d580557b2
-	github.com/openstack-k8s-operators/lib-common/modules/common v0.6.1-0.20251007102731-b786c86bffe7
-	github.com/openstack-k8s-operators/lib-common/modules/test v0.6.1-0.20251007102731-b786c86bffe7
-	github.com/openstack-k8s-operators/mariadb-operator/api v0.6.1-0.20251015110425-ad0381ce8cd4
+	github.com/openstack-k8s-operators/infra-operator/apis v0.6.1-0.20251110170511-c2d4a351a7c3
+	github.com/openstack-k8s-operators/keystone-operator/api v0.6.1-0.20251027074845-ed8154b20ad1
+	github.com/openstack-k8s-operators/lib-common/modules/common v0.6.1-0.20251103072528-9eb684fef4ef
+	github.com/openstack-k8s-operators/lib-common/modules/test v0.6.1-0.20251103072528-9eb684fef4ef
+	github.com/openstack-k8s-operators/mariadb-operator/api v0.6.1-0.20251110170510-e669472c745c
 	github.com/openstack-k8s-operators/watcher-operator/api v0.0.0-00010101000000-000000000000
 	go.uber.org/zap v1.27.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -44,7 +44,7 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect
-	github.com/gophercloud/gophercloud v1.14.1 // indirect
+	github.com/gophercloud/gophercloud/v2 v2.8.0 // indirect
 	github.com/imdario/mergo v0.3.16 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -53,7 +53,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/openstack-k8s-operators/lib-common/modules/openstack v0.6.1-0.20250929092825-4c2402451077 // indirect
+	github.com/openstack-k8s-operators/lib-common/modules/openstack v0.6.1-0.20251021145236-2b84ec9fd9bb // indirect
 	github.com/openstack-k8s-operators/lib-common/modules/storage v0.6.1-0.20250929092825-4c2402451077 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_golang v1.22.0 // indirect
