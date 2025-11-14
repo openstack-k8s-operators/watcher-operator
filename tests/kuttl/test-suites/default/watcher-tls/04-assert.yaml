@@ -85,7 +85,7 @@ kind: Secret
 metadata:
   name: watcher-db-secret
   finalizers:
-  - openstack.org/watcher
+  - openstack.org/mariadbaccount
 ---
 apiVersion: mariadb.openstack.org/v1beta1
 kind: MariaDBAccount

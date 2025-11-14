@@ -87,7 +87,7 @@ metadata:
   name: watcher-db-secret
   namespace: watcher-kuttl-default
   finalizers:
-  - openstack.org/watcher
+  - openstack.org/mariadbaccount
 ---
 apiVersion: v1
 kind: Secret
