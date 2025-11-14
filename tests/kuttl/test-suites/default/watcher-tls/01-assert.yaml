@@ -100,7 +100,7 @@ kind: Secret
 metadata:
   name: watcher-db-secret
   finalizers:
-  - openstack.org/watcher
+  - openstack.org/mariadbaccount
 ---
 apiVersion: v1
 kind: Secret
