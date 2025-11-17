@@ -138,6 +138,7 @@
       A zuul job building content from OpenDev epoxy release.
     parent: openstack-meta-content-provider
     vars:
+      cifmw_install_yamls_sdk_version: v1.41.1
       cifmw_bop_openstack_release: epoxy
       cifmw_bop_dlrn_baseurl: "https://trunk.rdoproject.org/centos9-epoxy"
       cifmw_repo_setup_branch: epoxy
@@ -208,6 +209,7 @@
     nodeset: centos-stream-10-vexxhost
     parent: openstack-meta-content-provider
     vars:
+      cifmw_install_yamls_sdk_version: v1.41.1
       cifmw_bop_openstack_release: master
       cifmw_bop_dlrn_baseurl: "https://trunk.rdoproject.org/centos10-master"
       cifmw_repo_setup_branch: master

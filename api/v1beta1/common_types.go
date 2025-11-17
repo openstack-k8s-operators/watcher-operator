@@ -147,7 +147,7 @@ type PasswordSelector struct {
 	Service *string `json:"service"`
 }
 
-// WatcherSubCrsCommon
+// WatcherSubCrsCommon defines the common fields for Watcher sub-CRs
 type WatcherSubCrsCommon struct {
 	// +kubebuilder:validation:Optional
 	// The service specific Container Image URL (will be set to environmental default if empty)
@@ -189,6 +189,7 @@ type WatcherSubCrsTemplate struct {
 	TopologyRef *topologyv1.TopoRef `json:"topologyRef,omitempty"`
 }
 
+// WatcherImages defines the container images for all Watcher services
 type WatcherImages struct {
 	// +kubebuilder:validation:Required
 	// APIContainerImageURL
@@ -203,6 +204,7 @@ type WatcherImages struct {
 	ApplierContainerImageURL string `json:"applierContainerImageURL"`
 }
 
+// Default sets default values for WatcherImages based on the provided defaults
 func (r *WatcherImages) Default(defaults WatcherDefaults) {
 	if r.APIContainerImageURL == "" {
 		r.APIContainerImageURL = defaults.APIContainerImageURL
@@ -215,8 +217,7 @@ func (r *WatcherImages) Default(defaults WatcherDefaults) {
 	}
 }
 
-// SetupDefaults - initializes any CRD field defaults based on environment variables (the defaulting mechanism itself is implemented via webhooks)
-
+// SetupDefaults initializes any CRD field defaults based on environment variables (the defaulting mechanism itself is implemented via webhooks)
 func SetupDefaults() {
 	// Acquire environmental defaults and initialize Watcher defaults with them
 	watcherDefaults := WatcherDefaults{
