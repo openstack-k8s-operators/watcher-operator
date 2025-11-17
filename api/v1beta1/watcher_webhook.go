@@ -42,12 +42,11 @@ var watcherDefaults WatcherDefaults
 // log is for logging in this package.
 var watcherlog = logf.Log.WithName("watcher-resource")
 
+// SetupWatcherDefaults initializes the Watcher defaults for the webhook
 func SetupWatcherDefaults(defaults WatcherDefaults) {
 	watcherDefaults = defaults
 	watcherlog.Info("Watcher defaults initialized", "defaults", defaults)
 }
-
-//+kubebuilder:webhook:path=/mutate-watcher-openstack-org-v1beta1-watcher,mutating=true,failurePolicy=fail,sideEffects=None,groups=watcher.openstack.org,resources=watchers,verbs=create;update,versions=v1beta1,name=mwatcher.kb.io,admissionReviewVersions=v1
 
 var _ webhook.Defaulter = &Watcher{}
 
@@ -68,8 +67,6 @@ func (spec *WatcherSpecCore) Default() {
 	// no validations . Placeholder for defaulting webhook integrated in the OpenStackControlPlane
 }
 
-//+kubebuilder:webhook:path=/validate-watcher-openstack-org-v1beta1-watcher,mutating=false,failurePolicy=fail,sideEffects=None,groups=watcher.openstack.org,resources=watchers,verbs=create;update,versions=v1beta1,name=vwatcher.kb.io,admissionReviewVersions=v1
-
 var _ webhook.Validator = &Watcher{}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
@@ -88,17 +85,17 @@ func (r *Watcher) ValidateCreate() (admission.Warnings, error) {
 }
 
 // ValidateCreate validates the WatcherSpec during the webhook invocation.
-func (r *WatcherSpec) ValidateCreate(basePath *field.Path, namespace string) field.ErrorList {
-	return r.WatcherSpecCore.ValidateCreate(basePath, namespace)
+func (spec *WatcherSpec) ValidateCreate(basePath *field.Path, namespace string) field.ErrorList {
+	return spec.WatcherSpecCore.ValidateCreate(basePath, namespace)
 }
 
 // ValidateCreate validates the WatcherSpecCore during the webhook invocation. It is
 // expected to be called by the validation webhook in the higher level meta
 // operator
-func (r *WatcherSpecCore) ValidateCreate(basePath *field.Path, namespace string) field.ErrorList {
+func (spec *WatcherSpecCore) ValidateCreate(basePath *field.Path, namespace string) field.ErrorList {
 	var allErrs field.ErrorList
 
-	if *r.DatabaseInstance == "" || r.DatabaseInstance == nil {
+	if *spec.DatabaseInstance == "" || spec.DatabaseInstance == nil {
 		allErrs = append(
 			allErrs,
 			field.Invalid(
@@ -106,7 +103,7 @@ func (r *WatcherSpecCore) ValidateCreate(basePath *field.Path, namespace string)
 		)
 	}
 
-	if *r.RabbitMqClusterName == "" || r.RabbitMqClusterName == nil {
+	if *spec.RabbitMqClusterName == "" || spec.RabbitMqClusterName == nil {
 		allErrs = append(
 			allErrs,
 			field.Invalid(
@@ -114,7 +111,7 @@ func (r *WatcherSpecCore) ValidateCreate(basePath *field.Path, namespace string)
 		)
 	}
 
-	allErrs = append(allErrs, r.ValidateWatcherTopology(basePath, namespace)...)
+	allErrs = append(allErrs, spec.ValidateWatcherTopology(basePath, namespace)...)
 
 	return allErrs
 }
@@ -140,18 +137,18 @@ func (r *Watcher) ValidateUpdate(old runtime.Object) (admission.Warnings, error)
 
 }
 
-// ValidateCreate validates the WatcherSpec during the webhook invocation.
-func (r *WatcherSpec) ValidateUpdate(old WatcherSpec, basePath *field.Path, namespace string) field.ErrorList {
-	return r.WatcherSpecCore.ValidateUpdate(old.WatcherSpecCore, basePath, namespace)
+// ValidateUpdate validates the WatcherSpec during the webhook update invocation.
+func (spec *WatcherSpec) ValidateUpdate(old WatcherSpec, basePath *field.Path, namespace string) field.ErrorList {
+	return spec.WatcherSpecCore.ValidateUpdate(old.WatcherSpecCore, basePath, namespace)
 }
 
 // ValidateUpdate validates the WatcherSpecCore during the webhook invocation. It is
 // expected to be called by the validation webhook in the higher level meta
 // operator
-func (r *WatcherSpecCore) ValidateUpdate(old WatcherSpecCore, basePath *field.Path, namespace string) field.ErrorList {
+func (spec *WatcherSpecCore) ValidateUpdate(old WatcherSpecCore, basePath *field.Path, namespace string) field.ErrorList {
 	var allErrs field.ErrorList
 
-	if *r.DatabaseInstance == "" || r.DatabaseInstance == nil {
+	if *spec.DatabaseInstance == "" || spec.DatabaseInstance == nil {
 		allErrs = append(
 			allErrs,
 			field.Invalid(
@@ -159,7 +156,7 @@ func (r *WatcherSpecCore) ValidateUpdate(old WatcherSpecCore, basePath *field.Pa
 		)
 	}
 
-	if *r.RabbitMqClusterName == "" || r.RabbitMqClusterName == nil {
+	if *spec.RabbitMqClusterName == "" || spec.RabbitMqClusterName == nil {
 		allErrs = append(
 			allErrs,
 			field.Invalid(
@@ -167,7 +164,7 @@ func (r *WatcherSpecCore) ValidateUpdate(old WatcherSpecCore, basePath *field.Pa
 		)
 	}
 
-	allErrs = append(allErrs, r.ValidateWatcherTopology(basePath, namespace)...)
+	allErrs = append(allErrs, spec.ValidateWatcherTopology(basePath, namespace)...)
 
 	return allErrs
 }

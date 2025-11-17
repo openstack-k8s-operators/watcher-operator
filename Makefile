@@ -48,7 +48,7 @@ endif
 
 # Set the Operator SDK version to use. By default, what is installed on the system is used.
 # This is useful for CI or a project to utilize a specific version of the operator-sdk toolkit.
-OPERATOR_SDK_VERSION ?= v1.31.0
+OPERATOR_SDK_VERSION ?= v1.41.1
 
 # Image URL to use all building/pushing image targets
 DEFAULT_IMG ?= quay.io/openstack-k8s-operators/watcher-operator:latest
@@ -146,14 +146,14 @@ PROC_CMD = --procs ${PROCS}
 .PHONY: test
 test: manifests generate fmt vet envtest ginkgo ## Run tests.
 	OPERATOR_TEMPLATES="$(PWD)/templates" \
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" $(GINKGO) --trace --cover --coverpkg=../../pkg/watcher,../../controllers,../../api/v1beta1 --coverprofile cover.out --covermode=atomic ${PROC_CMD} $(GINKGO_ARGS) ./tests/...
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" $(GINKGO) --trace --cover --coverpkg=../../internal/watcher,../../internal/controller,../../api/v1beta1 --coverprofile cover.out --covermode=atomic ${PROC_CMD} $(GINKGO_ARGS) ./test/...
 
 
 ##@ Build
 
 .PHONY: build
 build: generate fmt vet ## Build manager binary.
-	go build -o bin/manager main.go
+	go build -o bin/manager cmd/main.go
 
 .PHONY: run
 run: export METRICS_PORT?=24604
@@ -161,7 +161,7 @@ run: export HEALTH_PORT?=24605
 run: export PPROF_PORT?=8082
 run: export ENABLE_WEBHOOKS?=false
 run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./main.go -metrics-bind-address ":$(METRICS_PORT)" -health-probe-bind-address ":$(HEALTH_PORT)" -pprof-bind-address ":$(PPROF_PORT)"
+	go run ./cmd/main.go -metrics-bind-address ":$(METRICS_PORT)" -health-probe-bind-address ":$(HEALTH_PORT)" -pprof-bind-address ":$(PPROF_PORT)"
 
 
 # Extra vars which will be passed to the Docker-build
@@ -212,7 +212,7 @@ ENVTEST ?= $(LOCALBIN)/setup-envtest
 GINKGO ?= $(LOCALBIN)/ginkgo
 
 ## Tool Versions
-KUSTOMIZE_VERSION ?= v3.8.7
+KUSTOMIZE_VERSION ?= v5.6.0
 CONTROLLER_TOOLS_VERSION ?= v0.18.0
 SETUP_ENVTEST_VERSION ?= release-0.22
 
@@ -391,6 +391,10 @@ watcher: export WATCHER_DECISION_ENGINE_IMAGE=${WATCHER_DECISION_ENGINE_CI_IMAGE
 watcher: export WATCHER_APPLIER_IMAGE=${WATCHER_APPLIER_CI_IMAGE}
 watcher: export CATALOG_IMG=${CATALOG_IMAGE}
 watcher: ## Install watcher operator via olm
+	# explicitly to delete any running watcher-operator deployments from openstack-operator here as
+	# label selectors can change and installing a service catalog/index like this alongside
+	# openstack-operator (what CI appears to do?) is not recommended
+	oc delete deployment watcher-operator-controller-manager -n openstack-operators --ignore-not-found=true
 	bash ci/olm.sh
 	oc apply -f ci/olm.yaml
 	timeout 300s bash -c "while ! (oc get csv -n  openshift-operators -l  operators.coreos.com/cluster-observability-operator.openshift-operators -o jsonpath='{.items[*].status.phase}' | grep Succeeded); do sleep 10; done"
@@ -424,7 +428,7 @@ watcher_cleanup: ## Cleaning watcher operator via olm
 
 KUTTL_SUITE ?= default
 KUTTL_NAMESPACE ?= watcher-kuttl-$(KUTTL_SUITE)
-KUTTL_SUITE_DIR ?= tests/kuttl/test-suites/$(KUTTL_SUITE)
+KUTTL_SUITE_DIR ?= test/kuttl/test-suites/$(KUTTL_SUITE)
 
 .PHONY: stop_watcher_integrated
 stop_watcher_integrated:

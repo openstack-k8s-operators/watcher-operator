@@ -76,7 +76,7 @@ type WatcherApplierStatus struct {
 	LastAppliedTopology *topologyv1.TopoRef `json:"lastAppliedTopology,omitempty"`
 }
 
-// WatcherApplierTemplatce defines the input parameters specified by the user to
+// WatcherApplierTemplate defines the input parameters specified by the user to
 // create a WatcherApplier via higher level CRDs.
 type WatcherApplierTemplate struct {
 	WatcherSubCrsTemplate `json:",inline"`
@@ -104,8 +104,8 @@ type WatcherApplier struct {
 }
 
 // IsReady returns true if the ReadyCondition is true
-func (r *WatcherApplier) IsReady() bool {
-	return r.Status.Conditions.IsTrue(condition.ReadyCondition)
+func (instance *WatcherApplier) IsReady() bool {
+	return instance.Status.Conditions.IsTrue(condition.ReadyCondition)
 }
 
 //+kubebuilder:object:root=true

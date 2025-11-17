@@ -20,7 +20,6 @@ import (
 	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -29,15 +28,7 @@ import (
 // log is for logging in this package.
 var watcherapplierlog = logf.Log.WithName("watcherapplier-resource")
 
-func (r *WatcherApplier) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr).
-		For(r).
-		Complete()
-}
-
 // TODO(user): EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-
-//+kubebuilder:webhook:path=/mutate-watcher-openstack-org-v1beta1-watcherapplier,mutating=true,failurePolicy=fail,sideEffects=None,groups=watcher.openstack.org,resources=watcherappliers,verbs=create;update,versions=v1beta1,name=mwatcherapplier.kb.io,admissionReviewVersions=v1
 
 var _ webhook.Defaulter = &WatcherApplier{}
 
@@ -49,7 +40,6 @@ func (r *WatcherApplier) Default() {
 }
 
 // TODO(user): change verbs to "verbs=create;update;delete" if you want to enable deletion validation.
-//+kubebuilder:webhook:path=/validate-watcher-openstack-org-v1beta1-watcherapplier,mutating=false,failurePolicy=fail,sideEffects=None,groups=watcher.openstack.org,resources=watcherappliers,verbs=create;update,versions=v1beta1,name=vwatcherapplier.kb.io,admissionReviewVersions=v1
 
 var _ webhook.Validator = &WatcherApplier{}
 

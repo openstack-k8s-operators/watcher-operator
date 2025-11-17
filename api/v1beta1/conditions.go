@@ -5,7 +5,7 @@ import "github.com/openstack-k8s-operators/lib-common/modules/common/condition"
 const (
 	// WatcherRabbitMQTransportURLReadyCondition -
 	WatcherRabbitMQTransportURLReadyCondition condition.Type = "WatcherRabbitMQTransportURLReady"
-	// WatcherNotificationsBusTransportURLReadyCondition -
+	// WatcherNotificationTransportURLReadyCondition indicates whether the Watcher notification transport URL is ready
 	WatcherNotificationTransportURLReadyCondition condition.Type = "WatcherNotificationTransportURLReady"
 	// WatcherAPIReadyCondition -
 	WatcherAPIReadyCondition condition.Type = "WatcherAPIReady"
