@@ -138,8 +138,8 @@ type WatcherAPIList struct {
 }
 
 // IsReady returns true if the ReadyCondition is true
-func (r *WatcherAPI) IsReady() bool {
-	return r.Status.Conditions.IsTrue(condition.ReadyCondition)
+func (instance *WatcherAPI) IsReady() bool {
+	return instance.Status.Conditions.IsTrue(condition.ReadyCondition)
 }
 
 func init() {

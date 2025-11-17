@@ -63,6 +63,7 @@ type WatcherStatus struct {
 	DecisionEngineServiceReadyCount int32 `json:"decisionengineServiceReadyCount,omitempty"`
 }
 
+// WatcherDBPurge defines the parameters for the Watcher database purging cron job
 type WatcherDBPurge struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default="0 1 * * *"
@@ -117,8 +118,8 @@ func (instance Watcher) RbacResourceName() string {
 }
 
 // IsReady returns true if the ReadyCondition is true
-func (r *Watcher) IsReady() bool {
-	return r.Status.Conditions.IsTrue(condition.ReadyCondition)
+func (instance *Watcher) IsReady() bool {
+	return instance.Status.Conditions.IsTrue(condition.ReadyCondition)
 }
 
 func init() {

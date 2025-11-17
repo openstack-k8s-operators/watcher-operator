@@ -110,8 +110,8 @@ type WatcherDecisionEngineList struct {
 }
 
 // IsReady returns true if the ReadyCondition is true
-func (r *WatcherDecisionEngine) IsReady() bool {
-	return r.Status.Conditions.IsTrue(condition.ReadyCondition)
+func (instance *WatcherDecisionEngine) IsReady() bool {
+	return instance.Status.Conditions.IsTrue(condition.ReadyCondition)
 }
 
 func init() {
