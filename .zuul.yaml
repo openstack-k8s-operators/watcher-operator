@@ -9,8 +9,6 @@
     github-check:
       jobs:
         - noop
-        - watcher-operator-doc-preview
-        - watcher-operator-kuttl
 
 - job:
     name: watcher-operator-base
@@ -143,7 +141,6 @@
       cifmw_repo_setup_branch: epoxy
       cifmw_build_containers_registry_namespace: podified-epoxy-centos9
       zuul_project_container_path: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator/ci/files/containers.yaml"
-      cifmw_build_containers_config_file: "{{ ansible_user_dir }}/containers.yaml"
       cifmw_repo_setup_promotion: podified-ci-testing
       cifmw_build_containers_force: true
       cifmw_build_containers_image_tag: watcher_latest
@@ -289,15 +286,12 @@
     github-check:
       jobs:
         - openstack-meta-content-provider-master
-        - watcher-operator-validation-master
 
 - project-template:
     name: opendev-epoxy-watcher-operator-pipeline
     github-check:
       jobs:
         - openstack-meta-content-provider-epoxy
-        - watcher-operator-validation-epoxy
-        - watcher-operator-validation-epoxy-ocp4-16
 
 - project-template:
     name: opendev-watcher-edpm-pipeline
