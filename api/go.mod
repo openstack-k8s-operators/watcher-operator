@@ -5,8 +5,8 @@ go 1.24.4
 toolchain go1.24.6
 
 require (
-	github.com/openstack-k8s-operators/infra-operator/apis v0.6.1-0.20251025092537-71fca7a68887
-	github.com/openstack-k8s-operators/lib-common/modules/common v0.6.1-0.20251021110625-7e9c8f3df965
+	github.com/openstack-k8s-operators/infra-operator/apis v0.6.1-0.20251206152426-02f9765e8038
+	github.com/openstack-k8s-operators/lib-common/modules/common v0.6.1-0.20251118162839-b481b06e90d2
 	k8s.io/api v0.31.13
 	k8s.io/apimachinery v0.31.13
 	k8s.io/utils v0.0.0-20250820121507-0af2bda4dd1d
