@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
+	keystonev1 "github.com/openstack-k8s-operators/keystone-operator/api/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -65,6 +66,11 @@ func (spec *WatcherSpec) Default() {
 // Default - set defaults for this WatcherSpecCore spec.
 func (spec *WatcherSpecCore) Default() {
 	// no validations . Placeholder for defaulting webhook integrated in the OpenStackControlPlane
+
+	// Default ApplicationCredentialSecret to standard AC secret name if not specified
+	if spec.Auth.ApplicationCredentialSecret == "" {
+		spec.Auth.ApplicationCredentialSecret = keystonev1.GetACSecretName("watcher")
+	}
 }
 
 var _ webhook.Validator = &Watcher{}
