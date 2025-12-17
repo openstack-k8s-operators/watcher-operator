@@ -17,7 +17,7 @@
 
 - job:
     name: watcher-operator-base
-    nodeset: centos-9-medium-2x-centos-9-crc-cloud-ocp-4-18-1-3xl
+    nodeset: centos-9-medium-2x-centos-9-crc-cloud-ocp-4-18-1-3xl-vexxhost
     parent: podified-multinode-edpm-deployment-crc-2comp
     description: |
       A multinode EDPM Zuul job which has one ansible controller, one
@@ -97,6 +97,7 @@
 
 - job:
     name: watcher-operator-kuttl
+    nodeset: centos-9-medium-crc-cloud-ocp-4-18-1-3xl-vexxhost
     dependencies: ["openstack-meta-content-provider-master"]
     parent: cifmw-multinode-kuttl-operator-target
     description: |
@@ -198,7 +199,7 @@
     parent: watcher-operator-validation-epoxy
     description: |
       watcher-operator-validation qualification with OCP 4.16
-    nodeset: centos-9-medium-2x-centos-9-crc-extracted-2-39-0-3xl
+    nodeset: centos-9-medium-2x-centos-9-crc-extracted-2-39-0-3xl-vexxhost
 
 ##########################################################
 #                                                        #
