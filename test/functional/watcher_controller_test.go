@@ -711,6 +711,7 @@ var _ = Describe("Watcher controller", func() {
 		It("should raise an error for empty databaseInstance", func() {
 			spec := GetDefaultWatcherAPISpec()
 			spec["databaseInstance"] = ""
+			spec["rabbitMqClusterName"] = "rabbitmq"
 
 			raw := map[string]any{
 				"apiVersion": "watcher.openstack.org/v1beta1",
@@ -742,6 +743,7 @@ var _ = Describe("Watcher controller", func() {
 
 			spec := GetDefaultWatcherAPISpec()
 			spec["topologyRef"] = map[string]any{"name": "foo", "namespace": "bar"}
+			spec["rabbitMqClusterName"] = "rabbitmq"
 
 			raw := map[string]any{
 				"apiVersion": "watcher.openstack.org/v1beta1",
@@ -768,10 +770,13 @@ var _ = Describe("Watcher controller", func() {
 		})
 	})
 
-	When("Watcher is created with empty RabbitMqClusterName", func() {
-		It("should raise an error for empty RabbitMqClusterName", func() {
+	When("Watcher is created with empty messagingBus.cluster", func() {
+		It("should raise an error for empty messagingBus.cluster", func() {
 			spec := GetDefaultWatcherAPISpec()
 			spec["rabbitMqClusterName"] = ""
+			spec["messagingBus"] = map[string]any{
+				"cluster": "",
+			}
 
 			raw := map[string]any{
 				"apiVersion": "watcher.openstack.org/v1beta1",
@@ -787,12 +792,12 @@ var _ = Describe("Watcher controller", func() {
 			_, err := controllerutil.CreateOrPatch(
 				th.Ctx, th.K8sClient, unstructuredObj, func() error { return nil })
 			Expect(err).To(HaveOccurred())
+			// Error comes from CRD schema validation (minLength: 1) before webhook validation
 			Expect(err.Error()).To(
 				ContainSubstring(
-					"admission webhook \"vwatcher-v1beta1.kb.io\" denied the request: " +
-						"Watcher.watcher.openstack.org \"watcher\" is invalid: " +
-						"spec.rabbitMqClusterName: Invalid value: \"\": " +
-						"rabbitMqClusterName field should not be empty"),
+					"Watcher.watcher.openstack.org \"watcher\" is invalid: " +
+						"spec.messagingBus.cluster: Invalid value: \"\": " +
+						"spec.messagingBus.cluster in body should be at least 1 chars long"),
 			)
 		})
 	})
@@ -1697,7 +1702,13 @@ var _ = Describe("Watcher controller", func() {
 		It("should have WatcherNotificationTransportURLReadyCondition set to true when creating the notification transportURL", func() {
 
 			DeferCleanup(k8sClient.Delete, ctx, CreateWatcherMessageBusSecret(watcherTest.Instance.Namespace, "rabbitmq-notification-secret"))
-			infra.SimulateTransportURLReady(watcherTest.WatcherNotificationTransportURL)
+			// Get the notification TransportURL name based on the cluster name
+			Watcher := GetWatcher(watcherTest.Instance)
+			notificationTransportURLName := types.NamespacedName{
+				Namespace: watcherTest.Instance.Namespace,
+				Name:      fmt.Sprintf("%s-watcher-notification-%s", watcherTest.Instance.Name, Watcher.Spec.NotificationsBus.Cluster),
+			}
+			infra.SimulateTransportURLReady(notificationTransportURLName)
 
 			// simulate that it becomes ready i.e. the keystone-operator
 			// did its job and registered the watcher service
@@ -1998,6 +2009,111 @@ var _ = Describe("Watcher controller", func() {
 				g.Expect(parentSecret.Data).NotTo(HaveKey("ACID"))
 				g.Expect(parentSecret.Data).NotTo(HaveKey("ACSecret"))
 			}, timeout, interval).Should(Succeed())
+		})
+	})
+
+	When("Watcher with custom messagingBus and notificationsBus is created", func() {
+		BeforeEach(func() {
+			spec := GetDefaultWatcherSpec()
+			// Null out deprecated fields before setting new bus fields
+			spec["rabbitMqClusterName"] = ""
+			spec["notificationsBusInstance"] = ""
+			spec["messagingBus"] = map[string]any{
+				"cluster": "custom-rabbitmq",
+				"user":    "custom-rpc-user",
+				"vhost":   "custom-rpc-vhost",
+			}
+			spec["notificationsBus"] = map[string]any{
+				"cluster": "custom-notifications-rabbitmq",
+				"user":    "custom-notifications-user",
+				"vhost":   "custom-notifications-vhost",
+			}
+			// Create secrets for custom cluster names BEFORE creating the Watcher
+			DeferCleanup(k8sClient.Delete, ctx, CreateWatcherMessageBusSecret(watcherTest.Instance.Namespace, "custom-rabbitmq-secret"))
+			DeferCleanup(k8sClient.Delete, ctx, CreateWatcherMessageBusSecret(watcherTest.Instance.Namespace, "custom-notifications-rabbitmq-secret"))
+			DeferCleanup(th.DeleteInstance, CreateWatcher(watcherTest.Instance, spec))
+
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.Watcher.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.Instance.Namespace,
+					*GetWatcher(watcherTest.Instance).Spec.DatabaseInstance,
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: SecretName},
+					map[string][]byte{
+						"WatcherPassword": []byte("password"),
+					},
+				))
+
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
+
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: "metric-storage-prometheus-endpoint"},
+					map[string][]byte{
+						"host": []byte("prometheus.example.com"),
+						"port": []byte("9090"),
+					},
+				))
+
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+			infra.SimulateTransportURLReady(watcherTest.WatcherTransportURL)
+		})
+
+		It("should have the MessagingBus spec fields with custom values", func() {
+			Watcher := GetWatcher(watcherTest.Instance)
+			Expect(Watcher.Spec.MessagingBus.Cluster).Should(Equal("custom-rabbitmq"))
+			Expect(Watcher.Spec.MessagingBus.User).Should(Equal("custom-rpc-user"))
+			Expect(Watcher.Spec.MessagingBus.Vhost).Should(Equal("custom-rpc-vhost"))
+		})
+
+		It("should have the NotificationsBus spec fields with custom values", func() {
+			Watcher := GetWatcher(watcherTest.Instance)
+			Expect(Watcher.Spec.NotificationsBus.Cluster).Should(Equal("custom-notifications-rabbitmq"))
+			Expect(Watcher.Spec.NotificationsBus.User).Should(Equal("custom-notifications-user"))
+			Expect(Watcher.Spec.NotificationsBus.Vhost).Should(Equal("custom-notifications-vhost"))
+		})
+
+		It("should create separate TransportURLs for RPC and notifications", func() {
+			// Secrets already created in BeforeEach
+			// Get the notification TransportURL name based on the cluster name
+			Watcher := GetWatcher(watcherTest.Instance)
+			notificationTransportURLName := types.NamespacedName{
+				Namespace: watcherTest.Instance.Namespace,
+				Name:      fmt.Sprintf("%s-watcher-notification-%s", watcherTest.Instance.Name, Watcher.Spec.NotificationsBus.Cluster),
+			}
+			infra.SimulateTransportURLReady(notificationTransportURLName)
+
+			// Verify that both transport URLs are created
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				watcherv1beta1.WatcherRabbitMQTransportURLReadyCondition,
+				corev1.ConditionTrue,
+			)
+
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				watcherv1beta1.WatcherNotificationTransportURLReadyCondition,
+				corev1.ConditionTrue,
+			)
 		})
 	})
 

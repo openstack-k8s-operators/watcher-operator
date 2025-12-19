@@ -63,7 +63,6 @@ type WatcherTestData struct {
 	WatcherPublicCertSecret           types.NamespacedName
 	WatcherInternalCertSecret         types.NamespacedName
 	WatcherApplierSecret              types.NamespacedName
-	WatcherNotificationTransportURL   types.NamespacedName
 }
 
 // GetWatcherTestData is a function that initialize the WatcherTestData
@@ -191,10 +190,6 @@ func GetWatcherTestData(watcherName types.NamespacedName) WatcherTestData {
 		WatcherApplierSecret: types.NamespacedName{
 			Namespace: watcherName.Namespace,
 			Name:      "watcher-applier-config-data",
-		},
-		WatcherNotificationTransportURL: types.NamespacedName{
-			Namespace: watcherName.Namespace,
-			Name:      fmt.Sprintf("%s-watcher-notification", watcherName.Name),
 		},
 	}
 }

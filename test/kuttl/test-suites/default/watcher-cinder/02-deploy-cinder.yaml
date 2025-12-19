@@ -9,5 +9,8 @@ spec:
       databaseInstance: openstack
       databaseAccount: cinder
       secret: osp-secret
+      rabbitMqClusterName: ""
+      messagingBus:
+        cluster: rabbitmq
       cinderAPI:
         replicas: 1

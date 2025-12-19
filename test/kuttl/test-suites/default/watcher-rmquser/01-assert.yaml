@@ -1,0 +1,126 @@
+# Verify the TransportURLs have correct cluster, user, and vhost configured
+apiVersion: rabbitmq.openstack.org/v1beta1
+kind: TransportURL
+metadata:
+  name: watcher-kuttl-watcher-transport
+spec:
+  rabbitmqClusterName: rabbitmq
+  username: watcher-rpc
+  vhost: watcher-rpc
+---
+apiVersion: rabbitmq.openstack.org/v1beta1
+kind: TransportURL
+metadata:
+  name: watcher-kuttl-watcher-notification-rabbitmq-notifications
+spec:
+  rabbitmqClusterName: rabbitmq-notifications
+  username: watcher-notifications
+  vhost: watcher-notifications
+---
+# Verify that 2 TransportURL CRs were created (separate clusters)
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+commands:
+- script: |
+    set -euxo pipefail
+
+    # Wait for Watcher to be Ready
+    kubectl wait --for=condition=Ready watcher/watcher-kuttl -n $NAMESPACE --timeout=300s
+
+    # Verify WatcherNotificationTransportURLReady condition exists and is True
+    kubectl get watcher watcher-kuttl -n $NAMESPACE -o jsonpath='{.status.conditions[?(@.type=="WatcherNotificationTransportURLReady")].status}' | grep -q "True"
+    echo "WatcherNotificationTransportURLReady condition is True"
+
+    # Count TransportURL CRs - should be exactly 2 (one for messaging, one for notifications)
+    transport_count=$(kubectl get transporturl -n $NAMESPACE -o name | grep "watcher-kuttl-watcher-transport" | wc -l)
+    notification_transport_count=$(kubectl get transporturl -n $NAMESPACE -o name | grep "watcher-kuttl-watcher-notification" | wc -l)
+
+    if [ "$transport_count" -ne "1" ]; then
+      echo "Expected 1 watcher-transport TransportURL, found $transport_count"
+      exit 1
+    fi
+
+    if [ "$notification_transport_count" -ne "1" ]; then
+      echo "Expected 1 notification-transport TransportURL, found $notification_transport_count"
+      exit 1
+    fi
+
+    echo "Correctly found 2 TransportURLs (separate clusters: transport and notification)"
+
+    # Verify watcher-transport has correct user and vhost
+    transport_user=$(kubectl get transporturl watcher-kuttl-watcher-transport -n $NAMESPACE -o jsonpath='{.spec.username}')
+    transport_vhost=$(kubectl get transporturl watcher-kuttl-watcher-transport -n $NAMESPACE -o jsonpath='{.spec.vhost}')
+    if [ "$transport_user" != "watcher-rpc" ]; then
+      echo "Expected watcher-transport username 'watcher-rpc', found '$transport_user'"
+      exit 1
+    fi
+    if [ "$transport_vhost" != "watcher-rpc" ]; then
+      echo "Expected watcher-transport vhost 'watcher-rpc', found '$transport_vhost'"
+      exit 1
+    fi
+    echo "Watcher transport has correct user (watcher-rpc) and vhost (watcher-rpc)"
+
+    # Verify notification-transport has correct user and vhost
+    notif_user=$(kubectl get transporturl watcher-kuttl-watcher-notification-rabbitmq-notifications -n $NAMESPACE -o jsonpath='{.spec.username}')
+    notif_vhost=$(kubectl get transporturl watcher-kuttl-watcher-notification-rabbitmq-notifications -n $NAMESPACE -o jsonpath='{.spec.vhost}')
+    if [ "$notif_user" != "watcher-notifications" ]; then
+      echo "Expected notification-transport username 'watcher-notifications', found '$notif_user'"
+      exit 1
+    fi
+    if [ "$notif_vhost" != "watcher-notifications" ]; then
+      echo "Expected notification-transport vhost 'watcher-notifications', found '$notif_vhost'"
+      exit 1
+    fi
+    echo "Notification transport has correct user (watcher-notifications) and vhost (watcher-notifications)"
+
+    # Verify that watcher.conf contains the notifications transport_url
+    WATCHER_API_POD=$(kubectl get pods -n $NAMESPACE -l "service=watcher-api" -o custom-columns=:metadata.name --no-headers | grep -v ^$ | head -1)
+    if [ -z "${WATCHER_API_POD}" ]; then
+      echo "No watcher-api pod found"
+      exit 1
+    fi
+    # Verify RPC transport_url in DEFAULT section
+    rpc_transport_url=$(kubectl exec -n $NAMESPACE ${WATCHER_API_POD} -c watcher-api -- cat /etc/watcher/watcher.conf.d/00-default.conf | grep -E '^\[DEFAULT\]' -A 50 | grep 'transport_url' | head -1 || true)
+    if [ -z "$rpc_transport_url" ]; then
+      echo "transport_url not found in DEFAULT section"
+      exit 1
+    fi
+    echo "Found RPC transport_url: $rpc_transport_url"
+
+    # Verify the RPC transport_url contains the correct vhost (watcher-rpc)
+    if ! echo "$rpc_transport_url" | grep -q '/watcher-rpc'; then
+      echo "RPC transport_url does not contain expected vhost '/watcher-rpc'"
+      exit 1
+    fi
+    echo "Successfully verified vhost 'watcher-rpc' in RPC transport_url"
+
+    # Verify the RPC transport_url contains the correct username (watcher-rpc)
+    if ! echo "$rpc_transport_url" | grep -q 'watcher-rpc:'; then
+      echo "RPC transport_url does not contain expected username 'watcher-rpc:'"
+      exit 1
+    fi
+    echo "Successfully verified username 'watcher-rpc' in RPC transport_url"
+
+    # Verify oslo_messaging_notifications section has transport_url configured
+    notif_transport_url=$(kubectl exec -n $NAMESPACE ${WATCHER_API_POD} -c watcher-api -- cat /etc/watcher/watcher.conf.d/00-default.conf | grep -A 5 '\[oslo_messaging_notifications\]' | grep 'transport_url' || true)
+    if [ -z "$notif_transport_url" ]; then
+      echo "transport_url not found in oslo_messaging_notifications section"
+      exit 1
+    fi
+    echo "Found notifications transport_url: $notif_transport_url"
+
+    # Verify the notifications transport_url contains the correct vhost (watcher-notifications)
+    if ! echo "$notif_transport_url" | grep -q '/watcher-notifications'; then
+      echo "Notifications transport_url does not contain expected vhost '/watcher-notifications'"
+      exit 1
+    fi
+    echo "Successfully verified vhost 'watcher-notifications' in notifications transport_url"
+
+    # Verify the notifications transport_url contains the correct username (watcher-notifications)
+    if ! echo "$notif_transport_url" | grep -q 'watcher-notifications:'; then
+      echo "Notifications transport_url does not contain expected username 'watcher-notifications:'"
+      exit 1
+    fi
+    echo "Successfully verified username 'watcher-notifications' in notifications transport_url"
+
+    exit 0
