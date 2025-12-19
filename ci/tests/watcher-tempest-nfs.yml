@@ -4,3 +4,31 @@ cifmw_test_operator_tempest_exclude_list: |
   watcher_tempest_plugin.*client_functional.*
   watcher_tempest_plugin.tests.scenario.test_execute_strategies.TestExecuteStrategies.test_execute_storage_capacity_balance_strategy
   watcher_tempest_plugin.*\[.*\breal_load\b.*\].*
+
+# Tempest and test-operator configurations, enable config option to run storage
+# migration tests
+cifmw_test_operator_tempest_tempestconf_config:
+  overrides: |
+    compute.min_microversion 2.56
+    compute.min_compute_nodes 2
+    placement.min_microversion 1.29
+    compute-feature-enabled.live_migration true
+    compute-feature-enabled.block_migration_for_live_migration true
+    service_available.sg_core true
+    telemetry_services.metric_backends prometheus
+    telemetry.disable_ssl_certificate_validation true
+    telemetry.ceilometer_polling_interval 15
+    optimize.min_microversion {{ watcher_tempest_min_microversion | default('1.0') }}
+    optimize.max_microversion {{ watcher_tempest_max_microversion | default('latest') }}
+    optimize.datasource prometheus
+    optimize.openstack_type podified
+    optimize.proxy_host_address {{ hostvars['controller']['ansible_host'] }}
+    optimize.proxy_host_user zuul
+    optimize.prometheus_host metric-storage-prometheus.openstack.svc
+    optimize.prometheus_ssl_enabled true
+    optimize.prometheus_ssl_cert_dir /etc/prometheus/secrets/combined-ca-bundle
+    optimize.podified_kubeconfig_path /home/zuul/.crc/machines/crc/kubeconfig
+    optimize.podified_namespace openstack
+    optimize.run_continuous_audit_tests true
+    optimize.run_zone_migration_extra_tests true
+    optimize.run_zone_migration_storage_tests true
