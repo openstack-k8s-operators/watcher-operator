@@ -8,11 +8,11 @@ require (
 	github.com/onsi/ginkgo/v2 v2.27.3
 	github.com/onsi/gomega v1.38.3
 	github.com/openshift/api v3.9.0+incompatible
-	github.com/openstack-k8s-operators/infra-operator/apis v0.6.1-0.20251223124749-eedb97238c5f
-	github.com/openstack-k8s-operators/keystone-operator/api v0.6.1-0.20251206133124-593df0a7a9e1
+	github.com/openstack-k8s-operators/infra-operator/apis v0.6.1-0.20260108154501-11e5091cddf1
+	github.com/openstack-k8s-operators/keystone-operator/api v0.6.1-0.20251027074845-ed8154b20ad1
 	github.com/openstack-k8s-operators/lib-common/modules/common v0.6.1-0.20251230215914-6ba873b49a35
-	github.com/openstack-k8s-operators/lib-common/modules/test v0.6.1-0.20251230215914-6ba873b49a35
-	github.com/openstack-k8s-operators/mariadb-operator/api v0.6.1-0.20251227161101-0139ab4049df
+	github.com/openstack-k8s-operators/lib-common/modules/test v0.6.1-0.20251103072528-9eb684fef4ef
+	github.com/openstack-k8s-operators/mariadb-operator/api v0.6.1-0.20251110170510-e669472c745c
 	github.com/openstack-k8s-operators/watcher-operator/api v0.0.0-00010101000000-000000000000
 	go.uber.org/zap v1.27.1
 	gopkg.in/yaml.v3 v3.0.1
@@ -62,8 +62,8 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/openstack-k8s-operators/lib-common/modules/openstack v0.6.1-0.20251122131503-b76943960b6c // indirect
-	github.com/openstack-k8s-operators/lib-common/modules/storage v0.6.1-0.20251122131503-b76943960b6c // indirect
+	github.com/openstack-k8s-operators/lib-common/modules/openstack v0.6.1-0.20251021145236-2b84ec9fd9bb // indirect
+	github.com/openstack-k8s-operators/lib-common/modules/storage v0.6.1-0.20250929092825-4c2402451077 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_golang v1.22.0 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
@@ -90,10 +90,10 @@ require (
 	golang.org/x/mod v0.27.0 // indirect
 	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/sync v0.17.0 // indirect
-	golang.org/x/sys v0.36.0 // indirect
-	golang.org/x/term v0.35.0 // indirect
-	golang.org/x/text v0.29.0 // indirect
+	golang.org/x/sync v0.16.0 // indirect
+	golang.org/x/sys v0.35.0 // indirect
+	golang.org/x/term v0.34.0 // indirect
+	golang.org/x/text v0.28.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
 	golang.org/x/tools v0.36.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
@@ -117,26 +117,29 @@ require (
 
 replace github.com/openstack-k8s-operators/watcher-operator/api => ./api
 
+// lmiccini: temporary replace for infra-operator fix
+replace github.com/openstack-k8s-operators/infra-operator/apis => github.com/lmiccini/infra-operator/apis v0.0.0-20260112082729-52ecbe505d08
+
 // mschuppert: map to latest commit from release-4.18 tag
 // must consistent within modules and service operators
 replace github.com/openshift/api => github.com/openshift/api v0.0.0-20250711200046-c86d80652a9e //allow-merging
 
 // pin these to avoid later versions pulled by rabbitmq
-replace k8s.io/apimachinery => k8s.io/apimachinery v0.31.14 //allow-merging
+replace k8s.io/apimachinery => k8s.io/apimachinery v0.31.13 //allow-merging
 
-replace k8s.io/api => k8s.io/api v0.31.14 //allow-merging
+replace k8s.io/api => k8s.io/api v0.31.13 //allow-merging
 
-replace k8s.io/apiserver => k8s.io/apiserver v0.31.14 //allow-merging
+replace k8s.io/apiserver => k8s.io/apiserver v0.31.13 //allow-merging
 
-replace k8s.io/client-go => k8s.io/client-go v0.31.14 //allow-merging
+replace k8s.io/client-go => k8s.io/client-go v0.31.13 //allow-merging
 
-replace k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.31.14 //allow-merging
+replace k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.31.13 //allow-merging
 
-replace k8s.io/cli-runtime => k8s.io/cli-runtime v0.31.14 //allow-merging
+replace k8s.io/cli-runtime => k8s.io/cli-runtime v0.31.13 //allow-merging
 
-replace k8s.io/code-generator => k8s.io/code-generator v0.31.14 //allow-merging
+replace k8s.io/code-generator => k8s.io/code-generator v0.31.13 //allow-merging
 
-replace k8s.io/component-base => k8s.io/component-base v0.31.14 //allow-merging
+replace k8s.io/component-base => k8s.io/component-base v0.31.13 //allow-merging
 
 // custom RabbitmqClusterSpecCore for OpenStackControlplane (v2.16.0_patches)
 replace github.com/rabbitmq/cluster-operator/v2 => github.com/openstack-k8s-operators/rabbitmq-cluster-operator/v2 v2.6.1-0.20250929174222-a0d328fa4dec //allow-merging

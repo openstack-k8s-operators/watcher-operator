@@ -5,7 +5,7 @@ go 1.24.4
 toolchain go1.24.6
 
 require (
-	github.com/openstack-k8s-operators/infra-operator/apis v0.6.1-0.20251223124749-eedb97238c5f
+	github.com/openstack-k8s-operators/infra-operator/apis v0.6.1-0.20251217131115-0f117a938d4e
 	github.com/openstack-k8s-operators/lib-common/modules/common v0.6.1-0.20251230215914-6ba873b49a35
 	k8s.io/api v0.31.14
 	k8s.io/apimachinery v0.31.14
@@ -18,7 +18,6 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/emicklei/go-restful/v3 v3.12.2 // indirect
-	github.com/evanphx/json-patch v5.9.11+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
@@ -45,6 +44,7 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.65.0 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
+	github.com/rabbitmq/cluster-operator/v2 v2.16.0 // indirect
 	github.com/spf13/pflag v1.0.7 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
@@ -52,9 +52,9 @@ require (
 	golang.org/x/exp v0.0.0-20241217172543-b2144cdd0a67 // indirect
 	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/sys v0.36.0 // indirect
-	golang.org/x/term v0.35.0 // indirect
-	golang.org/x/text v0.29.0 // indirect
+	golang.org/x/sys v0.35.0 // indirect
+	golang.org/x/term v0.34.0 // indirect
+	golang.org/x/text v0.28.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
 	google.golang.org/protobuf v1.36.7 // indirect
@@ -70,22 +70,25 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
+// lmiccini: temporary replace for infra-operator fix
+replace github.com/openstack-k8s-operators/infra-operator/apis => github.com/lmiccini/infra-operator/apis v0.0.0-20260112082729-52ecbe505d08
+
 // pin these to avoid later versions pulled by rabbitmq
-replace k8s.io/apimachinery => k8s.io/apimachinery v0.31.14 //allow-merging
+replace k8s.io/apimachinery => k8s.io/apimachinery v0.31.13 //allow-merging
 
-replace k8s.io/api => k8s.io/api v0.31.14 //allow-merging
+replace k8s.io/api => k8s.io/api v0.31.13 //allow-merging
 
-replace k8s.io/apiserver => k8s.io/apiserver v0.31.14 //allow-merging
+replace k8s.io/apiserver => k8s.io/apiserver v0.31.13 //allow-merging
 
-replace k8s.io/client-go => k8s.io/client-go v0.31.14 //allow-merging
+replace k8s.io/client-go => k8s.io/client-go v0.31.13 //allow-merging
 
-replace k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.31.14 //allow-merging
+replace k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.31.13 //allow-merging
 
-replace k8s.io/cli-runtime => k8s.io/cli-runtime v0.31.14 //allow-merging
+replace k8s.io/cli-runtime => k8s.io/cli-runtime v0.31.13 //allow-merging
 
-replace k8s.io/code-generator => k8s.io/code-generator v0.31.14 //allow-merging
+replace k8s.io/code-generator => k8s.io/code-generator v0.31.13 //allow-merging
 
-replace k8s.io/component-base => k8s.io/component-base v0.31.14 //allow-merging
+replace k8s.io/component-base => k8s.io/component-base v0.31.13 //allow-merging
 
 // custom RabbitmqClusterSpecCore for OpenStackControlplane (v2.16.0_patches)
 replace github.com/rabbitmq/cluster-operator/v2 => github.com/openstack-k8s-operators/rabbitmq-cluster-operator/v2 v2.6.1-0.20250929174222-a0d328fa4dec //allow-merging
