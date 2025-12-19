@@ -1,0 +1,19 @@
+---
+apiVersion: watcher.openstack.org/v1beta1
+kind: Watcher
+metadata:
+  name: watcher-kuttl
+  namespace: watcher-kuttl-default
+spec:
+  databaseInstance: "openstack"
+  apiServiceTemplate:
+    tls:
+      caBundleSecretName: "combined-ca-bundle"
+  messagingBus:
+    cluster: rabbitmq
+    user: watcher-rpc
+    vhost: watcher-rpc
+  notificationsBus:
+    cluster: rabbitmq-notifications
+    user: watcher-notifications
+    vhost: watcher-notifications

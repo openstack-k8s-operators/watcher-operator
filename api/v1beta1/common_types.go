@@ -17,9 +17,9 @@ limitations under the License.
 package v1beta1
 
 import (
-	"github.com/openstack-k8s-operators/lib-common/modules/common/util"
-
+	rabbitmqv1 "github.com/openstack-k8s-operators/infra-operator/apis/rabbitmq/v1beta1"
 	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/util"
 
 	corev1 "k8s.io/api/core/v1"
 )
@@ -83,10 +83,19 @@ type WatcherSpecCore struct {
 	// Important: Run "make" to regenerate code after modifying this file
 	WatcherCommon `json:",inline"`
 
+	// +kubebuilder:validation:Optional
+	// MessagingBus configuration (username, vhost, and cluster)
+	MessagingBus rabbitmqv1.RabbitMqConfig `json:"messagingBus,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// NotificationsBus configuration (username, vhost, and cluster) for notifications
+	NotificationsBus *rabbitmqv1.RabbitMqConfig `json:"notificationsBus,omitempty"`
+
 	// +kubebuilder:validation:Required
 	// +kubebuilder:default=rabbitmq
 	// RabbitMQ instance name
 	// Needed to request a transportURL that is created and used in Watcher
+	// Deprecated: Use MessagingBus.Cluster instead
 	RabbitMqClusterName *string `json:"rabbitMqClusterName"`
 
 	// +kubebuilder:validation:Optional
@@ -141,6 +150,7 @@ type WatcherSpecCore struct {
 	// If undefined, the value will be inherited from OpenStackControlPlane.
 	// An empty value "" leaves the notification drivers unconfigured and emitting no notifications at all.
 	// Avoid colocating it with RabbitMqClusterName or other message bus instances used for RPC.
+	// Deprecated: Use NotificationsBus.Cluster instead
 	NotificationsBusInstance *string `json:"notificationsBusInstance,omitempty"`
 }
 

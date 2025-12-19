@@ -204,7 +204,7 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	// not-ready condition is managed here instead of in ensureMQ to distinguish between Error (when receiving)
 	// an error, or Running when transportURL is empty.
 	//
-	transportURL, op, err := r.ensureMQ(ctx, instance, helper, instance.Name+"-watcher-transport", *instance.Spec.RabbitMqClusterName, serviceLabels)
+	transportURL, op, err := r.ensureMQ(ctx, instance, helper, instance.Name+"-watcher-transport", instance.Spec.MessagingBus, serviceLabels)
 	if err != nil {
 		instance.Status.Conditions.Set(condition.FalseCondition(
 			watcherv1beta1.WatcherRabbitMQTransportURLReadyCondition,
@@ -233,14 +233,22 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	// create Notification RabbitMQ transportURL CR and get the actual URL from the associated secret that is created
 	notificationURLSecret := &corev1.Secret{}
 
-	if instance.Spec.NotificationsBusInstance != nil && *instance.Spec.NotificationsBusInstance != "" {
+	// Determine if notifications are enabled by checking NotificationsBus.Cluster
+	// (the webhook defaults this from the deprecated NotificationsBusInstance field)
+	if instance.Spec.NotificationsBus != nil && instance.Spec.NotificationsBus.Cluster != "" {
 		instance.Status.Conditions.Set(condition.FalseCondition(
 			watcherv1beta1.WatcherNotificationTransportURLReadyCondition,
 			condition.RequestedReason,
 			condition.SeverityInfo,
 			watcherv1beta1.WatcherNotificationTransportURLReadyRunningMessage,
 		))
-		notificationURL, op, err := r.ensureMQ(ctx, instance, helper, instance.Name+"-watcher-notification", *instance.Spec.NotificationsBusInstance, serviceLabels)
+
+		// Use NotificationsBus config (never fall back to MessagingBus to ensure separation)
+		notificationsRabbitMqConfig := *instance.Spec.NotificationsBus
+
+		// Append cluster name to the TransportURL name to make it unique when using different clusters
+		notificationTransportURLName := fmt.Sprintf("%s-watcher-notification-%s", instance.Name, notificationsRabbitMqConfig.Cluster)
+		notificationURL, op, err := r.ensureMQ(ctx, instance, helper, notificationTransportURLName, notificationsRabbitMqConfig, serviceLabels)
 		if err != nil {
 			instance.Status.Conditions.Set(condition.FalseCondition(
 				watcherv1beta1.WatcherNotificationTransportURLReadyCondition,
@@ -701,7 +709,7 @@ func (r *WatcherReconciler) ensureMQ(
 	instance *watcherv1beta1.Watcher,
 	h *helper.Helper,
 	transportURLName string,
-	messageBusInstance string,
+	rabbitMqConfig rabbitmqv1.RabbitMqConfig,
 	serviceLabels map[string]string,
 ) (*rabbitmqv1.TransportURL, controllerutil.OperationResult, error) {
 	Log := r.GetLogger(ctx)
@@ -716,7 +724,13 @@ func (r *WatcherReconciler) ensureMQ(
 	}
 
 	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, transportURL, func() error {
-		transportURL.Spec.RabbitmqClusterName = messageBusInstance
+		transportURL.Spec.RabbitmqClusterName = rabbitMqConfig.Cluster
+		// Always set Username and Vhost to allow clearing/resetting them
+		// The infra-operator TransportURL controller handles empty values:
+		// - Empty Username: uses default cluster admin credentials
+		// - Empty Vhost: defaults to "/" vhost
+		transportURL.Spec.Username = rabbitMqConfig.User
+		transportURL.Spec.Vhost = rabbitMqConfig.Vhost
 
 		err := controllerutil.SetControllerReference(instance, transportURL, r.Scheme)
 		return err
