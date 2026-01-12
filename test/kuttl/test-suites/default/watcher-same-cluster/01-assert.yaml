@@ -1,0 +1,108 @@
+apiVersion: watcher.openstack.org/v1beta1
+kind: Watcher
+metadata:
+  name: watcher-kuttl
+  namespace: watcher-kuttl-default
+status:
+  apiServiceReadyCount: 1
+  conditions:
+  - message: Setup complete
+    reason: Ready
+    status: "True"
+    type: Ready
+  - message: WatcherRabbitMQTransportURL successfully created
+    reason: Ready
+    status: "True"
+    type: WatcherRabbitMQTransportURLReady
+  - message: WatcherNotificationTransportURL successfully created
+    reason: Ready
+    status: "True"
+    type: WatcherNotificationTransportURLReady
+---
+apiVersion: rabbitmq.openstack.org/v1beta1
+kind: TransportURL
+metadata:
+  name: watcher-kuttl-watcher-transport
+spec:
+  rabbitmqClusterName: rabbitmq
+  username: watcher-rpc
+  vhost: watcher-rpc
+status:
+  conditions:
+  - reason: Ready
+    status: "True"
+    type: Ready
+  - reason: Ready
+    status: "True"
+    type: TransportURLReady
+---
+apiVersion: rabbitmq.openstack.org/v1beta1
+kind: TransportURL
+metadata:
+  name: watcher-kuttl-watcher-notification-rabbitmq
+spec:
+  rabbitmqClusterName: rabbitmq
+  username: watcher-notifications
+  vhost: watcher-notifications
+status:
+  conditions:
+  - reason: Ready
+    status: "True"
+    type: Ready
+  - reason: Ready
+    status: "True"
+    type: TransportURLReady
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: watcher-kuttl-api
+  labels:
+    service: watcher-api
+spec:
+  replicas: 1
+status:
+  readyReplicas: 1
+  replicas: 1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    service: watcher-api
+  name: watcher-kuttl-api-0
+status:
+  phase: Running
+---
+# Verify that two TransportURLs were created with different users/vhosts on the same cluster
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+commands:
+- script: |
+    set -euxo pipefail
+    # Count TransportURL CRs for watcher - should be exactly 2 (one for RPC, one for notifications)
+    watcher_transport_count=$(kubectl get transporturl -n $NAMESPACE -o name | grep "watcher-kuttl-watcher-transport" | wc -l)
+    notification_count=$(kubectl get transporturl -n $NAMESPACE -o name | grep "watcher-kuttl-watcher-notification" | wc -l)
+
+    if [ "$watcher_transport_count" -ne "1" ]; then
+      echo "Expected 1 watcher-transport TransportURL, found $watcher_transport_count"
+      exit 1
+    fi
+
+    if [ "$notification_count" -ne "1" ]; then
+      echo "Expected 1 notification TransportURL (different user/vhost on same cluster), found $notification_count"
+      exit 1
+    fi
+
+    echo "Correctly found 2 separate TransportURLs with different users/vhosts on same cluster"
+
+    # Verify that watcher.conf has notifications transport_url configured
+    APIPOD=$(kubectl get pods -n $NAMESPACE -l "service=watcher-api" -o custom-columns=:metadata.name --no-headers | grep -v ^$ | head -1)
+    if [ -z "${APIPOD}" ]; then
+      echo "No watcher-api pod found"
+      exit 1
+    fi
+    # Verify oslo_messaging_notifications section has transport_url configured
+    kubectl exec -n $NAMESPACE ${APIPOD} -c watcher-api -- cat /etc/watcher/watcher.conf.d/00-default.conf | grep -A 2 '\[oslo_messaging_notifications\]' | grep -q 'transport_url'
+    echo "Successfully verified notifications transport_url in watcher.conf (using same cluster with different credentials)"
+    exit 0

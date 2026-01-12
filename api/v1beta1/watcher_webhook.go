@@ -19,6 +19,7 @@ package v1beta1
 import (
 	"fmt"
 
+	rabbitmqv1 "github.com/openstack-k8s-operators/infra-operator/apis/rabbitmq/v1beta1"
 	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -59,12 +60,34 @@ func (r *Watcher) Default() {
 
 // Default - set defaults for this WatcherCore spec.
 func (spec *WatcherSpec) Default() {
+	spec.WatcherSpecCore.Default()
 	spec.WatcherImages.Default(watcherDefaults)
 }
 
 // Default - set defaults for this WatcherSpecCore spec.
 func (spec *WatcherSpecCore) Default() {
-	// no validations . Placeholder for defaulting webhook integrated in the OpenStackControlPlane
+	// Apply kubebuilder default for RabbitMqClusterName if not set
+	if spec.RabbitMqClusterName == nil {
+		spec.RabbitMqClusterName = ptr.To("rabbitmq")
+	}
+
+	// Default MessagingBus.Cluster from RabbitMqClusterName if not already set
+	if spec.MessagingBus.Cluster == "" {
+		rabbitmqv1.DefaultRabbitMqConfig(&spec.MessagingBus, *spec.RabbitMqClusterName)
+	}
+
+	// Default NotificationsBus if NotificationsBusInstance is specified
+	if spec.NotificationsBusInstance != nil && *spec.NotificationsBusInstance != "" {
+		if spec.NotificationsBus == nil {
+			// Initialize empty NotificationsBus - credentials will be created dynamically
+			// to ensure separation from MessagingBus (RPC and notifications should never share credentials)
+			spec.NotificationsBus = &rabbitmqv1.RabbitMqConfig{}
+		}
+		// Always default the Cluster field from NotificationsBusInstance if it's empty
+		if spec.NotificationsBus.Cluster == "" {
+			rabbitmqv1.DefaultRabbitMqConfig(spec.NotificationsBus, *spec.NotificationsBusInstance)
+		}
+	}
 }
 
 var _ webhook.Validator = &Watcher{}
@@ -95,7 +118,7 @@ func (spec *WatcherSpec) ValidateCreate(basePath *field.Path, namespace string) 
 func (spec *WatcherSpecCore) ValidateCreate(basePath *field.Path, namespace string) field.ErrorList {
 	var allErrs field.ErrorList
 
-	if *spec.DatabaseInstance == "" || spec.DatabaseInstance == nil {
+	if spec.DatabaseInstance == nil || *spec.DatabaseInstance == "" {
 		allErrs = append(
 			allErrs,
 			field.Invalid(
@@ -103,11 +126,12 @@ func (spec *WatcherSpecCore) ValidateCreate(basePath *field.Path, namespace stri
 		)
 	}
 
-	if *spec.RabbitMqClusterName == "" || spec.RabbitMqClusterName == nil {
+	// Validate messagingBus.cluster instead of deprecated rabbitMqClusterName
+	if spec.MessagingBus.Cluster == "" {
 		allErrs = append(
 			allErrs,
 			field.Invalid(
-				basePath.Child("rabbitMqClusterName"), "", "rabbitMqClusterName field should not be empty"),
+				basePath.Child("messagingBus").Child("cluster"), "", "messagingBus.cluster field should not be empty"),
 		)
 	}
 
@@ -148,7 +172,7 @@ func (spec *WatcherSpec) ValidateUpdate(old WatcherSpec, basePath *field.Path, n
 func (spec *WatcherSpecCore) ValidateUpdate(old WatcherSpecCore, basePath *field.Path, namespace string) field.ErrorList {
 	var allErrs field.ErrorList
 
-	if *spec.DatabaseInstance == "" || spec.DatabaseInstance == nil {
+	if spec.DatabaseInstance == nil || *spec.DatabaseInstance == "" {
 		allErrs = append(
 			allErrs,
 			field.Invalid(
@@ -156,12 +180,29 @@ func (spec *WatcherSpecCore) ValidateUpdate(old WatcherSpecCore, basePath *field
 		)
 	}
 
-	if *spec.RabbitMqClusterName == "" || spec.RabbitMqClusterName == nil {
+	// Validate messagingBus.cluster instead of deprecated rabbitMqClusterName
+	if spec.MessagingBus.Cluster == "" {
 		allErrs = append(
 			allErrs,
 			field.Invalid(
-				basePath.Child("rabbitMqClusterName"), "", "rabbitMqClusterName field should not be empty"),
+				basePath.Child("messagingBus").Child("cluster"), "", "messagingBus.cluster field should not be empty"),
 		)
+	}
+
+	// Reject changes to deprecated RabbitMqClusterName field
+	if spec.RabbitMqClusterName != nil && old.RabbitMqClusterName != nil &&
+		*spec.RabbitMqClusterName != *old.RabbitMqClusterName {
+		allErrs = append(allErrs, field.Forbidden(
+			basePath.Child("rabbitMqClusterName"),
+			"rabbitMqClusterName is deprecated and cannot be changed. Please use messagingBus.cluster instead"))
+	}
+
+	// Reject changes to deprecated NotificationsBusInstance field
+	if spec.NotificationsBusInstance != nil && old.NotificationsBusInstance != nil &&
+		*spec.NotificationsBusInstance != *old.NotificationsBusInstance {
+		allErrs = append(allErrs, field.Forbidden(
+			basePath.Child("notificationsBusInstance"),
+			"notificationsBusInstance is deprecated and cannot be changed. Please use notificationsBus.cluster instead"))
 	}
 
 	allErrs = append(allErrs, spec.ValidateWatcherTopology(basePath, namespace)...)
