@@ -19,6 +19,7 @@ package v1beta1
 import (
 	"fmt"
 
+	rabbitmqv1 "github.com/openstack-k8s-operators/infra-operator/apis/rabbitmq/v1beta1"
 	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -28,6 +29,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+	common_webhook "github.com/openstack-k8s-operators/lib-common/modules/common/webhook"
 )
 
 // WatcherDefaults -
@@ -59,12 +61,66 @@ func (r *Watcher) Default() {
 
 // Default - set defaults for this WatcherCore spec.
 func (spec *WatcherSpec) Default() {
+	spec.WatcherSpecCore.Default()
 	spec.WatcherImages.Default(watcherDefaults)
 }
 
 // Default - set defaults for this WatcherSpecCore spec.
 func (spec *WatcherSpecCore) Default() {
-	// no validations . Placeholder for defaulting webhook integrated in the OpenStackControlPlane
+	// Apply kubebuilder default for RabbitMqClusterName if not set
+	if spec.RabbitMqClusterName == nil {
+		spec.RabbitMqClusterName = ptr.To("rabbitmq")
+	}
+
+	// Default MessagingBus.Cluster from RabbitMqClusterName if not already set
+	if spec.MessagingBus.Cluster == "" {
+		spec.MessagingBus.Cluster = *spec.RabbitMqClusterName
+	}
+
+	// Default NotificationsBus if NotificationsBusInstance is specified
+	if spec.NotificationsBusInstance != nil && *spec.NotificationsBusInstance != "" {
+		if spec.NotificationsBus == nil {
+			// Initialize empty NotificationsBus - credentials will be created dynamically
+			// to ensure separation from MessagingBus (RPC and notifications should never share credentials)
+			spec.NotificationsBus = &rabbitmqv1.RabbitMqConfig{}
+		}
+		// Default cluster name if not already set
+		if spec.NotificationsBus.Cluster == "" {
+			spec.NotificationsBus.Cluster = *spec.NotificationsBusInstance
+		}
+	}
+}
+
+// getDeprecatedFields returns the centralized list of deprecated fields for WatcherSpecCore
+func (spec *WatcherSpecCore) getDeprecatedFields(old *WatcherSpecCore) []common_webhook.DeprecatedFieldUpdate {
+	// Get new field value (handle nil NotificationsBus)
+	var newNotifBusCluster *string
+	if spec.NotificationsBus != nil {
+		newNotifBusCluster = &spec.NotificationsBus.Cluster
+	}
+
+	deprecatedFields := []common_webhook.DeprecatedFieldUpdate{
+		{
+			DeprecatedFieldName: "rabbitMqClusterName",
+			NewFieldPath:        []string{"messagingBus", "cluster"},
+			NewDeprecatedValue:  spec.RabbitMqClusterName,
+			NewValue:            &spec.MessagingBus.Cluster,
+		},
+		{
+			DeprecatedFieldName: "notificationsBusInstance",
+			NewFieldPath:        []string{"notificationsBus", "cluster"},
+			NewDeprecatedValue:  spec.NotificationsBusInstance,
+			NewValue:            newNotifBusCluster,
+		},
+	}
+
+	// If old spec is provided (UPDATE operation), add old values
+	if old != nil {
+		deprecatedFields[0].OldDeprecatedValue = old.RabbitMqClusterName
+		deprecatedFields[1].OldDeprecatedValue = old.NotificationsBusInstance
+	}
+
+	return deprecatedFields
 }
 
 var _ webhook.Validator = &Watcher{}
@@ -73,7 +129,15 @@ var _ webhook.Validator = &Watcher{}
 func (r *Watcher) ValidateCreate() (admission.Warnings, error) {
 	watcherlog.Info("validate create", "name", r.Name)
 
-	allErrs := r.Spec.ValidateCreate(field.NewPath("spec"), r.Namespace)
+	var allErrs field.ErrorList
+	var allWarns admission.Warnings
+
+	basePath := field.NewPath("spec")
+
+	if warns, errs := r.Spec.ValidateCreate(basePath, r.Namespace); errs != nil {
+		allErrs = append(allErrs, errs...)
+		allWarns = append(allWarns, warns...)
+	}
 
 	if len(allErrs) != 0 {
 		return nil, apierrors.NewInvalid(
@@ -81,21 +145,53 @@ func (r *Watcher) ValidateCreate() (admission.Warnings, error) {
 			r.Name, allErrs)
 	}
 
-	return nil, nil
+	return allWarns, nil
 }
 
 // ValidateCreate validates the WatcherSpec during the webhook invocation.
-func (spec *WatcherSpec) ValidateCreate(basePath *field.Path, namespace string) field.ErrorList {
+func (spec *WatcherSpec) ValidateCreate(basePath *field.Path, namespace string) ([]string, field.ErrorList) {
 	return spec.WatcherSpecCore.ValidateCreate(basePath, namespace)
+}
+
+// validateDeprecatedFieldsCreate validates deprecated fields during CREATE operations
+func (spec *WatcherSpecCore) validateDeprecatedFieldsCreate(basePath *field.Path) ([]string, field.ErrorList) {
+	// Get deprecated fields list (without old values for CREATE)
+	deprecatedFieldsUpdate := spec.getDeprecatedFields(nil)
+
+	// Convert to DeprecatedField list for CREATE validation
+	deprecatedFields := make([]common_webhook.DeprecatedField, len(deprecatedFieldsUpdate))
+	for i, df := range deprecatedFieldsUpdate {
+		deprecatedFields[i] = common_webhook.DeprecatedField{
+			DeprecatedFieldName: df.DeprecatedFieldName,
+			NewFieldPath:        df.NewFieldPath,
+			DeprecatedValue:     df.NewDeprecatedValue,
+			NewValue:            df.NewValue,
+		}
+	}
+
+	return common_webhook.ValidateDeprecatedFieldsCreate(deprecatedFields, basePath), nil
+}
+
+// validateDeprecatedFieldsUpdate validates deprecated fields during UPDATE operations
+func (spec *WatcherSpecCore) validateDeprecatedFieldsUpdate(old WatcherSpecCore, basePath *field.Path) ([]string, field.ErrorList) {
+	// Get deprecated fields list with old values
+	deprecatedFields := spec.getDeprecatedFields(&old)
+	return common_webhook.ValidateDeprecatedFieldsUpdate(deprecatedFields, basePath)
 }
 
 // ValidateCreate validates the WatcherSpecCore during the webhook invocation. It is
 // expected to be called by the validation webhook in the higher level meta
 // operator
-func (spec *WatcherSpecCore) ValidateCreate(basePath *field.Path, namespace string) field.ErrorList {
+func (spec *WatcherSpecCore) ValidateCreate(basePath *field.Path, namespace string) ([]string, field.ErrorList) {
 	var allErrs field.ErrorList
+	var allWarns admission.Warnings
 
-	if *spec.DatabaseInstance == "" || spec.DatabaseInstance == nil {
+	// Validate deprecated fields using shared helper
+	warns, errs := spec.validateDeprecatedFieldsCreate(basePath)
+	allWarns = append(allWarns, warns...)
+	allErrs = append(allErrs, errs...)
+
+	if spec.DatabaseInstance == nil || *spec.DatabaseInstance == "" {
 		allErrs = append(
 			allErrs,
 			field.Invalid(
@@ -103,17 +199,18 @@ func (spec *WatcherSpecCore) ValidateCreate(basePath *field.Path, namespace stri
 		)
 	}
 
-	if *spec.RabbitMqClusterName == "" || spec.RabbitMqClusterName == nil {
+	// Validate messagingBus.cluster instead of deprecated rabbitMqClusterName
+	if spec.MessagingBus.Cluster == "" {
 		allErrs = append(
 			allErrs,
 			field.Invalid(
-				basePath.Child("rabbitMqClusterName"), "", "rabbitMqClusterName field should not be empty"),
+				basePath.Child("messagingBus").Child("cluster"), "", "messagingBus.cluster field should not be empty"),
 		)
 	}
 
 	allErrs = append(allErrs, spec.ValidateWatcherTopology(basePath, namespace)...)
 
-	return allErrs
+	return allWarns, allErrs
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
@@ -125,7 +222,15 @@ func (r *Watcher) ValidateUpdate(old runtime.Object) (admission.Warnings, error)
 		return nil, apierrors.NewInternalError(fmt.Errorf("unable to convert existing object"))
 	}
 
-	allErrs := r.Spec.ValidateUpdate(oldWatcher.Spec, field.NewPath("spec"), r.Namespace)
+	var allErrs field.ErrorList
+	var allWarns admission.Warnings
+
+	basePath := field.NewPath("spec")
+
+	if warns, errs := r.Spec.ValidateUpdate(oldWatcher.Spec, basePath, r.Namespace); errs != nil {
+		allErrs = append(allErrs, errs...)
+		allWarns = append(allWarns, warns...)
+	}
 
 	if len(allErrs) != 0 {
 		return nil, apierrors.NewInvalid(
@@ -133,22 +238,23 @@ func (r *Watcher) ValidateUpdate(old runtime.Object) (admission.Warnings, error)
 			r.Name, allErrs)
 	}
 
-	return nil, nil
+	return allWarns, nil
 
 }
 
 // ValidateUpdate validates the WatcherSpec during the webhook update invocation.
-func (spec *WatcherSpec) ValidateUpdate(old WatcherSpec, basePath *field.Path, namespace string) field.ErrorList {
+func (spec *WatcherSpec) ValidateUpdate(old WatcherSpec, basePath *field.Path, namespace string) ([]string, field.ErrorList) {
 	return spec.WatcherSpecCore.ValidateUpdate(old.WatcherSpecCore, basePath, namespace)
 }
 
 // ValidateUpdate validates the WatcherSpecCore during the webhook invocation. It is
 // expected to be called by the validation webhook in the higher level meta
 // operator
-func (spec *WatcherSpecCore) ValidateUpdate(old WatcherSpecCore, basePath *field.Path, namespace string) field.ErrorList {
+func (spec *WatcherSpecCore) ValidateUpdate(old WatcherSpecCore, basePath *field.Path, namespace string) ([]string, field.ErrorList) {
 	var allErrs field.ErrorList
+	var allWarns admission.Warnings
 
-	if *spec.DatabaseInstance == "" || spec.DatabaseInstance == nil {
+	if spec.DatabaseInstance == nil || *spec.DatabaseInstance == "" {
 		allErrs = append(
 			allErrs,
 			field.Invalid(
@@ -156,17 +262,23 @@ func (spec *WatcherSpecCore) ValidateUpdate(old WatcherSpecCore, basePath *field
 		)
 	}
 
-	if *spec.RabbitMqClusterName == "" || spec.RabbitMqClusterName == nil {
+	// Validate messagingBus.cluster instead of deprecated rabbitMqClusterName
+	if spec.MessagingBus.Cluster == "" {
 		allErrs = append(
 			allErrs,
 			field.Invalid(
-				basePath.Child("rabbitMqClusterName"), "", "rabbitMqClusterName field should not be empty"),
+				basePath.Child("messagingBus").Child("cluster"), "", "messagingBus.cluster field should not be empty"),
 		)
 	}
 
+	// Validate deprecated fields using shared helper
+	warns, errs := spec.validateDeprecatedFieldsUpdate(old, basePath)
+	allWarns = append(allWarns, warns...)
+	allErrs = append(allErrs, errs...)
+
 	allErrs = append(allErrs, spec.ValidateWatcherTopology(basePath, namespace)...)
 
-	return allErrs
+	return allWarns, allErrs
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type

@@ -63,7 +63,20 @@ cifmw_edpm_prepare_kustomizations:
           metadata:
             name: controlplane
           spec:
-            notificationsBusInstance: rabbitmq-notifications
+            notificationsBusInstance: null
+            notificationsBus:
+              cluster: rabbitmq-notifications
+        target:
+          kind: OpenStackControlPlane
+      - patch: |-
+          apiVersion: core.openstack.org/v1beta1
+          kind: OpenStackControlPlane
+          metadata:
+            name: controlplane
+          spec:
+            keystone:
+              template:
+                rabbitMqClusterName: ""
         target:
           kind: OpenStackControlPlane
       - patch: |-
