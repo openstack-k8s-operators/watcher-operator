@@ -197,19 +197,26 @@ var _ = Describe("WatcherApplier controller", func() {
 			// indentaion is forced by use of raw literal
 			expectedSections := []string{`
 [cinder_client]
-endpoint_type = internal`, `
+endpoint_type = internal
+region_name = regionOne`, `
 [glance_client]
-endpoint_type = internal`, `
+endpoint_type = internal
+region_name = regionOne`, `
 [ironic_client]
-endpoint_type = internal`, `
+endpoint_type = internal
+region_name = regionOne`, `
 [keystone_client]
-interface = internal`, `
+interface = internal
+region_name = regionOne`, `
 [neutron_client]
-endpoint_type = internal`, `
+endpoint_type = internal
+region_name = regionOne`, `
 [nova_client]
-endpoint_type = internal`, `
+endpoint_type = internal
+region_name = regionOne`, `
 [placement_client]
-interface = internal`, `
+interface = internal
+region_name = regionOne`, `
 [oslo_messaging_notifications]
 
 driver = noop`,
@@ -694,6 +701,11 @@ transport_url =`
 			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
 			keystoneAPIName = keystone.CreateKeystoneAPI(watcherTest.WatcherApplier.Namespace)
 			DeferCleanup(keystone.DeleteKeystoneAPI, keystoneAPIName)
+			Eventually(func(g Gomega) {
+				ks := keystone.GetKeystoneAPI(keystoneAPIName)
+				ks.Status.Region = "regionTwo"
+				g.Expect(k8sClient.Status().Update(ctx, ks)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
 			memcachedSpec := memcachedv1.MemcachedSpec{
 				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
 					Replicas: ptr.To(int32(1)),
@@ -746,19 +758,26 @@ transport_url =`
 			// indentaion is forced by use of raw literal
 			expectedSections := []string{`
 [cinder_client]
-endpoint_type = internal`, `
+endpoint_type = internal
+region_name = regionTwo`, `
 [glance_client]
-endpoint_type = internal`, `
+endpoint_type = internal
+region_name = regionTwo`, `
 [ironic_client]
-endpoint_type = internal`, `
+endpoint_type = internal
+region_name = regionTwo`, `
 [keystone_client]
-interface = internal`, `
+interface = internal
+region_name = regionTwo`, `
 [neutron_client]
-endpoint_type = internal`, `
+endpoint_type = internal
+region_name = regionTwo`, `
 [nova_client]
-endpoint_type = internal`, `
+endpoint_type = internal
+region_name = regionTwo`, `
 [placement_client]
-interface = internal`, `
+interface = internal
+region_name = regionTwo`, `
 [oslo_messaging_notifications]
 
 driver = messagingv2

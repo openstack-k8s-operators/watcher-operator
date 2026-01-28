@@ -273,19 +273,26 @@ var _ = Describe("WatcherAPI controller", func() {
 
 			expectedSections := []string{`
 [cinder_client]
-endpoint_type = internal`, `
+endpoint_type = internal
+region_name = regionOne`, `
 [glance_client]
-endpoint_type = internal`, `
+endpoint_type = internal
+region_name = regionOne`, `
 [ironic_client]
-endpoint_type = internal`, `
+endpoint_type = internal
+region_name = regionOne`, `
 [keystone_client]
-interface = internal`, `
+interface = internal
+region_name = regionOne`, `
 [neutron_client]
-endpoint_type = internal`, `
+endpoint_type = internal
+region_name = regionOne`, `
 [nova_client]
-endpoint_type = internal`, `
+endpoint_type = internal
+region_name = regionOne`, `
 [placement_client]
-interface = internal`, `
+interface = internal
+region_name = regionOne`, `
 [watcher_cluster_data_model_collectors.compute]
 period = 900`, `
 [watcher_cluster_data_model_collectors.baremetal]
@@ -1127,6 +1134,11 @@ transport_url =`
 			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, GetDefaultWatcherAPISpec()))
 			keystoneAPIName = keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace)
 			DeferCleanup(keystone.DeleteKeystoneAPI, keystoneAPIName)
+			Eventually(func(g Gomega) {
+				ks := keystone.GetKeystoneAPI(keystoneAPIName)
+				ks.Status.Region = "regionTwo"
+				g.Expect(k8sClient.Status().Update(ctx, ks)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
 			memcachedSpec := memcachedv1.MemcachedSpec{
 				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
 					Replicas: ptr.To(int32(1)),
@@ -1168,19 +1180,26 @@ transport_url =`
 
 			expectedSections := []string{`
 [cinder_client]
-endpoint_type = internal`, `
+endpoint_type = internal
+region_name = regionTwo`, `
 [glance_client]
-endpoint_type = internal`, `
+endpoint_type = internal
+region_name = regionTwo`, `
 [ironic_client]
-endpoint_type = internal`, `
+endpoint_type = internal
+region_name = regionTwo`, `
 [keystone_client]
-interface = internal`, `
+interface = internal
+region_name = regionTwo`, `
 [neutron_client]
-endpoint_type = internal`, `
+endpoint_type = internal
+region_name = regionTwo`, `
 [nova_client]
-endpoint_type = internal`, `
+endpoint_type = internal
+region_name = regionTwo`, `
 [placement_client]
-interface = internal`, `
+interface = internal
+region_name = regionTwo`, `
 [watcher_cluster_data_model_collectors.compute]
 period = 900`, `
 [watcher_cluster_data_model_collectors.baremetal]
