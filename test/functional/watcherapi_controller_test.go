@@ -310,6 +310,17 @@ driver = messagingv2
 transport_url =`
 			Expect(string(configData)).Should(Not(ContainSubstring(unexpectedNotificationSection)))
 		})
+		It("should have region_name set in keystone_authtoken section", func() {
+			createdSecret := th.GetSecret(watcherTest.WatcherAPIConfigSecret)
+			Expect(createdSecret).ShouldNot(BeNil())
+
+			configData := createdSecret.Data["00-default.conf"]
+			Expect(configData).ShouldNot(BeNil())
+
+			// Verify region_name is set in both [keystone_authtoken] and [watcher_clients_auth] sections
+			// When KeystoneAPI.Status.Region is empty, the controller defaults to "regionOne"
+			Expect(string(configData)).Should(ContainSubstring("region_name = regionOne"))
+		})
 
 		It("updates the KeystoneAuthURL if keystone internal endpoint changes", func() {
 			newInternalEndpoint := "https://keystone-internal"
