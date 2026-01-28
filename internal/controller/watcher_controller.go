@@ -316,6 +316,33 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		return ctrl.Result{}, ErrRetrievingTransportURLSecretData
 	}
 
+	// Application Credential Secret
+	var acData *keystonev1.ApplicationCredentialData
+	if instance.Spec.Auth.ApplicationCredentialSecret != "" {
+		var err error
+		acData, err = keystonev1.GetApplicationCredentialFromSecret(
+			ctx,
+			helper.GetClient(),
+			instance.Namespace,
+			watcher.ServiceName,
+		)
+		if err != nil {
+			// Secret exists but is malformed
+			instance.Status.Conditions.Set(condition.FalseCondition(
+				condition.InputReadyCondition,
+				condition.ErrorReason,
+				condition.SeverityWarning,
+				watcherv1beta1.WatcherApplicationCredentialSecretErrorMessage))
+			return ctrl.Result{}, err
+		}
+		if acData != nil {
+			Log.Info("Using ApplicationCredentials auth", "service", watcher.ServiceName)
+		} else {
+			// Secret doesn't exist, continue with password auth
+			Log.Info("ApplicationCredential secret not found, using password auth", "service", watcher.ServiceName)
+		}
+	}
+
 	// Prometheus config secret
 
 	hashPrometheus, _, prometheusSecret, err := ensureSecret(
@@ -354,7 +381,7 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 
 	// End of Prometheus config secret
 
-	subLevelSecretName, err := r.createSubLevelSecret(ctx, helper, instance, transporturlSecret, notificationURLSecret, inputSecret, db)
+	subLevelSecretName, err := r.createSubLevelSecret(ctx, helper, instance, transporturlSecret, notificationURLSecret, inputSecret, db, acData)
 	if err != nil {
 		return ctrl.Result{}, nil
 	}
@@ -375,7 +402,7 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	// Generate config for dbsync
 	configVars := make(map[string]env.Setter)
 
-	err = r.generateServiceConfigDBJobs(ctx, instance, db, &transporturlSecret, helper, &configVars)
+	err = r.generateServiceConfigDBJobs(ctx, instance, db, &transporturlSecret, helper, &configVars, acData)
 	if err != nil {
 		instance.Status.Conditions.Set(condition.FalseCondition(
 			condition.ServiceConfigReadyCondition,
@@ -775,6 +802,7 @@ func (r *WatcherReconciler) generateServiceConfigDBJobs(
 	transporturlSecret *corev1.Secret,
 	helper *helper.Helper,
 	envVars *map[string]env.Setter,
+	acData *keystonev1.ApplicationCredentialData,
 ) error {
 	Log := r.GetLogger(ctx)
 	Log.Info("generateServiceConfigs - reconciling config for Watcher CR")
@@ -802,6 +830,12 @@ func (r *WatcherReconciler) generateServiceConfigDBJobs(
 		"TransportURL":  string(transporturlSecret.Data[TransportURLSelector]),
 		"LogFile":       fmt.Sprintf("%s%s.log", watcher.WatcherLogPath, instance.Name),
 		"APIPublicPort": fmt.Sprintf("%d", watcher.WatcherPublicPort),
+	}
+
+	// Add Application Credential data if provided
+	if acData != nil {
+		templateParameters["ACID"] = acData.ID
+		templateParameters["ACSecret"] = acData.Secret
 	}
 
 	return GenerateConfigsGeneric(ctx, helper, instance, envVars, templateParameters, customData, labels, true)
@@ -867,6 +901,7 @@ func (r *WatcherReconciler) createSubLevelSecret(
 	notificationURLSecret *corev1.Secret,
 	inputSecret corev1.Secret,
 	db *mariadbv1.Database,
+	acData *keystonev1.ApplicationCredentialData,
 ) (string, error) {
 	Log := r.GetLogger(ctx)
 	Log.Info(fmt.Sprintf("Creating SubCr Level Secret for '%s'", instance.Name))
@@ -884,6 +919,13 @@ func (r *WatcherReconciler) createSubLevelSecret(
 		watcher.GlobalCustomConfigFileName:       instance.Spec.CustomServiceConfig,
 		NotificationURLSelector:                  string(notificationURLSecret.Data[TransportURLSelector]),
 	}
+
+	// Add Application Credential data if provided
+	if acData != nil {
+		data["ACID"] = acData.ID
+		data["ACSecret"] = acData.Secret
+	}
+
 	secretName := instance.Name
 
 	labels := labels.GetLabels(instance, labels.GetGroupLabel(watcher.ServiceName), map[string]string{})
@@ -1262,6 +1304,18 @@ func (r *WatcherReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			return nil
 		}
 		return []string{*cr.Spec.PrometheusSecret}
+	}); err != nil {
+		return err
+	}
+
+	// index authAppCredSecretField
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &watcherv1beta1.Watcher{}, authAppCredSecretField, func(rawObj client.Object) []string {
+		// Extract the secret name from the spec, if one is provided
+		cr := rawObj.(*watcherv1beta1.Watcher)
+		if cr.Spec.Auth.ApplicationCredentialSecret == "" {
+			return nil
+		}
+		return []string{cr.Spec.Auth.ApplicationCredentialSecret}
 	}); err != nil {
 		return err
 	}

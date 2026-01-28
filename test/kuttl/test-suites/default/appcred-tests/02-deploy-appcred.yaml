@@ -1,0 +1,32 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: |-
+      set -euo pipefail
+      NS="${NAMESPACE}"
+
+      old_api_uid=$(oc get pod -n "${NS}" watcher-kuttl-api-0 -o jsonpath='{.metadata.uid}')
+      old_applier_uid=$(oc get pod -n "${NS}" watcher-kuttl-applier-0 -o jsonpath='{.metadata.uid}')
+      old_de_uid=$(oc get pod -n "${NS}" watcher-kuttl-decision-engine-0 -o jsonpath='{.metadata.uid}')
+      oc create configmap appcred-watcher-pre \
+        --from-literal=api_uid="${old_api_uid}" \
+        --from-literal=applier_uid="${old_applier_uid}" \
+        --from-literal=decision_engine_uid="${old_de_uid}" \
+        --dry-run=client -o yaml | oc apply -n "${NS}" -f -
+
+      cat <<'EOF' | oc apply -n "${NS}" -f -
+      apiVersion: keystone.openstack.org/v1beta1
+      kind: KeystoneApplicationCredential
+      metadata:
+        name: ac-watcher
+      spec:
+        secret: osp-secret
+        passwordSelector: WatcherPassword
+        userName: watcher
+        roles:
+          - admin
+          - service
+        unrestricted: false
+      EOF
+
+      oc patch watcher watcher-kuttl -n "${NS}" --type=merge -p '{"spec":{"auth":{"applicationCredentialSecret":"ac-watcher-secret"}}}'
