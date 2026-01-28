@@ -411,6 +411,12 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 		return err
 	}
 
+	// Get region from KeystoneAPI, defaulting to "regionOne" if empty
+	region := keystoneAPI.GetRegion()
+	if region == "" {
+		region = "regionOne"
+	}
+
 	databaseAccount := string(secret.Data[DatabaseAccount])
 	db, err := mariadbv1.GetDatabaseByNameAndAccount(ctx, helper, watcher.DatabaseCRName, databaseAccount, instance.Namespace)
 	if err != nil {
@@ -454,6 +460,7 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 			watcher.DatabaseName,
 		),
 		"KeystoneAuthURL":          keystoneInternalURL,
+		"Region":                   region,
 		"ServicePassword":          string(secret.Data[*instance.Spec.PasswordSelectors.Service]),
 		"ServiceUser":              *instance.Spec.ServiceUser,
 		"TransportURL":             string(secret.Data[TransportURLSelector]),
