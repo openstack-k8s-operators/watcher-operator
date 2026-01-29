@@ -1272,4 +1272,75 @@ heartbeat_in_pthread=false`,
 			}, timeout, interval).Should(Succeed())
 		})
 	})
+
+	When("ApplicationCredential data is in parent secret", func() {
+		var acID string
+		var acSecret string
+
+		BeforeEach(func() {
+			acID = "test-ac-id"
+			acSecret = "test-ac-secret"
+
+			secret := CreateInternalTopLevelSecret()
+			secret.Data["ACID"] = []byte(acID)
+			secret.Data["ACSecret"] = []byte(acSecret)
+			secret.Data["WatcherPassword"] = []byte("password")
+			Expect(k8sClient.Update(ctx, secret)).To(Succeed())
+			DeferCleanup(k8sClient.Delete, ctx, secret)
+
+			prometheusSecret := th.CreateSecret(
+				watcherTest.PrometheusSecretName,
+				map[string][]byte{
+					"host": []byte("prometheus.example.com"),
+					"port": []byte("9090"),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, prometheusSecret)
+
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.WatcherDecisionEngine.Namespace,
+					"openstack",
+					corev1.ServiceSpec{Ports: []corev1.ServicePort{{Port: 3306}}},
+				),
+			)
+			mariadb.CreateMariaDBAccountAndSecret(watcherTest.WatcherDatabaseAccount, mariadbv1.MariaDBAccountSpec{UserName: "watcher"})
+			mariadb.CreateMariaDBDatabase(watcherTest.WatcherDecisionEngine.Namespace, "watcher", mariadbv1.MariaDBDatabaseSpec{Name: "watcher"})
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+
+			DeferCleanup(th.DeleteInstance, CreateWatcherDecisionEngine(watcherTest.WatcherDecisionEngine, GetDefaultWatcherDecisionEngineSpec()))
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherDecisionEngine.Namespace))
+
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{Replicas: ptr.To(int32(1))},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.WatcherDecisionEngine.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherDecisionEngineStatefulSet)
+		})
+
+		It("should render ApplicationCredential auth in config", func() {
+			Eventually(func(g Gomega) {
+				cfgSecret := th.GetSecret(watcherTest.WatcherDecisionEngineConfigSecret)
+				g.Expect(cfgSecret).NotTo(BeNil())
+
+				conf := string(cfgSecret.Data["00-default.conf"])
+
+				g.Expect(conf).To(ContainSubstring("[keystone_authtoken]"))
+				g.Expect(conf).To(ContainSubstring("auth_type = v3applicationcredential"))
+				g.Expect(conf).To(ContainSubstring("application_credential_id = " + acID))
+				g.Expect(conf).To(ContainSubstring("application_credential_secret = " + acSecret))
+
+				g.Expect(conf).To(ContainSubstring("[watcher_clients_auth]"))
+
+				g.Expect(conf).NotTo(ContainSubstring("auth_type = password"))
+				g.Expect(conf).NotTo(ContainSubstring("username = watcher"))
+				g.Expect(conf).NotTo(ContainSubstring("project_name = service"))
+			}, timeout, interval).Should(Succeed())
+		})
+	})
+
 })

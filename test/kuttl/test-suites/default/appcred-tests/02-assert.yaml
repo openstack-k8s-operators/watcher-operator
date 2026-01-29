@@ -1,0 +1,56 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 900
+commands:
+  - script: |-
+      set -euo pipefail
+      NS="${NAMESPACE}"
+
+      echo "Waiting for KeystoneApplicationCredential ac-watcher to be Ready..."
+      oc wait -n "${NS}" appcred/ac-watcher --for=condition=Ready --timeout=300s
+
+      ac_id=$(oc get -n "${NS}" appcred/ac-watcher -o jsonpath='{.status.acID}')
+      if [ -z "${ac_id}" ]; then
+        echo "ERROR: appcred/ac-watcher.status.acID is empty"
+        exit 1
+      fi
+      echo "ac-watcher.status.acID=${ac_id}"
+
+      oc get -n "${NS}" secret/ac-watcher-secret >/dev/null
+      secret_ac_id=$(oc get -n "${NS}" secret/ac-watcher-secret -o jsonpath='{.data.AC_ID}' | base64 -d)
+      if [ "${secret_ac_id}" != "${ac_id}" ]; then
+        echo "ERROR: Secret AC_ID (${secret_ac_id}) != appcred.status.acID (${ac_id})"
+        exit 1
+      fi
+      echo "✓ Secret AC_ID matches appcred.status.acID"
+
+      echo "Waiting for watcher rollouts..."
+      oc rollout status -n "${NS}" statefulset/watcher-kuttl-api --timeout=300s
+      oc rollout status -n "${NS}" statefulset/watcher-kuttl-applier --timeout=300s
+      oc rollout status -n "${NS}" statefulset/watcher-kuttl-decision-engine --timeout=300s
+
+      old_api_uid=$(oc get -n "${NS}" configmap/appcred-watcher-pre -o jsonpath='{.data.api_uid}')
+      old_applier_uid=$(oc get -n "${NS}" configmap/appcred-watcher-pre -o jsonpath='{.data.applier_uid}')
+      old_de_uid=$(oc get -n "${NS}" configmap/appcred-watcher-pre -o jsonpath='{.data.decision_engine_uid}')
+
+      new_api_uid=$(oc get pod -n "${NS}" watcher-kuttl-api-0 -o jsonpath='{.metadata.uid}')
+      new_applier_uid=$(oc get pod -n "${NS}" watcher-kuttl-applier-0 -o jsonpath='{.metadata.uid}')
+      new_de_uid=$(oc get pod -n "${NS}" watcher-kuttl-decision-engine-0 -o jsonpath='{.metadata.uid}')
+
+      if [ "${old_api_uid}" = "${new_api_uid}" ] || [ "${old_applier_uid}" = "${new_applier_uid}" ] || [ "${old_de_uid}" = "${new_de_uid}" ]; then
+        echo "ERROR: expected watcher pods to restart after appcred secret became available"
+        echo "  api: ${old_api_uid} -> ${new_api_uid}"
+        echo "  applier: ${old_applier_uid} -> ${new_applier_uid}"
+        echo "  decision-engine: ${old_de_uid} -> ${new_de_uid}"
+        exit 1
+      fi
+      echo "✓ watcher pods restarted after appcred secret became available"
+
+      echo "Checking watcher config contains application_credential_id..."
+      oc exec -n "${NS}" pod/watcher-kuttl-api-0 -c watcher-api -- \
+        bash -c "grep -q \"^application_credential_id = ${ac_id}$\" /etc/watcher/watcher.conf.d/00-default.conf"
+      oc exec -n "${NS}" pod/watcher-kuttl-applier-0 -c watcher-applier -- \
+        bash -c "grep -q \"^application_credential_id = ${ac_id}$\" /etc/watcher/watcher.conf.d/00-default.conf"
+      oc exec -n "${NS}" pod/watcher-kuttl-decision-engine-0 -c watcher-decision-engine -- \
+        bash -c "grep -q \"^application_credential_id = ${ac_id}$\" /etc/watcher/watcher.conf.d/00-default.conf"
+      echo "✓ watcher config contains expected application_credential_id"

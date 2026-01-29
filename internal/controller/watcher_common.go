@@ -36,6 +36,7 @@ const (
 	tlsAPIPublicField       = ".spec.tls.api.public.secretName"
 	topologyField           = ".spec.topologyRef.Name"
 	memcachedInstanceField  = ".spec.memcachedInstance"
+	authAppCredSecretField  = ".spec.auth.applicationCredentialSecret" //nolint:gosec // G101: Not actual credentials, just field path
 	// service label for cinder endpoint
 	endpointCinder = "cinder"
 )
@@ -60,6 +61,7 @@ var (
 	watcherWatchFields = []string{
 		passwordSecretField,
 		prometheusSecretField,
+		authAppCredSecretField,
 	}
 	decisionEngineWatchFields = []string{
 		passwordSecretField,
@@ -133,6 +135,12 @@ var (
 
 	// ErrTransportURLFieldMissing indicates that the TransportURL secret does not have the 'transport_url' field
 	ErrTransportURLFieldMissing = errors.New("the TransportURL secret does not have 'transport_url' field")
+
+	// ErrACSecretNotFound indicates that the ApplicationCredential secret was not found
+	ErrACSecretNotFound = errors.New("ApplicationCredential secret not found")
+
+	// ErrACSecretMissingKeys indicates that the ApplicationCredential secret is missing required keys
+	ErrACSecretMissingKeys = errors.New("ApplicationCredential secret missing required keys")
 )
 
 // GetLogger returns a logger object with a prefix of "controller.name" and additional controller context fields

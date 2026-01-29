@@ -1,0 +1,21 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: |-
+      set -euo pipefail
+      NS="${NAMESPACE}"
+
+      old_api_uid=$(oc get pod -n "${NS}" watcher-kuttl-api-0 -o jsonpath='{.metadata.uid}')
+      old_applier_uid=$(oc get pod -n "${NS}" watcher-kuttl-applier-0 -o jsonpath='{.metadata.uid}')
+      old_de_uid=$(oc get pod -n "${NS}" watcher-kuttl-decision-engine-0 -o jsonpath='{.metadata.uid}')
+      old_acid=$(oc get -n "${NS}" appcred/ac-watcher -o jsonpath='{.status.acID}')
+
+      oc create configmap appcred-watcher-rotate-pre \
+        --from-literal=api_uid="${old_api_uid}" \
+        --from-literal=applier_uid="${old_applier_uid}" \
+        --from-literal=decision_engine_uid="${old_de_uid}" \
+        --from-literal=ac_id="${old_acid}" \
+        --dry-run=client -o yaml | oc apply -n "${NS}" -f -
+
+      oc patch -n "${NS}" keystoneapplicationcredential ac-watcher --type=merge --subresource=status \
+        -p '{"status":{"expiresAt":"2001-05-19T00:00:00Z"}}'

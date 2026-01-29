@@ -479,6 +479,16 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 	if string(secret.Data[NotificationURLSelector]) != "" {
 		templateParameters["NotificationURL"] = string(secret.Data[NotificationURLSelector])
 	}
+
+	// Application Credential data
+	if acID, ok := secret.Data["ACID"]; ok && len(acID) > 0 {
+		if acSecretData, ok := secret.Data["ACSecret"]; ok && len(acSecretData) > 0 {
+			templateParameters["ACID"] = string(acID)
+			templateParameters["ACSecret"] = string(acSecretData)
+			Log.Info("Using ApplicationCredentials auth")
+		}
+	}
+
 	// MTLS
 	if memcachedInstance.GetMemcachedMTLSSecret() != "" {
 		templateParameters["MemcachedAuthCert"] = fmt.Sprint(memcachedv1.CertMountPath())

@@ -1601,4 +1601,228 @@ heartbeat_in_pthread=false`,
 			}, timeout, interval).Should(Succeed())
 		})
 	})
+
+	When("ApplicationCredential data is in parent secret", func() {
+		var acID string
+		var acSecret string
+		var keystoneAPIName types.NamespacedName
+
+		BeforeEach(func() {
+			acID = "test-ac-id"
+			acSecret = "test-ac-secret"
+
+			// Create parent secret in the same schema Watcher controller generates,
+			// then inject AC data (and password if you care).
+			secret := CreateInternalTopLevelSecret()
+			secret.Data["ACID"] = []byte(acID)
+			secret.Data["ACSecret"] = []byte(acSecret)
+			secret.Data["WatcherPassword"] = []byte("password")
+			Expect(k8sClient.Update(ctx, secret)).To(Succeed())
+			DeferCleanup(k8sClient.Delete, ctx, secret)
+
+			// Prometheus secret (WatcherAPI needs it for input ready)
+			prometheusSecret := th.CreateSecret(
+				watcherTest.PrometheusSecretName,
+				map[string][]byte{
+					"host": []byte("prometheus.example.com"),
+					"port": []byte("9090"),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, prometheusSecret)
+
+			// DB infra
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.WatcherAPI.Namespace,
+					"openstack",
+					corev1.ServiceSpec{Ports: []corev1.ServicePort{{Port: 3306}}},
+				),
+			)
+			mariadb.CreateMariaDBAccountAndSecret(
+				watcherTest.WatcherDatabaseAccount,
+				mariadbv1.MariaDBAccountSpec{UserName: "watcher"},
+			)
+			mariadb.CreateMariaDBDatabase(
+				watcherTest.WatcherAPI.Namespace,
+				"watcher",
+				mariadbv1.MariaDBDatabaseSpec{Name: "watcher"},
+			)
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+
+			// Create WatcherAPI
+			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, GetDefaultWatcherAPISpec()))
+
+			// Keystone + Memcached infra
+			keystoneAPIName = keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace)
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystoneAPIName)
+
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.WatcherAPI.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+
+			// Drive readiness where required by your suite
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
+			keystone.SimulateKeystoneEndpointReady(watcherTest.WatcherKeystoneEndpointName)
+		})
+
+		It("should render ApplicationCredential auth in config", func() {
+			Eventually(func(g Gomega) {
+				cfgSecret := th.GetSecret(watcherTest.WatcherAPIConfigSecret)
+				g.Expect(cfgSecret).NotTo(BeNil())
+
+				conf := string(cfgSecret.Data["00-default.conf"])
+
+				// AC auth is configured in keystone_authtoken
+				g.Expect(conf).To(ContainSubstring("[keystone_authtoken]"))
+				g.Expect(conf).To(ContainSubstring("auth_type = v3applicationcredential"))
+				g.Expect(conf).To(ContainSubstring("application_credential_id = " + acID))
+				g.Expect(conf).To(ContainSubstring("application_credential_secret = " + acSecret))
+
+				// AC auth is also configured in watcher_clients_auth
+				g.Expect(conf).To(ContainSubstring("[watcher_clients_auth]"))
+
+				// Password auth fields should not be present
+				g.Expect(conf).NotTo(ContainSubstring("auth_type = password"))
+				g.Expect(conf).NotTo(ContainSubstring("username = watcher"))
+				g.Expect(conf).NotTo(ContainSubstring("project_name = service"))
+			}, timeout, interval).Should(Succeed())
+		})
+	})
+
+	When("ApplicationCredential is adopted/rotated/removed via parent secret updates", func() {
+		var keystoneAPIName types.NamespacedName
+
+		BeforeEach(func() {
+			// Start in password mode
+			secret := CreateInternalTopLevelSecret()
+			secret.Data["WatcherPassword"] = []byte("password")
+			Expect(k8sClient.Update(ctx, secret)).To(Succeed())
+			DeferCleanup(k8sClient.Delete, ctx, secret)
+
+			prometheusSecret := th.CreateSecret(
+				watcherTest.PrometheusSecretName,
+				map[string][]byte{
+					"host": []byte("prometheus.example.com"),
+					"port": []byte("9090"),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, prometheusSecret)
+
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.WatcherAPI.Namespace,
+					"openstack",
+					corev1.ServiceSpec{Ports: []corev1.ServicePort{{Port: 3306}}},
+				),
+			)
+			mariadb.CreateMariaDBAccountAndSecret(
+				watcherTest.WatcherDatabaseAccount,
+				mariadbv1.MariaDBAccountSpec{UserName: "watcher"},
+			)
+			mariadb.CreateMariaDBDatabase(
+				watcherTest.WatcherAPI.Namespace,
+				"watcher",
+				mariadbv1.MariaDBDatabaseSpec{Name: "watcher"},
+			)
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+
+			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, GetDefaultWatcherAPISpec()))
+
+			keystoneAPIName = keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace)
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystoneAPIName)
+
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.WatcherAPI.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
+		})
+
+		It("adopts AC, rotates it, then falls back to password when removed", func() {
+			// 1) Verify password auth initially
+			Eventually(func(g Gomega) {
+				cfg := th.GetSecret(watcherTest.WatcherAPIConfigSecret)
+				g.Expect(cfg).NotTo(BeNil())
+				conf := string(cfg.Data["00-default.conf"])
+
+				g.Expect(conf).To(ContainSubstring("[keystone_authtoken]"))
+				g.Expect(conf).To(ContainSubstring("auth_type = password"))
+			}, timeout, interval).Should(Succeed())
+
+			// 2) Adopt AC
+			acID1 := "ac-id-1"
+			acSecret1 := "ac-secret-1"
+			Eventually(func(g Gomega) {
+				sec := &corev1.Secret{}
+				g.Expect(k8sClient.Get(ctx, watcherTest.InternalTopLevelSecretName, sec)).To(Succeed())
+				sec.Data["ACID"] = []byte(acID1)
+				sec.Data["ACSecret"] = []byte(acSecret1)
+				g.Expect(k8sClient.Update(ctx, sec)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				cfg := th.GetSecret(watcherTest.WatcherAPIConfigSecret)
+				g.Expect(cfg).NotTo(BeNil())
+				conf := string(cfg.Data["00-default.conf"])
+
+				g.Expect(conf).To(ContainSubstring("auth_type = v3applicationcredential"))
+				g.Expect(conf).To(ContainSubstring("application_credential_id = " + acID1))
+				g.Expect(conf).To(ContainSubstring("application_credential_secret = " + acSecret1))
+				g.Expect(conf).NotTo(ContainSubstring("auth_type = password"))
+			}, timeout, interval).Should(Succeed())
+
+			// Rotate AC
+			acID2 := "ac-id-2"
+			acSecret2 := "ac-secret-2"
+			Eventually(func(g Gomega) {
+				sec := &corev1.Secret{}
+				g.Expect(k8sClient.Get(ctx, watcherTest.InternalTopLevelSecretName, sec)).To(Succeed())
+				sec.Data["ACID"] = []byte(acID2)
+				sec.Data["ACSecret"] = []byte(acSecret2)
+				g.Expect(k8sClient.Update(ctx, sec)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				cfg := th.GetSecret(watcherTest.WatcherAPIConfigSecret)
+				g.Expect(cfg).NotTo(BeNil())
+				conf := string(cfg.Data["00-default.conf"])
+
+				g.Expect(conf).To(ContainSubstring("application_credential_id = " + acID2))
+				g.Expect(conf).To(ContainSubstring("application_credential_secret = " + acSecret2))
+			}, timeout, interval).Should(Succeed())
+
+			// Remove AC
+			Eventually(func(g Gomega) {
+				sec := &corev1.Secret{}
+				g.Expect(k8sClient.Get(ctx, watcherTest.InternalTopLevelSecretName, sec)).To(Succeed())
+				delete(sec.Data, "ACID")
+				delete(sec.Data, "ACSecret")
+				g.Expect(k8sClient.Update(ctx, sec)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				cfg := th.GetSecret(watcherTest.WatcherAPIConfigSecret)
+				g.Expect(cfg).NotTo(BeNil())
+				conf := string(cfg.Data["00-default.conf"])
+
+				g.Expect(conf).To(ContainSubstring("auth_type = password"))
+				g.Expect(conf).NotTo(ContainSubstring("auth_type = v3applicationcredential"))
+				g.Expect(conf).NotTo(ContainSubstring("application_credential_id"))
+				g.Expect(conf).NotTo(ContainSubstring("application_credential_secret"))
+			}, timeout, interval).Should(Succeed())
+		})
+	})
+
 })
