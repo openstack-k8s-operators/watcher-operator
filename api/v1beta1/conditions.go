@@ -38,6 +38,8 @@ const (
 	WatcherAPIReadyErrorMessage = "WatcherAPI error occured %s"
 	// WatcherPrometheusSecretErrorMessage -
 	WatcherPrometheusSecretErrorMessage = "Error with prometheus config secret"
+	// WatcherApplicationCredentialSecretErrorMessage -
+	WatcherApplicationCredentialSecretErrorMessage = "Error with application credential secret"
 	// WatcherApplierReadyInitMessage -
 	WatcherApplierReadyInitMessage = "WatcherApplier creation not started"
 	// WatcherApplierReadyRunningMessage -

@@ -1,0 +1,23 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+delete:
+  - apiVersion: watcher.openstack.org/v1beta1
+    kind: Watcher
+    name: watcher-kuttl
+    namespace: watcher-kuttl-default
+  - apiVersion: keystone.openstack.org/v1beta1
+    kind: KeystoneApplicationCredential
+    name: ac-watcher
+    namespace: watcher-kuttl-default
+  - apiVersion: v1
+    kind: Secret
+    name: ac-watcher-secret
+    namespace: watcher-kuttl-default
+  - apiVersion: v1
+    kind: ConfigMap
+    name: appcred-watcher-pre
+    namespace: watcher-kuttl-default
+  - apiVersion: v1
+    kind: ConfigMap
+    name: appcred-watcher-rotate-pre
+    namespace: watcher-kuttl-default
