@@ -52,7 +52,7 @@ var _ = Describe("Watcher controller with minimal spec values", func() {
 			Expect(*(Watcher.Spec.DatabaseAccount)).Should(Equal("watcher"))
 			Expect(*(Watcher.Spec.Secret)).Should(Equal("osp-secret"))
 			Expect(*(Watcher.Spec.PasswordSelectors.Service)).Should(Equal("WatcherPassword"))
-			Expect(*(Watcher.Spec.RabbitMqClusterName)).Should(Equal("rabbitmq"))
+			Expect(Watcher.Spec.MessagingBus.Cluster).Should(Equal("rabbitmq"))
 			Expect(*(Watcher.Spec.ServiceUser)).Should(Equal("watcher"))
 			Expect(Watcher.Spec.PreserveJobs).Should(BeFalse())
 			Expect(Watcher.Spec.APIServiceTemplate.TLS.CaBundleSecretName).Should(Equal(""))
@@ -101,7 +101,7 @@ var _ = Describe("Watcher controller", func() {
 			Expect(*(Watcher.Spec.DatabaseAccount)).Should(Equal("watcher"))
 			Expect(*(Watcher.Spec.ServiceUser)).Should(Equal("watcher"))
 			Expect(*(Watcher.Spec.Secret)).Should(Equal("test-osp-secret"))
-			Expect(*(Watcher.Spec.RabbitMqClusterName)).Should(Equal("rabbitmq"))
+			Expect(Watcher.Spec.MessagingBus.Cluster).Should(Equal("rabbitmq"))
 			Expect(Watcher.Spec.PreserveJobs).Should(BeFalse())
 			Expect(*(Watcher.Spec.APITimeout)).To(Equal(60))
 
@@ -711,7 +711,9 @@ var _ = Describe("Watcher controller", func() {
 		It("should raise an error for empty databaseInstance", func() {
 			spec := GetDefaultWatcherAPISpec()
 			spec["databaseInstance"] = ""
-			spec["rabbitMqClusterName"] = "rabbitmq"
+			spec["messagingBus"] = map[string]any{
+				"cluster": "rabbitmq",
+			}
 
 			raw := map[string]any{
 				"apiVersion": "watcher.openstack.org/v1beta1",
@@ -743,7 +745,9 @@ var _ = Describe("Watcher controller", func() {
 
 			spec := GetDefaultWatcherAPISpec()
 			spec["topologyRef"] = map[string]any{"name": "foo", "namespace": "bar"}
-			spec["rabbitMqClusterName"] = "rabbitmq"
+			spec["messagingBus"] = map[string]any{
+				"cluster": "rabbitmq",
+			}
 
 			raw := map[string]any{
 				"apiVersion": "watcher.openstack.org/v1beta1",
@@ -771,34 +775,18 @@ var _ = Describe("Watcher controller", func() {
 	})
 
 	When("Watcher is created with empty messagingBus.cluster", func() {
-		It("should raise an error for empty messagingBus.cluster", func() {
-			spec := GetDefaultWatcherAPISpec()
-			spec["rabbitMqClusterName"] = ""
+		It("should default messagingBus.cluster to rabbitmq", func() {
+			spec := GetDefaultWatcherSpec()
 			spec["messagingBus"] = map[string]any{
 				"cluster": "",
 			}
+			DeferCleanup(th.DeleteInstance, CreateWatcher(watcherTest.Instance, spec))
 
-			raw := map[string]any{
-				"apiVersion": "watcher.openstack.org/v1beta1",
-				"kind":       "watcher",
-				"metadata": map[string]any{
-					"name":      watcherName.Name,
-					"namespace": watcherName.Namespace,
-				},
-				"spec": spec,
-			}
-
-			unstructuredObj := &unstructured.Unstructured{Object: raw}
-			_, err := controllerutil.CreateOrPatch(
-				th.Ctx, th.K8sClient, unstructuredObj, func() error { return nil })
-			Expect(err).To(HaveOccurred())
-			// Error comes from CRD schema validation (minLength: 1) before webhook validation
-			Expect(err.Error()).To(
-				ContainSubstring(
-					"Watcher.watcher.openstack.org \"watcher\" is invalid: " +
-						"spec.messagingBus.cluster: Invalid value: \"\": " +
-						"spec.messagingBus.cluster in body should be at least 1 chars long"),
-			)
+			// Webhook should default empty cluster to "rabbitmq"
+			Eventually(func(g Gomega) {
+				watcher := GetWatcher(watcherTest.Instance)
+				g.Expect(watcher.Spec.MessagingBus.Cluster).To(Equal("rabbitmq"))
+			}, timeout, interval).Should(Succeed())
 		})
 	})
 
@@ -851,7 +839,7 @@ var _ = Describe("Watcher controller", func() {
 			Expect(*(Watcher.Spec.ServiceUser)).Should(Equal("fakeuser"))
 			Expect(*(Watcher.Spec.Secret)).Should(Equal("test-osp-secret"))
 			Expect(Watcher.Spec.PreserveJobs).Should(BeTrue())
-			Expect(*(Watcher.Spec.RabbitMqClusterName)).Should(Equal("rabbitmq"))
+			Expect(Watcher.Spec.MessagingBus.Cluster).Should(Equal("rabbitmq"))
 			Expect(Watcher.Spec.APIServiceTemplate.TLS.CaBundleSecretName).Should(Equal("combined-ca-bundle"))
 			Expect(Watcher.Spec.CustomServiceConfig).Should(Equal("# Global config"))
 			Expect(*(Watcher.Spec.PrometheusSecret)).Should(Equal("custom-prometheus-config"))
@@ -1633,7 +1621,9 @@ var _ = Describe("Watcher controller", func() {
 	When("Watcher with notification bus instance is created", func() {
 		BeforeEach(func() {
 			spec := GetDefaultWatcherSpec()
-			spec["notificationsBusInstance"] = ptr.To("rabbitmq-notification")
+			spec["notificationsBus"] = map[string]any{
+				"cluster": "rabbitmq-notification",
+			}
 			DeferCleanup(th.DeleteInstance, CreateWatcher(watcherTest.Instance, spec))
 			DeferCleanup(k8sClient.Delete, ctx, CreateWatcherMessageBusSecret(watcherTest.Instance.Namespace, "rabbitmq-secret"))
 			memcachedSpec := memcachedv1.MemcachedSpec{
@@ -1676,8 +1666,8 @@ var _ = Describe("Watcher controller", func() {
 
 		It("should have the Spec fields with the expected values", func() {
 			Watcher := GetWatcher(watcherTest.Instance)
-			Expect(*(Watcher.Spec.RabbitMqClusterName)).Should(Equal("rabbitmq"))
-			Expect(*(Watcher.Spec.NotificationsBusInstance)).Should(Equal("rabbitmq-notification"))
+			Expect(Watcher.Spec.MessagingBus.Cluster).Should(Equal("rabbitmq"))
+			Expect(Watcher.Spec.NotificationsBus.Cluster).Should(Equal("rabbitmq-notification"))
 		})
 
 		It("should have the condition WatcherNotificationTransportURLReadyCondition set to false", func() {
@@ -2015,9 +2005,6 @@ var _ = Describe("Watcher controller", func() {
 	When("Watcher with custom messagingBus and notificationsBus is created", func() {
 		BeforeEach(func() {
 			spec := GetDefaultWatcherSpec()
-			// Null out deprecated fields before setting new bus fields
-			spec["rabbitMqClusterName"] = ""
-			spec["notificationsBusInstance"] = ""
 			spec["messagingBus"] = map[string]any{
 				"cluster": "custom-rabbitmq",
 				"user":    "custom-rpc-user",

@@ -9,4 +9,5 @@ spec:
   apiServiceTemplate:
     tls:
       caBundleSecretName: "combined-ca-bundle"
-  notificationsBusInstance: "rabbitmq-notifications"
+  notificationsBus:
+    cluster: "rabbitmq-notifications"

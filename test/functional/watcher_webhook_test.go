@@ -145,19 +145,17 @@ var _ = Describe("SetDefaultRouteAnnotations", func() {
 
 var _ = Describe("Watcher Webhook Messaging and Notifications", func() {
 
-	Describe("RabbitMqClusterName defaulting to messagingBus.cluster", func() {
+	Describe("MessagingBus defaulting", func() {
 		var spec *watcherv1.WatcherSpecCore
 
 		BeforeEach(func() {
-			spec = &watcherv1.WatcherSpecCore{
-				RabbitMqClusterName: ptr.To("my-rabbitmq"),
-			}
+			spec = &watcherv1.WatcherSpecCore{}
 		})
 
-		It("should default messagingBus.cluster from RabbitMqClusterName when messagingBus is empty", func() {
+		It("should default messagingBus.cluster to rabbitmq when empty", func() {
 			spec.Default()
 
-			Expect(spec.MessagingBus.Cluster).To(Equal("my-rabbitmq"))
+			Expect(spec.MessagingBus.Cluster).To(Equal("rabbitmq"))
 			// Note: User and Vhost don't have defaults and remain empty unless explicitly set
 			Expect(spec.MessagingBus.User).To(Equal(""))
 			Expect(spec.MessagingBus.Vhost).To(Equal(""))
@@ -204,51 +202,38 @@ var _ = Describe("Watcher Webhook Messaging and Notifications", func() {
 		})
 	})
 
-	Describe("NotificationsBusInstance defaulting to notificationsBus.cluster", func() {
+	Describe("NotificationsBus defaulting", func() {
 		var spec *watcherv1.WatcherSpecCore
 
 		BeforeEach(func() {
-			spec = &watcherv1.WatcherSpecCore{
-				RabbitMqClusterName:      ptr.To("rabbitmq"),
-				NotificationsBusInstance: ptr.To("rabbitmq-notifications"),
+			spec = &watcherv1.WatcherSpecCore{}
+		})
+
+		It("should not default notificationsBus.cluster when notificationsBus is present but cluster is empty", func() {
+			spec.NotificationsBus = &rabbitmqv1.RabbitMqConfig{}
+			spec.Default()
+
+			Expect(spec.NotificationsBus).NotTo(BeNil())
+			Expect(spec.NotificationsBus.Cluster).To(Equal(""), "notificationsBus.cluster should not be defaulted - it must be explicitly set")
+		})
+
+		It("should not initialize notificationsBus when it is nil", func() {
+			spec.Default()
+
+			Expect(spec.NotificationsBus).To(BeNil())
+		})
+
+		It("should preserve notificationsBus fields when already set", func() {
+			spec.NotificationsBus = &rabbitmqv1.RabbitMqConfig{
+				Cluster: "custom-cluster",
+				User:    "custom-user",
+				Vhost:   "custom-vhost",
 			}
-		})
-
-		It("should default notificationsBus.cluster from NotificationsBusInstance", func() {
 			spec.Default()
 
-			Expect(spec.NotificationsBus).NotTo(BeNil())
-			Expect(spec.NotificationsBus.Cluster).To(Equal("rabbitmq-notifications"))
-		})
-
-		It("should inherit user from messagingBus when NotificationsBusInstance is set", func() {
-			spec.Default()
-
-			Expect(spec.NotificationsBus).NotTo(BeNil())
-			// User is inherited from messagingBus, which is empty by default
-			Expect(spec.NotificationsBus.User).To(Equal(""))
-		})
-
-		It("should inherit vhost from messagingBus when NotificationsBusInstance is set", func() {
-			spec.Default()
-
-			Expect(spec.NotificationsBus).NotTo(BeNil())
-			// Vhost is inherited from messagingBus, which is empty by default
-			Expect(spec.NotificationsBus.Vhost).To(Equal(""))
-		})
-
-		It("should not create notificationsBus when NotificationsBusInstance is nil", func() {
-			spec.NotificationsBusInstance = nil
-			spec.Default()
-
-			Expect(spec.NotificationsBus).To(BeNil())
-		})
-
-		It("should not create notificationsBus when NotificationsBusInstance is empty string", func() {
-			spec.NotificationsBusInstance = ptr.To("")
-			spec.Default()
-
-			Expect(spec.NotificationsBus).To(BeNil())
+			Expect(spec.NotificationsBus.Cluster).To(Equal("custom-cluster"))
+			Expect(spec.NotificationsBus.User).To(Equal("custom-user"))
+			Expect(spec.NotificationsBus.Vhost).To(Equal("custom-vhost"))
 		})
 
 		It("should preserve existing notificationsBus.cluster if already set", func() {
@@ -261,42 +246,33 @@ var _ = Describe("Watcher Webhook Messaging and Notifications", func() {
 		})
 	})
 
-	Describe("NotificationsBus separation from messagingBus", func() {
+	Describe("NotificationsBus independence from messagingBus", func() {
 		var spec *watcherv1.WatcherSpecCore
 
-		It("should NOT inherit user and vhost from messagingBus when notificationsBus is created", func() {
+		It("should keep notificationsBus and messagingBus separate", func() {
 			spec = &watcherv1.WatcherSpecCore{
-				RabbitMqClusterName:      ptr.To("rabbitmq"),
-				NotificationsBusInstance: ptr.To("rabbitmq-notifications"),
 				MessagingBus: rabbitmqv1.RabbitMqConfig{
-					User:  "custom-user",
-					Vhost: "/custom-vhost",
+					Cluster: "rabbitmq-rpc",
+					User:    "rpc-user",
+					Vhost:   "/rpc-vhost",
 				},
-			}
-			spec.Default()
-
-			Expect(spec.NotificationsBus).NotTo(BeNil())
-			// User and vhost should be empty (not inherited) to ensure separation
-			Expect(spec.NotificationsBus.User).To(Equal(""))
-			Expect(spec.NotificationsBus.Vhost).To(Equal(""))
-			Expect(spec.NotificationsBus.Cluster).To(Equal("rabbitmq-notifications"))
-		})
-
-		It("should not override notificationsBus fields if already set", func() {
-			spec = &watcherv1.WatcherSpecCore{
-				RabbitMqClusterName:      ptr.To("rabbitmq"),
-				NotificationsBusInstance: ptr.To("rabbitmq-notifications"),
 				NotificationsBus: &rabbitmqv1.RabbitMqConfig{
-					Cluster: "custom-notifications-cluster",
-					User:    "custom-notifications-user",
-					Vhost:   "/custom-notifications-vhost",
+					Cluster: "rabbitmq-notifications",
+					User:    "notif-user",
+					Vhost:   "/notif-vhost",
 				},
 			}
 			spec.Default()
 
-			Expect(spec.NotificationsBus.Cluster).To(Equal("custom-notifications-cluster"))
-			Expect(spec.NotificationsBus.User).To(Equal("custom-notifications-user"))
-			Expect(spec.NotificationsBus.Vhost).To(Equal("/custom-notifications-vhost"))
+			// Verify MessagingBus fields are preserved
+			Expect(spec.MessagingBus.Cluster).To(Equal("rabbitmq-rpc"))
+			Expect(spec.MessagingBus.User).To(Equal("rpc-user"))
+			Expect(spec.MessagingBus.Vhost).To(Equal("/rpc-vhost"))
+
+			// Verify NotificationsBus fields are preserved and independent
+			Expect(spec.NotificationsBus.Cluster).To(Equal("rabbitmq-notifications"))
+			Expect(spec.NotificationsBus.User).To(Equal("notif-user"))
+			Expect(spec.NotificationsBus.Vhost).To(Equal("/notif-vhost"))
 		})
 	})
 
@@ -337,10 +313,8 @@ var _ = Describe("Watcher Webhook Messaging and Notifications", func() {
 	Describe("Complex scenarios with multiple fields", func() {
 		var spec *watcherv1.WatcherSpecCore
 
-		It("should handle all deprecated and new fields together correctly", func() {
+		It("should handle messagingBus with only partial fields set", func() {
 			spec = &watcherv1.WatcherSpecCore{
-				RabbitMqClusterName:      ptr.To("rabbitmq"),
-				NotificationsBusInstance: ptr.To("rabbitmq-notifications"),
 				MessagingBus: rabbitmqv1.RabbitMqConfig{
 					User:  "messaging-user",
 					Vhost: "/messaging-vhost",
@@ -348,42 +322,34 @@ var _ = Describe("Watcher Webhook Messaging and Notifications", func() {
 			}
 			spec.Default()
 
-			// messagingBus should be defaulted from RabbitMqClusterName
+			// messagingBus.cluster should be defaulted
 			Expect(spec.MessagingBus.Cluster).To(Equal("rabbitmq"))
 			Expect(spec.MessagingBus.User).To(Equal("messaging-user"))
 			Expect(spec.MessagingBus.Vhost).To(Equal("/messaging-vhost"))
-
-			// notificationsBus should NOT inherit user/vhost (for separation), only cluster from NotificationsBusInstance
-			Expect(spec.NotificationsBus).NotTo(BeNil())
-			Expect(spec.NotificationsBus.Cluster).To(Equal("rabbitmq-notifications"))
-			Expect(spec.NotificationsBus.User).To(Equal(""))
-			Expect(spec.NotificationsBus.Vhost).To(Equal(""))
 		})
 
-		It("should prioritize new fields over deprecated fields", func() {
+		It("should preserve all fields when both buses are fully specified", func() {
 			spec = &watcherv1.WatcherSpecCore{
-				RabbitMqClusterName:      ptr.To("old-rabbitmq"),
-				NotificationsBusInstance: ptr.To("old-notifications"),
 				MessagingBus: rabbitmqv1.RabbitMqConfig{
-					Cluster: "new-rabbitmq",
-					User:    "new-user",
-					Vhost:   "/new-vhost",
+					Cluster: "custom-rabbitmq",
+					User:    "rpc-user",
+					Vhost:   "/rpc-vhost",
 				},
 				NotificationsBus: &rabbitmqv1.RabbitMqConfig{
-					Cluster: "new-notifications",
-					User:    "new-notifications-user",
-					Vhost:   "/new-notifications-vhost",
+					Cluster: "custom-notifications",
+					User:    "notif-user",
+					Vhost:   "/notif-vhost",
 				},
 			}
 			spec.Default()
 
-			Expect(spec.MessagingBus.Cluster).To(Equal("new-rabbitmq"))
-			Expect(spec.MessagingBus.User).To(Equal("new-user"))
-			Expect(spec.MessagingBus.Vhost).To(Equal("/new-vhost"))
+			Expect(spec.MessagingBus.Cluster).To(Equal("custom-rabbitmq"))
+			Expect(spec.MessagingBus.User).To(Equal("rpc-user"))
+			Expect(spec.MessagingBus.Vhost).To(Equal("/rpc-vhost"))
 
-			Expect(spec.NotificationsBus.Cluster).To(Equal("new-notifications"))
-			Expect(spec.NotificationsBus.User).To(Equal("new-notifications-user"))
-			Expect(spec.NotificationsBus.Vhost).To(Equal("/new-notifications-vhost"))
+			Expect(spec.NotificationsBus.Cluster).To(Equal("custom-notifications"))
+			Expect(spec.NotificationsBus.User).To(Equal("notif-user"))
+			Expect(spec.NotificationsBus.Vhost).To(Equal("/notif-vhost"))
 		})
 	})
 
@@ -478,11 +444,9 @@ var _ = Describe("Watcher Webhook Update Validation", func() {
 		Describe("NotificationsBusInstance field changes", func() {
 			BeforeEach(func() {
 				oldSpec.NotificationsBusInstance = ptr.To("rabbitmq-notifications")
-				// Call Default() again to populate NotificationsBus from NotificationsBusInstance
 				oldSpec.Default()
 
 				newSpec.NotificationsBusInstance = ptr.To("rabbitmq-notifications")
-				// Call Default() again to populate NotificationsBus from NotificationsBusInstance
 				newSpec.Default()
 			})
 
@@ -491,27 +455,19 @@ var _ = Describe("Watcher Webhook Update Validation", func() {
 
 				_, errs := newSpec.ValidateUpdate(*oldSpec, basePath, "test-namespace")
 
-				// Expect 2 errors: conflict + forbidden change
-				Expect(errs).To(HaveLen(2))
+				// Expect 1 error: forbidden change to deprecated field
+				Expect(errs).To(HaveLen(1))
 
-				// Check for both expected errors
+				// Check for forbidden error
 				foundForbidden := false
-				foundConflict := false
 				for _, err := range errs {
 					if err.Field == "spec.notificationsBusInstance" && err.Type == field.ErrorTypeForbidden {
 						foundForbidden = true
 						Expect(err.Detail).To(ContainSubstring("is deprecated, use"))
 						Expect(err.Detail).To(ContainSubstring("notificationsBus.cluster"))
 					}
-					// Conflict error is also on notificationsBusInstance field (not notificationsBus.cluster)
-					if err.Field == "spec.notificationsBusInstance" && err.Type == field.ErrorTypeInvalid {
-						foundConflict = true
-						Expect(err.Detail).To(ContainSubstring("cannot set both deprecated field"))
-						Expect(err.Detail).To(ContainSubstring("notificationsBus.cluster"))
-					}
 				}
 				Expect(foundForbidden).To(BeTrue(), "Expected forbidden error for notificationsBusInstance")
-				Expect(foundConflict).To(BeTrue(), "Expected conflict error for notificationsBusInstance")
 			})
 
 			It("should allow update when NotificationsBusInstance remains unchanged", func() {

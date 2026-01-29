@@ -91,12 +91,11 @@ type WatcherSpecCore struct {
 	// NotificationsBus configuration (username, vhost, and cluster) for notifications
 	NotificationsBus *rabbitmqv1.RabbitMqConfig `json:"notificationsBus,omitempty"`
 
-	// +kubebuilder:validation:Required
-	// +kubebuilder:default=rabbitmq
+	// +kubebuilder:validation:Optional
 	// RabbitMQ instance name
 	// Needed to request a transportURL that is created and used in Watcher
 	// Deprecated: Use MessagingBus.Cluster instead
-	RabbitMqClusterName *string `json:"rabbitMqClusterName"`
+	RabbitMqClusterName *string `json:"rabbitMqClusterName,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=osp-secret
