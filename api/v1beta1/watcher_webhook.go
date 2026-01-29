@@ -19,8 +19,8 @@ package v1beta1
 import (
 	"fmt"
 
-	rabbitmqv1 "github.com/openstack-k8s-operators/infra-operator/apis/rabbitmq/v1beta1"
 	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
+	common_webhook "github.com/openstack-k8s-operators/lib-common/modules/common/webhook"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -29,7 +29,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
-	common_webhook "github.com/openstack-k8s-operators/lib-common/modules/common/webhook"
 )
 
 // WatcherDefaults -
@@ -67,28 +66,14 @@ func (spec *WatcherSpec) Default() {
 
 // Default - set defaults for this WatcherSpecCore spec.
 func (spec *WatcherSpecCore) Default() {
-	// Apply kubebuilder default for RabbitMqClusterName if not set
-	if spec.RabbitMqClusterName == nil {
-		spec.RabbitMqClusterName = ptr.To("rabbitmq")
-	}
-
-	// Default MessagingBus.Cluster from RabbitMqClusterName if not already set
+	// Default MessagingBus.Cluster if not set
+	// Migration from deprecated fields is handled by openstack-operator
 	if spec.MessagingBus.Cluster == "" {
-		spec.MessagingBus.Cluster = *spec.RabbitMqClusterName
+		spec.MessagingBus.Cluster = "rabbitmq"
 	}
 
-	// Default NotificationsBus if NotificationsBusInstance is specified
-	if spec.NotificationsBusInstance != nil && *spec.NotificationsBusInstance != "" {
-		if spec.NotificationsBus == nil {
-			// Initialize empty NotificationsBus - credentials will be created dynamically
-			// to ensure separation from MessagingBus (RPC and notifications should never share credentials)
-			spec.NotificationsBus = &rabbitmqv1.RabbitMqConfig{}
-		}
-		// Default cluster name if not already set
-		if spec.NotificationsBus.Cluster == "" {
-			spec.NotificationsBus.Cluster = *spec.NotificationsBusInstance
-		}
-	}
+	// NotificationsBus.Cluster is not defaulted - it must be explicitly set if NotificationsBus is configured
+	// This ensures users make a conscious choice about which cluster to use for notifications
 }
 
 // getDeprecatedFields returns the centralized list of deprecated fields for WatcherSpecCore
@@ -140,7 +125,7 @@ func (r *Watcher) ValidateCreate() (admission.Warnings, error) {
 	}
 
 	if len(allErrs) != 0 {
-		return nil, apierrors.NewInvalid(
+		return allWarns, apierrors.NewInvalid(
 			schema.GroupKind{Group: "watcher.openstack.org", Kind: "Watcher"},
 			r.Name, allErrs)
 	}
@@ -233,7 +218,7 @@ func (r *Watcher) ValidateUpdate(old runtime.Object) (admission.Warnings, error)
 	}
 
 	if len(allErrs) != 0 {
-		return nil, apierrors.NewInvalid(
+		return allWarns, apierrors.NewInvalid(
 			schema.GroupKind{Group: "watcher.openstack.org", Kind: "Watcher"},
 			r.Name, allErrs)
 	}

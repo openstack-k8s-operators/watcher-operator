@@ -12,7 +12,8 @@ spec:
     service: WatcherPassword
   secret: osp-secret
   apiTimeout: 60
-  notificationsBusInstance: rabbitmq-notifications
+  notificationsBus:
+    cluster: rabbitmq-notifications
 status:
   apiServiceReadyCount: 1
   conditions:

@@ -689,7 +689,6 @@ spec:
                 description: Secret containing prometheus connection parameters
                 type: string
               rabbitMqClusterName:
-                default: rabbitmq
                 description: |-
                   RabbitMQ instance name
                   Needed to request a transportURL that is created and used in Watcher
@@ -729,7 +728,6 @@ spec:
             - databaseInstance
             - decisionengineContainerImageURL
             - decisionengineServiceTemplate
-            - rabbitMqClusterName
             type: object
           status:
             description: WatcherStatus defines the observed state of Watcher

@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -234,7 +235,6 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	notificationURLSecret := &corev1.Secret{}
 
 	// Determine if notifications are enabled by checking NotificationsBus.Cluster
-	// (the webhook defaults this from the deprecated NotificationsBusInstance field)
 	if instance.Spec.NotificationsBus != nil && instance.Spec.NotificationsBus.Cluster != "" {
 		instance.Status.Conditions.Set(condition.FalseCondition(
 			watcherv1beta1.WatcherNotificationTransportURLReadyCondition,
@@ -248,6 +248,7 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 
 		// Append cluster name to the TransportURL name to make it unique when using different clusters
 		notificationTransportURLName := fmt.Sprintf("%s-watcher-notification-%s", instance.Name, notificationsRabbitMqConfig.Cluster)
+
 		notificationURL, op, err := r.ensureMQ(ctx, instance, helper, notificationTransportURLName, notificationsRabbitMqConfig, serviceLabels)
 		if err != nil {
 			instance.Status.Conditions.Set(condition.FalseCondition(
@@ -271,6 +272,27 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		}
 		instance.Status.Conditions.MarkTrue(watcherv1beta1.WatcherNotificationTransportURLReadyCondition, watcherv1beta1.WatcherNotificationTransportURLReadyMessage)
 
+		// Cleanup orphaned notification TransportURLs that don't match the current name
+		// This happens AFTER successful creation to avoid deleting resources if creation fails
+		transportURLList := &rabbitmqv1.TransportURLList{}
+		listOpts := []client.ListOption{
+			client.InNamespace(instance.Namespace),
+		}
+		if err := r.Client.List(ctx, transportURLList, listOpts...); err != nil {
+			return ctrl.Result{}, err
+		}
+
+		notificationTransportPrefix := fmt.Sprintf("%s-watcher-notification-", instance.Name)
+		for _, url := range transportURLList.Items {
+			// Delete notification TransportURLs that don't match the current name
+			if strings.HasPrefix(url.Name, notificationTransportPrefix) && url.Name != notificationTransportURLName {
+				err = r.ensureMQDeleted(ctx, instance, url.Name)
+				if err != nil {
+					return ctrl.Result{}, err
+				}
+			}
+		}
+
 		// NotificationURL Secret
 		hashNotificationURL, _, notificationSecret, err := ensureSecret(
 			ctx,
@@ -288,6 +310,27 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		}
 		notificationURLSecret = &notificationSecret
 		_ = op
+	} else {
+		instance.Status.Conditions.Remove(watcherv1beta1.WatcherNotificationTransportURLReadyCondition)
+
+		// Ensure to delete all notification TransportURLs when notifications are disabled
+		transportURLList := &rabbitmqv1.TransportURLList{}
+		listOpts := []client.ListOption{
+			client.InNamespace(instance.Namespace),
+		}
+		if err := r.Client.List(ctx, transportURLList, listOpts...); err != nil {
+			return ctrl.Result{}, err
+		}
+
+		notificationTransportPrefix := fmt.Sprintf("%s-watcher-notification-", instance.Name)
+		for _, url := range transportURLList.Items {
+			if strings.HasPrefix(url.Name, notificationTransportPrefix) {
+				err = r.ensureMQDeleted(ctx, instance, url.Name)
+				if err != nil {
+					return ctrl.Result{}, err
+				}
+			}
+		}
 	}
 
 	// end of Notification TransportURL creation
@@ -1403,4 +1446,28 @@ func (r *WatcherReconciler) findObjectsForSrc(ctx context.Context, src client.Ob
 	}
 
 	return requests
+}
+
+func (r *WatcherReconciler) ensureMQDeleted(
+	ctx context.Context,
+	instance *watcherv1beta1.Watcher,
+	transportURLName string,
+) error {
+	Log := r.GetLogger(ctx)
+	transportURL := &rabbitmqv1.TransportURL{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      transportURLName,
+			Namespace: instance.Namespace,
+		},
+	}
+
+	err := r.Client.Delete(ctx, transportURL)
+	if err != nil && !k8s_errors.IsNotFound(err) {
+		Log.Info(fmt.Sprintf("Could not delete TransportURL %s err: %s", transportURLName, err))
+		return err
+	}
+
+	Log.Info("Deleted TransportURL", "name", transportURLName)
+
+	return nil
 }

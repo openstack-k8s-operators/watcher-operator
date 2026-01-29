@@ -11,7 +11,8 @@ spec:
   passwordSelectors:
     service: WatcherPassword
   preserveJobs: false
-  rabbitMqClusterName: rabbitmq
+  messagingBus:
+    cluster: rabbitmq
   secret: osp-secret
   serviceUser: watcher
   apiServiceTemplate:
