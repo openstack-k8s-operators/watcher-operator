@@ -128,6 +128,14 @@ Users can just run kubectl apply -f <URL for YAML BUNDLE> to install the project
 kubectl apply -f https://raw.githubusercontent.com/<org>/watcher-operator/<tag or branch>/dist/install.yaml
 ```
 
+## Continuous Integration
+
+This project uses Zuul CI for testing and validation. The CI pipeline includes multiple jobs that test different combinations of OpenStack and Openshift versions, with different configurations.
+
+For a detailed list of all CI jobs and their configuration matrix, please refer to [CI README.md](ci/README.md).
+
+[Prow](https://prow.ci.openshift.org/?repo=openstack-k8s-operators%2Fwatcher-operator) is also used to execute operator functional and pre-commit tests
+
 ## Contributing
 // TODO(user): Add detailed information on how you would like others to contribute to this project
 
