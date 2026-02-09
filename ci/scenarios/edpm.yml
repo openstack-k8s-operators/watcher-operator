@@ -52,11 +52,13 @@ cifmw_edpm_prepare_kustomizations:
                     retention: 24h
         target:
           kind: OpenStackControlPlane
+
       - patch: |-
           - op: remove
             path: /spec/telemetry/template/metricStorage/monitoringStack
         target:
           kind: OpenStackControlPlane
+
       - patch: |-
           apiVersion: core.openstack.org/v1beta1
           kind: OpenStackControlPlane
@@ -67,6 +69,7 @@ cifmw_edpm_prepare_kustomizations:
               cluster: notifications-rabbitmq
         target:
           kind: OpenStackControlPlane
+
       - patch: |-
           apiVersion: core.openstack.org/v1beta1
           kind: OpenStackControlPlane
@@ -93,32 +96,14 @@ cifmw_edpm_prepare_kustomizations:
           metadata:
             name: controlplane
           spec:
+            applicationCredential:
+              enabled: true
             messagingBus:
               cluster: rabbitmq
               vhost: messaging-vhost
             notificationsBus:
               cluster: notifications-rabbitmq
               vhost: notifications-vhost
-        target:
-          kind: OpenStackControlPlane
-
-      - patch: |-
-          apiVersion: core.openstack.org/v1beta1
-          kind: OpenStackControlPlane
-          metadata:
-            name: controlplane
-          spec:
-            watcher:
-              enabled: true
-              template:
-                messagingBus:
-                  cluster: rabbitmq
-                  user: messaging-watcher-user
-                  vhost: messaging-vhost
-                notificationsBus:
-                  cluster: notifications-rabbitmq
-                  user: notifications-watcher-user
-                  vhost: notifications-vhost
         target:
           kind: OpenStackControlPlane
 
@@ -156,6 +141,28 @@ cifmw_edpm_prepare_kustomizations:
                 notificationsBus:
                   cluster: notifications-rabbitmq
                   user: notifications-nova-user
+                  vhost: notifications-vhost
+        target:
+          kind: OpenStackControlPlane
+
+      - patch: |-
+          apiVersion: core.openstack.org/v1beta1
+          kind: OpenStackControlPlane
+          metadata:
+            name: controlplane
+          spec:
+            watcher:
+              enabled: true
+              applicationCredential:
+                enabled: true
+              template:
+                messagingBus:
+                  cluster: rabbitmq
+                  user: messaging-watcher-user
+                  vhost: messaging-vhost
+                notificationsBus:
+                  cluster: notifications-rabbitmq
+                  user: notifications-watcher-user
                   vhost: notifications-vhost
         target:
           kind: OpenStackControlPlane
