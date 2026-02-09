@@ -229,6 +229,11 @@
         - name: openstack-operator
           src: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/openstack-operator"
           image_base: watcher
+      cifmw_build_containers_exclude_containers:
+        master:
+          centos10:
+            - tempest-extras
+            - horizontest
 - job:
     name: watcher-operator-validation-master
     parent: watcher-operator-validation-base
