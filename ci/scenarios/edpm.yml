@@ -64,7 +64,7 @@ cifmw_edpm_prepare_kustomizations:
             name: controlplane
           spec:
             notificationsBus:
-              cluster: rabbitmq-notifications
+              cluster: notifications-rabbitmq
         target:
           kind: OpenStackControlPlane
       - patch: |-
@@ -75,7 +75,7 @@ cifmw_edpm_prepare_kustomizations:
           spec:
             rabbitmq:
               templates:
-                rabbitmq-notifications:
+                notifications-rabbitmq:
                   override:
                     service:
                       metadata:
@@ -86,6 +86,22 @@ cifmw_edpm_prepare_kustomizations:
                         type: LoadBalancer
         target:
           kind: OpenStackControlPlane
+
+      - patch: |-
+          apiVersion: core.openstack.org/v1beta1
+          kind: OpenStackControlPlane
+          metadata:
+            name: controlplane
+          spec:
+            messagingBus:
+              cluster: rabbitmq
+              vhost: messaging-vhost
+            notificationsBus:
+              cluster: notifications-rabbitmq
+              vhost: notifications-vhost
+        target:
+          kind: OpenStackControlPlane
+
       - patch: |-
           apiVersion: core.openstack.org/v1beta1
           kind: OpenStackControlPlane
@@ -94,9 +110,55 @@ cifmw_edpm_prepare_kustomizations:
           spec:
             watcher:
               enabled: true
+              template:
+                messagingBus:
+                  cluster: rabbitmq
+                  user: messaging-watcher-user
+                  vhost: messaging-vhost
+                notificationsBus:
+                  cluster: notifications-rabbitmq
+                  user: notifications-watcher-user
+                  vhost: notifications-vhost
         target:
           kind: OpenStackControlPlane
 
+      - patch: |-
+          apiVersion: core.openstack.org/v1beta1
+          kind: OpenStackControlPlane
+          metadata:
+            name: controlplane
+          spec:
+            cinder:
+              template:
+                messagingBus:
+                  cluster: rabbitmq
+                  user: messaging-cinder-user
+                  vhost: messaging-vhost
+                notificationsBus:
+                  cluster: notifications-rabbitmq
+                  user: notifications-cinder-user
+                  vhost: notifications-vhost
+        target:
+          kind: OpenStackControlPlane
+
+      - patch: |-
+          apiVersion: core.openstack.org/v1beta1
+          kind: OpenStackControlPlane
+          metadata:
+            name: controlplane
+          spec:
+            nova:
+              template:
+                messagingBus:
+                  cluster: rabbitmq
+                  user: messaging-nova-user
+                  vhost: messaging-vhost
+                notificationsBus:
+                  cluster: notifications-rabbitmq
+                  user: notifications-nova-user
+                  vhost: notifications-vhost
+        target:
+          kind: OpenStackControlPlane
 
 cifmw_edpm_prepare_timeout: 60
 
