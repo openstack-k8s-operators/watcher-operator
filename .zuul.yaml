@@ -90,6 +90,14 @@
         - podman_exporter
         - openstack_network_exporter
       zuul_log_collection: false
+    irrelevant-files: &irrelevant_files_operator
+      - .ci-operator.yaml
+      - .dockerignore
+      - .gitignore
+      - .golangci.yaml
+      - .pre-commit-config.yaml
+      - tests?\/functional
+      - ^docs/
 
 - job:
     name: watcher-operator-kuttl
@@ -117,6 +125,7 @@
       # var. As returned dlrn md5 hash comes from master release but job is using
       # antelope content.
       content_provider_dlrn_md5_hash: ''
+    irrelevant-files: *irrelevant_files_operator
 
 - job:
     name: watcher-operator-doc-preview
