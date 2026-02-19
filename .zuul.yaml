@@ -318,7 +318,6 @@
       jobs:
         - openstack-meta-content-provider-epoxy
         - watcher-operator-validation-epoxy
-        - watcher-operator-validation-epoxy-ocp4-16
 
 - project-template:
     name: opendev-watcher-edpm-pipeline
