@@ -226,7 +226,7 @@
       cifmw_repo_setup_branch: master
       cifmw_build_containers_registry_namespace: podified-master-centos10
       cifmw_build_containers_containers_base_image: quay.io/centos/centos:stream10
-      cifmw_repo_setup_promotion: current
+      cifmw_repo_setup_promotion: consistent
       cifmw_repo_setup_dist_major_version: 10
       cifmw_build_containers_force: true
       cifmw_build_containers_image_tag: watcher_latest
