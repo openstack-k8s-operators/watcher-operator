@@ -35,6 +35,23 @@
                   networkAttachments:
                   - storage
 
+    - name: Create the cinder-scheduler OpenStackControlPlane configuration file
+      ansible.builtin.copy:
+        dest: "{{ cifmw_controlplane_kustomizations_path }}/cinder-sch.yaml"
+        content: |
+          apiVersion: core.openstack.org/v1beta1
+          kind: OpenStackControlPlane
+          metadata:
+            name: openstack
+          spec:
+            cinder:
+              template:
+                cinderScheduler:
+                  replicas: 1
+                  customServiceConfig: |
+                    [DEFAULT]
+                    scheduler_default_filters = ['AvailabilityZoneFilter', 'CapacityFilter', 'CapabilitiesFilter', 'SameBackendFilter']
+
     - name: Create the definition of the secrets for the cinder backup
       ansible.builtin.template:
         dest: "{{ cifmw_controlplane_kustomizations_path }}/cinder-backup-nfs-sercrets.yaml"
@@ -98,3 +115,4 @@
                 path: /metadata/namespace
           - path: {{ cifmw_controlplane_kustomizations_path + '/nfs_backend.yaml'}}
           - path: {{ cifmw_controlplane_kustomizations_path + '/cinder-backup.yaml' }}
+          - path: {{ cifmw_controlplane_kustomizations_path + '/cinder-sch.yaml' }}
