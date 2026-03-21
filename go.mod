@@ -8,11 +8,11 @@ require (
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.39.1
 	github.com/openshift/api v3.9.0+incompatible
-	github.com/openstack-k8s-operators/infra-operator/apis v0.6.1-0.20260302112901-11ab59789dd7
-	github.com/openstack-k8s-operators/keystone-operator/api v0.6.1-0.20260228160423-41bde73701b8
-	github.com/openstack-k8s-operators/lib-common/modules/common v0.6.1-0.20260224071535-c6fd98c589ad
-	github.com/openstack-k8s-operators/lib-common/modules/test v0.6.1-0.20260224071535-c6fd98c589ad
-	github.com/openstack-k8s-operators/mariadb-operator/api v0.6.1-0.20260304143130-8d2b38f77616
+	github.com/openstack-k8s-operators/infra-operator/apis v0.6.1-0.20260316100655-863ae03d41af
+	github.com/openstack-k8s-operators/keystone-operator/api v0.6.1-0.20260314080138-b41734470581
+	github.com/openstack-k8s-operators/lib-common/modules/common v0.6.1-0.20260320125710-3a5f82ff0f18
+	github.com/openstack-k8s-operators/lib-common/modules/test v0.6.1-0.20260320125710-3a5f82ff0f18
+	github.com/openstack-k8s-operators/mariadb-operator/api v0.6.1-0.20260314091348-5c473d964727
 	github.com/openstack-k8s-operators/watcher-operator/api v0.0.0-00010101000000-000000000000
 	go.uber.org/zap v1.27.1
 	gopkg.in/yaml.v3 v3.0.1
@@ -62,8 +62,8 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/openstack-k8s-operators/lib-common/modules/openstack v0.6.1-0.20260224071535-c6fd98c589ad // indirect
-	github.com/openstack-k8s-operators/lib-common/modules/storage v0.6.1-0.20260224071535-c6fd98c589ad // indirect
+	github.com/openstack-k8s-operators/lib-common/modules/openstack v0.6.1-0.20260310070607-b96da8dd520e // indirect
+	github.com/openstack-k8s-operators/lib-common/modules/storage v0.6.1-0.20260310070607-b96da8dd520e // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_golang v1.22.0 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
