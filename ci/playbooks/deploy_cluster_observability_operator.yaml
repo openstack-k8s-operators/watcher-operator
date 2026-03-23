@@ -22,12 +22,33 @@
             namespace: openshift-operators
           spec:
             channel: stable
-            installPlanApproval: Automatic
+            installPlanApproval: Manual
+            startingCSV: cluster-observability-operator.v1.3.1
             name: cluster-observability-operator
             source: redhat-operators
             sourceNamespace: openshift-marketplace
           EOF
       register: output
+
+    - name: Get and approve the installplan when the version is pinned
+      block:
+        - name: Get the installplan from the coo subscription
+          ansible.builtin.shell:
+            cmd: |
+              oc get installplan -n {{ _namespace }} | grep "cluster-observability-operator.v1.3.1" | awk '{print $1}'
+          retries: 15
+          delay: 20
+          register: coo_installplan
+          until: coo_installplan.stdout_lines | length != 0
+
+        - name: Show the coo_installplan from oc get installplan
+          ansible.builtin.debug:
+            var: coo_installplan
+
+        - name: Approve the installation
+          ansible.builtin.shell:
+            cmd: |
+              oc patch -n {{ _namespace }} installplan {{ coo_installplan.stdout }} --type='json' -p='[{"op": "replace", "path": "/spec/approved", "value":true}]'
 
       # need to have a wait here, since the csv is not created immediately. There is a slight delay, during which time, the oc wait command would fail, since there's no resource to watch
     - name: Wait for the required resource to be created
