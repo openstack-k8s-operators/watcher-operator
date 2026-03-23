@@ -14,13 +14,13 @@ commands:
 
       echo "Waiting for ac-watcher.status.acID to change..."
       for _ in $(seq 1 60); do
-        ac_id=$(oc get -n "${NS}" appcred/ac-watcher -o jsonpath='{.status.acID}')
+        ac_id=$(oc get -n "${NS}" appcred/ac-watcher-test -o jsonpath='{.status.acID}')
         if [ -n "${ac_id}" ] && [ "${ac_id}" != "${prev_acid}" ]; then
           break
         fi
         sleep 5
       done
-      ac_id=$(oc get -n "${NS}" appcred/ac-watcher -o jsonpath='{.status.acID}')
+      ac_id=$(oc get -n "${NS}" appcred/ac-watcher-test -o jsonpath='{.status.acID}')
       if [ -z "${ac_id}" ] || [ "${ac_id}" = "${prev_acid}" ]; then
         echo "ERROR: ACID did not change after forcing rotation"
         echo "  prev=${prev_acid}"
@@ -29,7 +29,7 @@ commands:
       fi
       echo "✓ ACID rotated: ${prev_acid} -> ${ac_id}"
 
-      secret_ac_id=$(oc get -n "${NS}" secret/ac-watcher-secret -o jsonpath='{.data.AC_ID}' | base64 -d)
+      secret_ac_id=$(oc get -n "${NS}" secret/ac-watcher-test-secret -o jsonpath='{.data.AC_ID}' | base64 -d)
       if [ "${secret_ac_id}" != "${ac_id}" ]; then
         echo "ERROR: Secret AC_ID (${secret_ac_id}) != rotated appcred.status.acID (${ac_id})"
         exit 1

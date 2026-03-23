@@ -6,18 +6,18 @@ commands:
       set -euo pipefail
       NS="${NAMESPACE}"
 
-      echo "Waiting for KeystoneApplicationCredential ac-watcher to be Ready..."
-      oc wait -n "${NS}" appcred/ac-watcher --for=condition=Ready --timeout=300s
+      echo "Waiting for KeystoneApplicationCredential ac-watcher-test to be Ready..."
+      oc wait -n "${NS}" appcred/ac-watcher-test --for=condition=Ready --timeout=300s
 
-      ac_id=$(oc get -n "${NS}" appcred/ac-watcher -o jsonpath='{.status.acID}')
+      ac_id=$(oc get -n "${NS}" appcred/ac-watcher-test -o jsonpath='{.status.acID}')
       if [ -z "${ac_id}" ]; then
         echo "ERROR: appcred/ac-watcher.status.acID is empty"
         exit 1
       fi
       echo "ac-watcher.status.acID=${ac_id}"
 
-      oc get -n "${NS}" secret/ac-watcher-secret >/dev/null
-      secret_ac_id=$(oc get -n "${NS}" secret/ac-watcher-secret -o jsonpath='{.data.AC_ID}' | base64 -d)
+      oc get -n "${NS}" secret/ac-watcher-test-secret >/dev/null
+      secret_ac_id=$(oc get -n "${NS}" secret/ac-watcher-test-secret -o jsonpath='{.data.AC_ID}' | base64 -d)
       if [ "${secret_ac_id}" != "${ac_id}" ]; then
         echo "ERROR: Secret AC_ID (${secret_ac_id}) != appcred.status.acID (${ac_id})"
         exit 1
