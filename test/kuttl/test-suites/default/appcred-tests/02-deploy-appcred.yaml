@@ -18,7 +18,7 @@ commands:
       apiVersion: keystone.openstack.org/v1beta1
       kind: KeystoneApplicationCredential
       metadata:
-        name: ac-watcher
+        name: ac-watcher-test
       spec:
         secret: osp-secret
         passwordSelector: WatcherPassword
@@ -29,4 +29,4 @@ commands:
         unrestricted: false
       EOF
 
-      oc patch watcher watcher-kuttl -n "${NS}" --type=merge -p '{"spec":{"auth":{"applicationCredentialSecret":"ac-watcher-secret"}}}'
+      oc patch watcher watcher-kuttl -n "${NS}" --type=merge -p '{"spec":{"auth":{"applicationCredentialSecret":"ac-watcher-test-secret"}}}'
