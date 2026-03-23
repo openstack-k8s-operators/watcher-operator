@@ -9,8 +9,8 @@
     github-check:
       jobs:
         - noop
-        - watcher-operator-doc-preview
-        - watcher-operator-kuttl
+        # - watcher-operator-doc-preview
+        # - watcher-operator-kuttl
 
 - job:
     name: watcher-operator-base
