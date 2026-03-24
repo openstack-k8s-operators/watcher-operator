@@ -217,6 +217,8 @@ region_name = regionOne`, `
 [placement_client]
 interface = internal
 region_name = regionOne`, `
+[watcher_workflow_engines.taskflow]
+max_workers = 8`, `
 [oslo_messaging_notifications]
 
 driver = noop`,
@@ -778,6 +780,8 @@ region_name = regionTwo`, `
 [placement_client]
 interface = internal
 region_name = regionTwo`, `
+[watcher_workflow_engines.taskflow]
+max_workers = 8`, `
 [oslo_messaging_notifications]
 
 driver = messagingv2
