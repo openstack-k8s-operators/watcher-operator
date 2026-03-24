@@ -227,6 +227,8 @@ region_name = regionOne`, `
 [placement_client]
 interface = internal
 region_name = regionOne`, `
+[watcher_workflow_engines.taskflow]
+max_workers = 8`, `
 [watcher_cluster_data_model_collectors.compute]
 period = 900`, `
 [watcher_cluster_data_model_collectors.baremetal]
@@ -747,6 +749,8 @@ region_name = regionTwo`, `
 [placement_client]
 interface = internal
 region_name = regionTwo`, `
+[watcher_workflow_engines.taskflow]
+max_workers = 8`, `
 [watcher_cluster_data_model_collectors.compute]
 period = 900`, `
 [watcher_cluster_data_model_collectors.baremetal]
