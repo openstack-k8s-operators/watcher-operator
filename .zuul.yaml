@@ -14,7 +14,7 @@
 
 - job:
     name: watcher-operator-base
-    nodeset: centos-9-medium-2x-centos-9-crc-cloud-ocp-4-18-1-3xl-vexxhost
+    nodeset: centos-9-medium-2x-centos-9-crc-cloud-ocp-4-18-1-3xl
     parent: podified-multinode-edpm-deployment-crc-2comp
     description: |
       A multinode EDPM Zuul job which has one ansible controller, one
