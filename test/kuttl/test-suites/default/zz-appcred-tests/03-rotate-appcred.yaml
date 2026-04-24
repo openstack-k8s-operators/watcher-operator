@@ -19,3 +19,23 @@ commands:
 
       oc patch -n "${NS}" keystoneapplicationcredential ac-watcher-test --type=merge --subresource=status \
         -p '{"status":{"expiresAt":"2001-05-19T00:00:00Z"}}'
+
+      echo "Waiting for AC to rotate (new acID)..."
+      for _ in $(seq 1 60); do
+        ac_id=$(oc get -n "${NS}" appcred/ac-watcher-test -o jsonpath='{.status.acID}')
+        if [ -n "${ac_id}" ] && [ "${ac_id}" != "${old_acid}" ]; then
+          break
+        fi
+        sleep 5
+      done
+      ac_id=$(oc get -n "${NS}" appcred/ac-watcher-test -o jsonpath='{.status.acID}')
+      if [ -z "${ac_id}" ] || [ "${ac_id}" = "${old_acid}" ]; then
+        echo "ERROR: ACID did not change after forcing rotation"
+        exit 1
+      fi
+
+      new_secret_name=$(oc get -n "${NS}" appcred/ac-watcher-test -o jsonpath='{.status.secretName}')
+      echo "New AC secret after rotation: ${new_secret_name}"
+
+      oc patch watcher watcher-kuttl -n "${NS}" --type=merge \
+        -p "{\"spec\":{\"auth\":{\"applicationCredentialSecret\":\"${new_secret_name}\"}}}"

@@ -408,6 +408,24 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		}
 	}
 
+	// Add consumer finalizer to the new AC secret early, before deployment.
+	// The old secret's finalizer is removed later (after all services deploy)
+	// so that rapid rotations don't revoke a credential still in use by pods.
+	if instance.Spec.Auth.ApplicationCredentialSecret != "" {
+		if err := keystonev1.ManageACSecretFinalizer(ctx, helper, instance.Namespace,
+			instance.Spec.Auth.ApplicationCredentialSecret,
+			"",
+			watcher.ACConsumerFinalizer); err != nil {
+			instance.Status.Conditions.Set(condition.FalseCondition(
+				condition.InputReadyCondition,
+				condition.ErrorReason,
+				condition.SeverityWarning,
+				condition.InputReadyErrorMessage,
+				err.Error()))
+			return ctrl.Result{}, err
+		}
+	}
+
 	// Prometheus config secret
 
 	hashPrometheus, _, prometheusSecret, err := ensureSecret(
@@ -522,6 +540,27 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		return ctrl.Result{}, err
 	}
 	// End of Watcher Applier deploy
+
+	// Manage the old AC secret's finalizer and status tracking.
+	// On rotation (old != new), only remove the old secret's finalizer after
+	// all sub-services are ready with the new credentials. This prevents
+	// premature revocation during rapid rotations.
+	isRotation := instance.Status.ApplicationCredentialSecret != "" && instance.Status.ApplicationCredentialSecret != instance.Spec.Auth.ApplicationCredentialSecret
+
+	if isRotation {
+		allServicesReady := instance.Status.Conditions.IsTrue(watcherv1beta1.WatcherAPIReadyCondition) &&
+			instance.Status.Conditions.IsTrue(watcherv1beta1.WatcherApplierReadyCondition) &&
+			instance.Status.Conditions.IsTrue(watcherv1beta1.WatcherDecisionEngineReadyCondition)
+		if allServicesReady {
+			if err := keystonev1.RemoveACSecretConsumerFinalizer(ctx, helper, instance.Namespace,
+				instance.Status.ApplicationCredentialSecret, watcher.ACConsumerFinalizer); err != nil {
+				return ctrl.Result{}, err
+			}
+			instance.Status.ApplicationCredentialSecret = instance.Spec.Auth.ApplicationCredentialSecret
+		}
+	} else if instance.Status.ApplicationCredentialSecret != instance.Spec.Auth.ApplicationCredentialSecret {
+		instance.Status.ApplicationCredentialSecret = instance.Spec.Auth.ApplicationCredentialSecret
+	}
 
 	//
 	// remove finalizers from unused MariaDBAccount records
@@ -1346,6 +1385,17 @@ func (r *WatcherReconciler) reconcileDelete(ctx context.Context, instance *watch
 		}
 	}
 	//
+
+	// Remove consumer finalizer from AC secrets watcher was consuming.
+	for _, secretName := range []string{
+		instance.Status.ApplicationCredentialSecret,
+		instance.Spec.Auth.ApplicationCredentialSecret,
+	} {
+		if err := keystonev1.RemoveACSecretConsumerFinalizer(ctx, helper, instance.Namespace,
+			secretName, watcher.ACConsumerFinalizer); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
 
 	controllerutil.RemoveFinalizer(instance, helper.GetFinalizer())
 	Log.Info(fmt.Sprintf("Reconciled Service '%s' delete successfully", instance.Name))

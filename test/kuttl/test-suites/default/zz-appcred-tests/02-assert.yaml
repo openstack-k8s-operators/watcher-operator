@@ -11,13 +11,20 @@ commands:
 
       ac_id=$(oc get -n "${NS}" appcred/ac-watcher-test -o jsonpath='{.status.acID}')
       if [ -z "${ac_id}" ]; then
-        echo "ERROR: appcred/ac-watcher.status.acID is empty"
+        echo "ERROR: appcred/ac-watcher-test.status.acID is empty"
         exit 1
       fi
-      echo "ac-watcher.status.acID=${ac_id}"
+      echo "ac-watcher-test.status.acID=${ac_id}"
 
-      oc get -n "${NS}" secret/ac-watcher-test-secret >/dev/null
-      secret_ac_id=$(oc get -n "${NS}" secret/ac-watcher-test-secret -o jsonpath='{.data.AC_ID}' | base64 -d)
+      ac_secret_name=$(oc get -n "${NS}" appcred/ac-watcher-test -o jsonpath='{.status.secretName}')
+      if [ -z "${ac_secret_name}" ]; then
+        echo "ERROR: appcred/ac-watcher-test.status.secretName is empty"
+        exit 1
+      fi
+      echo "AC secret name: ${ac_secret_name}"
+
+      oc get -n "${NS}" "secret/${ac_secret_name}" >/dev/null
+      secret_ac_id=$(oc get -n "${NS}" "secret/${ac_secret_name}" -o jsonpath='{.data.AC_ID}' | base64 -d)
       if [ "${secret_ac_id}" != "${ac_id}" ]; then
         echo "ERROR: Secret AC_ID (${secret_ac_id}) != appcred.status.acID (${ac_id})"
         exit 1
@@ -45,6 +52,23 @@ commands:
         exit 1
       fi
       echo "✓ watcher pods restarted after appcred secret became available"
+
+      echo "Checking consumer finalizer on AC secret..."
+      finalizers=$(oc get -n "${NS}" "secret/${ac_secret_name}" -o jsonpath='{.metadata.finalizers}')
+      if [[ "${finalizers}" != *"openstack.org/watcher-ac-consumer"* ]]; then
+        echo "ERROR: AC secret missing watcher consumer finalizer"
+        echo "  finalizers: ${finalizers}"
+        exit 1
+      fi
+      echo "✓ AC secret has openstack.org/watcher-ac-consumer finalizer"
+
+      echo "Checking watcher status tracks the consumed AC secret..."
+      status_ac=$(oc get -n "${NS}" watcher/watcher-kuttl -o jsonpath='{.status.applicationCredentialSecret}')
+      if [ "${status_ac}" != "${ac_secret_name}" ]; then
+        echo "ERROR: watcher.status.applicationCredentialSecret expected ${ac_secret_name}, got ${status_ac}"
+        exit 1
+      fi
+      echo "✓ watcher.status.applicationCredentialSecret = ${status_ac}"
 
       echo "Checking watcher config contains application_credential_id..."
       oc exec -n "${NS}" pod/watcher-kuttl-api-0 -c watcher-api -- \

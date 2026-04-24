@@ -5,10 +5,6 @@ delete:
     kind: KeystoneApplicationCredential
     name: ac-watcher-test
     namespace: watcher-kuttl-default
-  - apiVersion: v1
-    kind: Secret
-    name: ac-watcher-test-secret
-    namespace: watcher-kuttl-default
   - apiVersion: watcher.openstack.org/v1beta1
     kind: Watcher
     name: watcher-kuttl

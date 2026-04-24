@@ -50,4 +50,7 @@ const (
 
 	// scriptVolume is the name of the volume used to ship scripts into pods
 	scriptVolume = "scripts-volume"
+
+	// ACConsumerFinalizer is added to AC secrets that watcher is actively consuming
+	ACConsumerFinalizer = "openstack.org/watcher-ac-consumer"
 )

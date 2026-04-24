@@ -1,0 +1,29 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+  - script: |-
+      set -euo pipefail
+      NS="${NAMESPACE}"
+
+      ac_secret_name=$(oc get -n "${NS}" appcred/ac-watcher-test -o jsonpath='{.status.secretName}')
+      echo "Current AC secret: ${ac_secret_name}"
+
+      echo "Deleting Watcher CR..."
+      oc delete -n "${NS}" watcher watcher-kuttl --timeout=300s
+
+      echo "Verifying consumer finalizer was removed from AC secret..."
+      for _ in $(seq 1 30); do
+        finalizers=$(oc get -n "${NS}" "secret/${ac_secret_name}" -o jsonpath='{.metadata.finalizers}' 2>/dev/null || true)
+        if [[ "${finalizers}" != *"openstack.org/watcher-ac-consumer"* ]]; then
+          break
+        fi
+        sleep 2
+      done
+
+      finalizers=$(oc get -n "${NS}" "secret/${ac_secret_name}" -o jsonpath='{.metadata.finalizers}' 2>/dev/null || true)
+      if [[ "${finalizers}" == *"openstack.org/watcher-ac-consumer"* ]]; then
+        echo "ERROR: consumer finalizer still present on AC secret after Watcher deletion"
+        echo "  finalizers: ${finalizers}"
+        exit 1
+      fi
+      echo "✓ consumer finalizer removed from AC secret after Watcher deletion"
