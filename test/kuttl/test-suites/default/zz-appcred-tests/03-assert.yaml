@@ -12,7 +12,7 @@ commands:
         exit 1
       fi
 
-      echo "Waiting for ac-watcher.status.acID to change..."
+      echo "Waiting for ac-watcher-test.status.acID to change..."
       for _ in $(seq 1 60); do
         ac_id=$(oc get -n "${NS}" appcred/ac-watcher-test -o jsonpath='{.status.acID}')
         if [ -n "${ac_id}" ] && [ "${ac_id}" != "${prev_acid}" ]; then
@@ -29,7 +29,18 @@ commands:
       fi
       echo "✓ ACID rotated: ${prev_acid} -> ${ac_id}"
 
-      secret_ac_id=$(oc get -n "${NS}" secret/ac-watcher-test-secret -o jsonpath='{.data.AC_ID}' | base64 -d)
+      ac_secret_name=$(oc get -n "${NS}" appcred/ac-watcher-test -o jsonpath='{.status.secretName}')
+      if [ -z "${ac_secret_name}" ]; then
+        echo "ERROR: appcred/ac-watcher-test.status.secretName is empty after rotation"
+        exit 1
+      fi
+      echo "AC secret after rotation: ${ac_secret_name}"
+
+      # Patch the service CR with the new secret name
+      oc patch watcher watcher-kuttl -n "${NS}" --type=merge \
+        -p "{\"spec\":{\"auth\":{\"applicationCredentialSecret\":\"${ac_secret_name}\"}}}"
+
+      secret_ac_id=$(oc get -n "${NS}" "secret/${ac_secret_name}" -o jsonpath='{.data.AC_ID}' | base64 -d)
       if [ "${secret_ac_id}" != "${ac_id}" ]; then
         echo "ERROR: Secret AC_ID (${secret_ac_id}) != rotated appcred.status.acID (${ac_id})"
         exit 1
@@ -57,6 +68,15 @@ commands:
         exit 1
       fi
       echo "✓ watcher pods restarted after rotation"
+
+      echo "Checking consumer finalizer present on current AC secret after rotation..."
+      finalizers=$(oc get -n "${NS}" "secret/${ac_secret_name}" -o jsonpath='{.metadata.finalizers}')
+      if [[ "${finalizers}" != *"openstack.org/watcher-ac-consumer"* ]]; then
+        echo "ERROR: AC secret lost watcher consumer finalizer after rotation"
+        echo "  finalizers: ${finalizers}"
+        exit 1
+      fi
+      echo "✓ AC secret has openstack.org/watcher-ac-consumer finalizer after rotation"
 
       echo "Checking watcher config contains rotated application_credential_id..."
       oc exec -n "${NS}" pod/watcher-kuttl-api-0 -c watcher-api -- \

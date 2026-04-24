@@ -61,6 +61,12 @@ type WatcherStatus struct {
 
 	// DecisionEngineServiceReadyCount defines the number or replicas ready from watcher-decision-engine
 	DecisionEngineServiceReadyCount int32 `json:"decisionengineServiceReadyCount,omitempty"`
+
+	// ApplicationCredentialSecret - the AC secret watcher is currently
+	// consuming and protecting with the openstack.org/watcher-ac-consumer
+	// finalizer. Tracked so the controller can remove its finalizer from the
+	// old secret when the openstack-operator rotates the reference.
+	ApplicationCredentialSecret string `json:"applicationCredentialSecret,omitempty"`
 }
 
 // WatcherDBPurge defines the parameters for the Watcher database purging cron job

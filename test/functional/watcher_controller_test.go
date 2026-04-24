@@ -17,6 +17,7 @@ import (
 	. "github.com/openstack-k8s-operators/lib-common/modules/common/test/helpers"
 	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
+	"github.com/openstack-k8s-operators/watcher-operator/internal/watcher"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -1855,6 +1856,206 @@ var _ = Describe("Watcher controller", func() {
 
 			watcherDecisionEngine := GetWatcherDecisionEngine(watcherTest.WatcherDecisionEngine)
 			Expect(watcherDecisionEngine.Spec.Secret).To(Equal("watcher"))
+		})
+	})
+
+	When("ApplicationCredential consumer finalizer is managed", func() {
+		var acSecretName string
+
+		BeforeEach(func() {
+			acSecretName = "ac-watcher-consumer-fnz-secret" //nolint:gosec
+
+			acSecret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      acSecretName,
+					Namespace: watcherTest.Instance.Namespace,
+				},
+				Data: map[string][]byte{
+					keystonev1beta1.ACIDSecretKey:     []byte("consumer-test-ac-id"),
+					keystonev1beta1.ACSecretSecretKey: []byte("consumer-test-ac-secret"), //nolint:gosec
+				},
+			}
+			Expect(k8sClient.Create(ctx, acSecret)).To(Succeed())
+			DeferCleanup(k8sClient.Delete, ctx, acSecret)
+
+			DeferCleanup(k8sClient.Delete, ctx, CreateWatcherMessageBusSecret(watcherTest.Instance.Namespace, "rabbitmq-secret"))
+
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{
+					Replicas: ptr.To(int32(1)),
+				},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.Watcher.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
+
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: "metric-storage-prometheus-endpoint"},
+					map[string][]byte{
+						"host": []byte("prometheus.example.com"),
+						"port": []byte("9090"),
+					},
+				))
+
+			DeferCleanup(
+				k8sClient.Delete, ctx, th.CreateSecret(
+					types.NamespacedName{Namespace: watcherTest.Instance.Namespace, Name: SecretName},
+					map[string][]byte{
+						"WatcherPassword": []byte("password"),
+					},
+				))
+
+			// Create Watcher CR after all secrets and dependencies are in place
+			// so sub-CR controllers don't enter long exponential backoff.
+			spec := GetDefaultWatcherSpec()
+			spec["auth"] = map[string]any{"applicationCredentialSecret": acSecretName}
+			DeferCleanup(th.DeleteInstance, CreateWatcher(watcherTest.Instance, spec))
+
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.Instance.Namespace,
+					*GetWatcher(watcherTest.Instance).Spec.DatabaseInstance,
+					corev1.ServiceSpec{
+						Ports: []corev1.ServicePort{{Port: 3306}},
+					},
+				),
+			)
+
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+			infra.SimulateTransportURLReady(watcherTest.WatcherTransportURL)
+
+			keystone.SimulateKeystoneServiceReady(watcherTest.KeystoneServiceName)
+			th.SimulateJobSuccess(watcherTest.WatcherDBSync)
+		})
+
+		It("should add the consumer finalizer to the AC secret", func() {
+			Eventually(func(g Gomega) {
+				secret := th.GetSecret(types.NamespacedName{
+					Namespace: watcherTest.Instance.Namespace,
+					Name:      acSecretName,
+				})
+				g.Expect(secret.Finalizers).To(
+					ContainElement(watcher.ACConsumerFinalizer))
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("should track the consumed AC secret in status", func() {
+			Eventually(func(g Gomega) {
+				w := GetWatcher(watcherTest.Instance)
+				g.Expect(w.Status.ApplicationCredentialSecret).To(Equal(acSecretName))
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("should move the finalizer from the old to the new secret on rotation", func() {
+			Eventually(func(g Gomega) {
+				secret := th.GetSecret(types.NamespacedName{
+					Namespace: watcherTest.Instance.Namespace,
+					Name:      acSecretName,
+				})
+				g.Expect(secret.Finalizers).To(
+					ContainElement(watcher.ACConsumerFinalizer))
+			}, timeout, interval).Should(Succeed())
+
+			// Simulate all watcher services deploying successfully
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
+			keystone.SimulateKeystoneEndpointReady(watcherTest.WatcherKeystoneEndpointName)
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherApplierStatefulSet)
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherDecisionEngineStatefulSet)
+
+			Eventually(func(g Gomega) {
+				w := GetWatcher(watcherTest.Instance)
+				g.Expect(w.Status.ApplicationCredentialSecret).To(Equal(acSecretName))
+			}, timeout, interval).Should(Succeed())
+
+			th.ExpectCondition(
+				watcherTest.Instance,
+				ConditionGetterFunc(WatcherConditionGetter),
+				condition.ReadyCondition,
+				corev1.ConditionTrue,
+			)
+
+			newACSecretName := "ac-watcher-consumer-rotated-secret" //nolint:gosec
+			newSecret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: watcherTest.Instance.Namespace,
+					Name:      newACSecretName,
+				},
+				Data: map[string][]byte{
+					keystonev1beta1.ACIDSecretKey:     []byte("rotated-ac-id"),
+					keystonev1beta1.ACSecretSecretKey: []byte("rotated-ac-secret-value"), //nolint:gosec
+				},
+			}
+			DeferCleanup(k8sClient.Delete, ctx, newSecret)
+			Expect(k8sClient.Create(ctx, newSecret)).To(Succeed())
+
+			Eventually(func(g Gomega) {
+				w := GetWatcher(watcherTest.Instance)
+				w.Spec.Auth.ApplicationCredentialSecret = newACSecretName
+				g.Expect(k8sClient.Update(ctx, w)).Should(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			// New secret gets the consumer finalizer immediately (early in reconcile)
+			Eventually(func(g Gomega) {
+				secret := th.GetSecret(types.NamespacedName{
+					Namespace: watcherTest.Instance.Namespace,
+					Name:      newACSecretName,
+				})
+				g.Expect(secret.Finalizers).To(
+					ContainElement(watcher.ACConsumerFinalizer))
+			}, timeout, interval).Should(Succeed())
+
+			// Old secret keeps the finalizer until all services deploy (split pattern)
+			secret := th.GetSecret(types.NamespacedName{
+				Namespace: watcherTest.Instance.Namespace,
+				Name:      acSecretName,
+			})
+			Expect(secret.Finalizers).To(
+				ContainElement(watcher.ACConsumerFinalizer))
+
+			// Simulate all watcher services deploying successfully
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
+			keystone.SimulateKeystoneEndpointReady(watcherTest.WatcherKeystoneEndpointName)
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherApplierStatefulSet)
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherDecisionEngineStatefulSet)
+
+			// Now the old secret's finalizer is removed and status updated
+			Eventually(func(g Gomega) {
+				secret := th.GetSecret(types.NamespacedName{
+					Namespace: watcherTest.Instance.Namespace,
+					Name:      acSecretName,
+				})
+				g.Expect(secret.Finalizers).NotTo(
+					ContainElement(watcher.ACConsumerFinalizer))
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				w := GetWatcher(watcherTest.Instance)
+				g.Expect(w.Status.ApplicationCredentialSecret).To(Equal(newACSecretName))
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("should remove the consumer finalizer from AC secret on CR deletion", func() {
+			Eventually(func(g Gomega) {
+				secret := th.GetSecret(types.NamespacedName{
+					Namespace: watcherTest.Instance.Namespace,
+					Name:      acSecretName,
+				})
+				g.Expect(secret.Finalizers).To(
+					ContainElement(watcher.ACConsumerFinalizer))
+			}, timeout, interval).Should(Succeed())
+
+			th.DeleteInstance(GetWatcher(watcherTest.Instance))
+
+			secret := th.GetSecret(types.NamespacedName{
+				Namespace: watcherTest.Instance.Namespace,
+				Name:      acSecretName,
+			})
+			Expect(secret.Finalizers).NotTo(
+				ContainElement(watcher.ACConsumerFinalizer))
 		})
 	})
 
