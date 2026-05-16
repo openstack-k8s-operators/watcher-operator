@@ -458,7 +458,7 @@ func (r *WatcherApplierReconciler) generateServiceConfigs(
 		templateParameters["MemcachedAuthCa"] = fmt.Sprint(memcachedv1.CaMountPath())
 	}
 
-	return GenerateConfigsGeneric(ctx, helper, instance, envVars, templateParameters, customData, labels, false)
+	return GenerateConfigsGeneric(ctx, helper, instance, envVars, templateParameters, customData, labels, false, []string{})
 }
 
 // SetupWithManager sets up the controller with the Manager.

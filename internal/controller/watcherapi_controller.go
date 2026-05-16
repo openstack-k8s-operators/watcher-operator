@@ -513,7 +513,7 @@ func (r *WatcherAPIReconciler) generateServiceConfigs(
 	}
 	templateParameters["VHosts"] = httpdVhostConfig
 
-	return GenerateConfigsGeneric(ctx, helper, instance, envVars, templateParameters, customData, labels, false)
+	return GenerateConfigsGeneric(ctx, helper, instance, envVars, templateParameters, customData, labels, false, []string{"ssl.conf"})
 }
 
 func (r *WatcherAPIReconciler) ensureDeployment(
