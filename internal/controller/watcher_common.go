@@ -309,6 +309,7 @@ func GenerateConfigsGeneric(
 	customData map[string]string,
 	cmLabels map[string]string,
 	scripts bool,
+	commonTemplates []string,
 ) error {
 
 	extraTemplates := map[string]string{
@@ -327,6 +328,7 @@ func GenerateConfigsGeneric(
 			CustomData:         customData,
 			Labels:             cmLabels,
 			AdditionalTemplate: extraTemplates,
+			CommonTemplates:    commonTemplates,
 		},
 	}
 	if scripts {
