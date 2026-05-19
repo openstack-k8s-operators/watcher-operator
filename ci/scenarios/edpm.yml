@@ -160,6 +160,17 @@ cifmw_edpm_prepare_kustomizations:
         target:
           kind: OpenStackControlPlane
 
+      - patch: |-
+          apiVersion: core.openstack.org/v1beta1
+          kind: OpenStackControlPlane
+          metadata:
+            name: controlplane
+          spec:
+            barbican:
+              enabled: false
+        target:
+          kind: OpenStackControlPlane
+
 cifmw_edpm_prepare_timeout: 60
 
 cifmw_install_yamls_whitelisted_vars:
