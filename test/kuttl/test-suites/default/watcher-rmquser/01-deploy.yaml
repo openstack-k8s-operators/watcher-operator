@@ -15,5 +15,5 @@ spec:
     vhost: watcher-rpc
   notificationsBus:
     cluster: rabbitmq-notifications
-    user: watcher-notifications
-    vhost: watcher-notifications
+    user: watcher-notif
+    vhost: watcher-notif

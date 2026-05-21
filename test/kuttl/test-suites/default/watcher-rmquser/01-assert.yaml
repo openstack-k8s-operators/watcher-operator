@@ -14,8 +14,8 @@ metadata:
   name: watcher-kuttl-watcher-notification-rabbitmq-notifications
 spec:
   rabbitmqClusterName: rabbitmq-notifications
-  username: watcher-notifications
-  vhost: watcher-notifications
+  username: watcher-notif
+  vhost: watcher-notif
 ---
 # Verify that 2 TransportURL CRs were created (separate clusters)
 apiVersion: kuttl.dev/v1beta1
@@ -63,15 +63,15 @@ commands:
     # Verify notification-transport has correct user and vhost
     notif_user=$(kubectl get transporturl watcher-kuttl-watcher-notification-rabbitmq-notifications -n $NAMESPACE -o jsonpath='{.spec.username}')
     notif_vhost=$(kubectl get transporturl watcher-kuttl-watcher-notification-rabbitmq-notifications -n $NAMESPACE -o jsonpath='{.spec.vhost}')
-    if [ "$notif_user" != "watcher-notifications" ]; then
-      echo "Expected notification-transport username 'watcher-notifications', found '$notif_user'"
+    if [ "$notif_user" != "watcher-notif" ]; then
+      echo "Expected notification-transport username 'watcher-notif', found '$notif_user'"
       exit 1
     fi
-    if [ "$notif_vhost" != "watcher-notifications" ]; then
-      echo "Expected notification-transport vhost 'watcher-notifications', found '$notif_vhost'"
+    if [ "$notif_vhost" != "watcher-notif" ]; then
+      echo "Expected notification-transport vhost 'watcher-notif', found '$notif_vhost'"
       exit 1
     fi
-    echo "Notification transport has correct user (watcher-notifications) and vhost (watcher-notifications)"
+    echo "Notification transport has correct user (watcher-notif) and vhost (watcher-notif)"
 
     # Verify that watcher.conf contains the notifications transport_url
     WATCHER_API_POD=$(kubectl get pods -n $NAMESPACE -l "service=watcher-api" -o custom-columns=:metadata.name --no-headers | grep -v ^$ | head -1)
@@ -109,18 +109,18 @@ commands:
     fi
     echo "Found notifications transport_url: $notif_transport_url"
 
-    # Verify the notifications transport_url contains the correct vhost (watcher-notifications)
-    if ! echo "$notif_transport_url" | grep -q '/watcher-notifications'; then
-      echo "Notifications transport_url does not contain expected vhost '/watcher-notifications'"
+    # Verify the notifications transport_url contains the correct vhost (watcher-notif)
+    if ! echo "$notif_transport_url" | grep -q '/watcher-notif'; then
+      echo "Notifications transport_url does not contain expected vhost '/watcher-notif'"
       exit 1
     fi
-    echo "Successfully verified vhost 'watcher-notifications' in notifications transport_url"
+    echo "Successfully verified vhost 'watcher-notif' in notifications transport_url"
 
-    # Verify the notifications transport_url contains the correct username (watcher-notifications)
-    if ! echo "$notif_transport_url" | grep -q 'watcher-notifications:'; then
-      echo "Notifications transport_url does not contain expected username 'watcher-notifications:'"
+    # Verify the notifications transport_url contains the correct username (watcher-notif)
+    if ! echo "$notif_transport_url" | grep -q 'watcher-notif:'; then
+      echo "Notifications transport_url does not contain expected username 'watcher-notif:'"
       exit 1
     fi
-    echo "Successfully verified username 'watcher-notifications' in notifications transport_url"
+    echo "Successfully verified username 'watcher-notif' in notifications transport_url"
 
     exit 0
