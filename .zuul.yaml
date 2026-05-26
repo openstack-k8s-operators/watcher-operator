@@ -5,7 +5,6 @@
     merge-mode: rebase
     templates:
       - opendev-master-watcher-operator-pipeline
-      - opendev-epoxy-watcher-operator-pipeline
     github-check:
       jobs:
         - noop
