@@ -109,7 +109,7 @@ func GetNonDefaultWatcherSpec() map[string]any {
 			"replicas":            2,
 			"nodeSelector":        map[string]string{"foo": "bar"},
 			"customServiceConfig": "# Service config",
-			"tls": map[string]any{
+			"tls": map[string]any{ //nolint:gosec
 				"caBundleSecretName": "combined-ca-bundle",
 			},
 		},
@@ -140,13 +140,13 @@ func GetTLSeWatcherSpec() map[string]any {
 		"secret":           SecretName,
 		"databaseInstance": "openstack",
 		"apiServiceTemplate": map[string]any{
-			"tls": map[string]any{
+			"tls": map[string]any{ //nolint:gosec
 				"caBundleSecretName": "combined-ca-bundle",
 				"api": map[string]any{
-					"internal": map[string]string{
+					"internal": map[string]string{ //nolint:gosec
 						"secretName": "cert-watcher-internal-svc",
 					},
-					"public": map[string]string{
+					"public": map[string]string{ //nolint:gosec
 						"secretName": "cert-watcher-public-svc",
 					},
 				},
@@ -160,7 +160,7 @@ func GetTLSIngressWatcherSpec() map[string]any {
 		"secret":           SecretName,
 		"databaseInstance": "openstack",
 		"apiServiceTemplate": map[string]any{
-			"tls": map[string]any{
+			"tls": map[string]any{ //nolint:gosec
 				"caBundleSecretName": "combined-ca-bundle",
 			},
 		},
@@ -172,13 +172,13 @@ func GetTLSPodLevelWatcherSpec() map[string]any {
 		"secret":           SecretName,
 		"databaseInstance": "openstack",
 		"apiServiceTemplate": map[string]any{
-			"tls": map[string]any{
+			"tls": map[string]any{ //nolint:gosec
 				"caBundleSecretName": "combined-ca-bundle",
 				"api": map[string]any{
-					"internal": map[string]string{
+					"internal": map[string]string{ //nolint:gosec
 						"secretName": "cert-watcher-internal-svc",
 					},
-					"public": map[string]string{
+					"public": map[string]string{ //nolint:gosec
 						"secretName": "cert-watcher-public-svc",
 					},
 				},
@@ -202,13 +202,13 @@ func GetTLSWatcherAPISpec() map[string]any {
 		"databaseInstance": "openstack",
 		"secret":           SecretName,
 		"containerImage":   "test://watcher",
-		"tls": map[string]any{
+		"tls": map[string]any{ //nolint:gosec
 			"caBundleSecretName": "combined-ca-bundle",
 			"api": map[string]any{
-				"internal": map[string]string{
+				"internal": map[string]string{ //nolint:gosec
 					"secretName": "cert-watcher-internal-svc",
 				},
-				"public": map[string]string{
+				"public": map[string]string{ //nolint:gosec
 					"secretName": "cert-watcher-public-svc",
 				},
 			},
@@ -221,7 +221,7 @@ func GetTLSCaWatcherAPISpec() map[string]any {
 		"databaseInstance": "openstack",
 		"secret":           SecretName,
 		"containerImage":   "test://watcher",
-		"tls": map[string]any{
+		"tls": map[string]any{ //nolint:gosec
 			"caBundleSecretName": "combined-ca-bundle",
 		},
 	}
