@@ -21,7 +21,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
@@ -29,8 +28,6 @@ import (
 var watcherapilog = logf.Log.WithName("watcherapi-resource")
 
 // TODO(user): EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-
-var _ webhook.Defaulter = &WatcherAPI{}
 
 // Default implements webhook.Defaulter so a webhook will be registered for the type
 func (r *WatcherAPI) Default() {
@@ -40,8 +37,6 @@ func (r *WatcherAPI) Default() {
 }
 
 // TODO(user): change verbs to "verbs=create;update;delete" if you want to enable deletion validation.
-
-var _ webhook.Validator = &WatcherAPI{}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
 func (r *WatcherAPI) ValidateCreate() (admission.Warnings, error) {

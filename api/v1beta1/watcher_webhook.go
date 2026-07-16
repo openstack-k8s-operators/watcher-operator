@@ -27,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
@@ -48,8 +47,6 @@ func SetupWatcherDefaults(defaults WatcherDefaults) {
 	watcherDefaults = defaults
 	watcherlog.Info("Watcher defaults initialized", "defaults", defaults)
 }
-
-var _ webhook.Defaulter = &Watcher{}
 
 // Default implements webhook.Defaulter so a webhook will be registered for the type
 func (r *Watcher) Default() {
@@ -107,8 +104,6 @@ func (spec *WatcherSpecCore) getDeprecatedFields(old *WatcherSpecCore) []common_
 
 	return deprecatedFields
 }
-
-var _ webhook.Validator = &Watcher{}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
 func (r *Watcher) ValidateCreate() (admission.Warnings, error) {
