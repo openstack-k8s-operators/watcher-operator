@@ -1,6 +1,8 @@
 package watcher
 
 import (
+	"k8s.io/utils/ptr"
+
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
 
 	"github.com/openstack-k8s-operators/lib-common/modules/common/env"
@@ -11,7 +13,7 @@ import (
 
 const (
 	// DBSyncCommand -
-	DBSyncCommand = "/usr/local/bin/kolla_set_configs && /usr/local/bin/kolla_start"
+	DBSyncCommand = "/usr/local/bin/kolla_start"
 )
 
 // DbSyncJob func
@@ -64,7 +66,6 @@ func DbSyncJob(instance *watcherv1beta1.Watcher, labels map[string]string, annot
 
 	args := []string{"-c", DBSyncCommand}
 
-	runAsUser := int64(0)
 	envVars := map[string]env.Setter{}
 	envVars["KOLLA_CONFIG_STRATEGY"] = env.SetValue("COPY_ALWAYS")
 	envVars["KOLLA_BOOTSTRAP"] = env.SetValue("TRUE")
@@ -92,7 +93,7 @@ func DbSyncJob(instance *watcherv1beta1.Watcher, labels map[string]string, annot
 							Args:  args,
 							Image: instance.Spec.APIContainerImageURL,
 							SecurityContext: &corev1.SecurityContext{
-								RunAsUser: &runAsUser,
+								RunAsUser: ptr.To(WatcherUserID),
 							},
 							Env: env.MergeEnvs([]corev1.EnvVar{}, envVars),
 							VolumeMounts: append(GetVolumeMounts(secretNames),
