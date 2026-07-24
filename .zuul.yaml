@@ -156,6 +156,12 @@
       cifmw_repo_setup_promotion: podified-ci-testing
       cifmw_build_containers_force: true
       cifmw_build_containers_image_tag: watcher_latest
+      cifmw_operator_build_operators:
+        - name: watcher-operator
+          src: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator"
+        - name: openstack-operator
+          src: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/openstack-operator"
+          image_base: watcher
 - job:
     name: watcher-operator-validation-epoxy
     parent: watcher-operator-validation-base
