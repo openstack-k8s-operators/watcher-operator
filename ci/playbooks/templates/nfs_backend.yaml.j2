@@ -29,8 +29,8 @@ spec:
           networkAttachments:
           - storage
           customServiceConfig: |
-            [nfs]
-            volume_backend_name=nfs
+            [nfs-2]
+            volume_backend_name=nfs-2
             volume_driver=cinder.volume.drivers.nfs.NfsDriver
             nfs_snapshot_support=true
             nas_secure_file_operations=false
