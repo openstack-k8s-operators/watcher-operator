@@ -245,12 +245,12 @@ transport_url =`
 			statefulset := th.GetStatefulSet(watcherTest.WatcherApplierStatefulSet)
 			Expect(statefulset.Spec.Template.Spec.ServiceAccountName).To(Equal("watcher-sa"))
 			Expect(int(*statefulset.Spec.Replicas)).To(Equal(1))
-			Expect(statefulset.Spec.Template.Spec.Volumes).To(HaveLen(3))
+			Expect(statefulset.Spec.Template.Spec.Volumes).To(HaveLen(2))
 			Expect(statefulset.Spec.Template.Spec.Containers).To(HaveLen(1))
 			Expect(statefulset.Spec.Selector.MatchLabels).To(Equal(map[string]string{"service": "watcher-applier"}))
 
 			container := statefulset.Spec.Template.Spec.Containers[0]
-			Expect(container.VolumeMounts).To(HaveLen(4))
+			Expect(container.VolumeMounts).To(HaveLen(5))
 			Expect(container.Image).To(Equal("test://watcher"))
 
 			probeCmd := []string{

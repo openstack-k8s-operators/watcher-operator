@@ -1,39 +1,58 @@
 package watcher
 
 import (
-	"strconv"
-
+	"github.com/openstack-k8s-operators/lib-common/modules/common/volume"
 	corev1 "k8s.io/api/core/v1"
 )
 
+var config0440AccessMode int32 = 0440
+
 // GetVolumes - service volumes
 func GetVolumes(name string, secretNames []string) []corev1.Volume {
-	var config0644AccessMode int32 = 0644
 
 	vm := []corev1.Volume{
 		{
 			Name: "config-data",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					DefaultMode: &config0644AccessMode,
+					DefaultMode: &config0440AccessMode,
 					SecretName:  name + "-config-data",
 				},
 			},
 		},
 	}
 
-	secretConfig, _ := GetConfigSecretVolumes(secretNames)
+	secretConfig, _ := volume.ConfigSecretVolumes(secretNames)
 	vm = append(vm, secretConfig...)
 	return vm
 }
 
-// GetVolumeMounts - general VolumeMounts
+// GetVolumeMounts - VolumeMounts shared by every consumer of the "config-data"
+// Secret (watcher-api/applier/decision-engine, plus db-sync/db-purge): the
+// always-present default+global-custom config.d snippets and the mariadb
+// client config, each mounted directly at its final destination via SubPath.
+// The merge/staging pattern kolla used ("/var/lib/config-data/default", then
+// kolla_start copying each file to its real path) is gone -- each file is
+// mounted directly at its final destination from the same "config-data"
+// Secret. "02-service-custom.conf" is deliberately NOT included here: it
+// only exists in the per-component secrets (watcherapi/applier/decision
+// -engine's own "generateServiceConfigs"), not in db-sync/db-purge's shared
+// parent-CR secret, so it's added by the individual callers that need it
+// instead of unconditionally here (a SubPath mount of a key the Secret
+// doesn't have fails the pod outright, unlike kolla's "optional": true).
 func GetVolumeMounts(secretNames []string) []corev1.VolumeMount {
 
 	vm := []corev1.VolumeMount{
 		{
 			Name:      "config-data",
-			MountPath: "/var/lib/config-data/default",
+			MountPath: "/etc/watcher/watcher.conf.d/00-default.conf",
+			SubPath:   DefaultsConfigFileName,
+			ReadOnly:  true,
+		},
+		{
+			Name:      "config-data",
+			MountPath: "/etc/watcher/watcher.conf.d/01-global-custom.conf",
+			SubPath:   GlobalCustomConfigFileName,
 			ReadOnly:  true,
 		},
 		{
@@ -44,92 +63,21 @@ func GetVolumeMounts(secretNames []string) []corev1.VolumeMount {
 		},
 	}
 
-	_, secretConfig := GetConfigSecretVolumes(secretNames)
+	_, secretConfig := volume.ConfigSecretVolumes(secretNames)
 	vm = append(vm, secretConfig...)
 	return vm
 }
 
-// GetConfigSecretVolumes - Returns a list of volumes associated with a list of Secret names
-func GetConfigSecretVolumes(secretNames []string) ([]corev1.Volume, []corev1.VolumeMount) {
-	var config0640AccessMode int32 = 0640
-	secretVolumes := []corev1.Volume{}
-	secretMounts := []corev1.VolumeMount{}
-
-	for idx, secretName := range secretNames {
-		secretVol := corev1.Volume{
-			Name: secretName,
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName:  secretName,
-					DefaultMode: &config0640AccessMode,
-				},
-			},
-		}
-		secretMount := corev1.VolumeMount{
-			Name: secretName,
-			// Each secret needs its own MountPath
-			MountPath: "/var/lib/config-data/secret-" + strconv.Itoa(idx),
-			ReadOnly:  true,
-		}
-		secretVolumes = append(secretVolumes, secretVol)
-		secretMounts = append(secretMounts, secretMount)
-	}
-
-	return secretVolumes, secretMounts
-}
-
-// GetLogVolumeMount - Returns the VolumeMount used for logging purposes
-func GetLogVolumeMount() []corev1.VolumeMount {
-	return []corev1.VolumeMount{
-		{
-			Name:      LogVolume,
-			MountPath: "/var/log/watcher",
-			ReadOnly:  false,
-		},
-	}
-}
-
-// GetLogVolume - Returns the Volume used for logging purposes
-func GetLogVolume() []corev1.Volume {
-	return []corev1.Volume{
-		{
-			Name: LogVolume,
-			VolumeSource: corev1.VolumeSource{
-				EmptyDir: &corev1.EmptyDirVolumeSource{Medium: ""},
-			},
-		},
-	}
-}
-
-// GetKollaConfigVolumeMount - Returns the VolumeMount for the kolla config file
-func GetKollaConfigVolumeMount(serviceName string) corev1.VolumeMount {
+// GetServiceCustomVolumeMount - the "02-service-custom.conf" SubPath mount,
+// used only by watcher-api/applier/decision-engine (each has its own
+// "generateServiceConfigs" populating this key in their own per-component
+// "config-data" Secret) -- not by db-sync/db-purge, whose shared parent-CR
+// secret never has this key.
+func GetServiceCustomVolumeMount() corev1.VolumeMount {
 	return corev1.VolumeMount{
-		Name:      ConfigVolume,
-		MountPath: "/var/lib/kolla/config_files/config.json",
-		SubPath:   serviceName + "-config.json",
+		Name:      "config-data",
+		MountPath: "/etc/watcher/watcher.conf.d/02-service-custom.conf",
+		SubPath:   ServiceCustomConfigFileName,
 		ReadOnly:  true,
-	}
-}
-
-// GetScriptVolumeMount returns the volume mount for scripts
-func GetScriptVolumeMount() corev1.VolumeMount {
-	return corev1.VolumeMount{
-		Name:      scriptVolume,
-		MountPath: "/var/lib/openstack/bin",
-		ReadOnly:  false,
-	}
-}
-
-// GetScriptVolume returns the volume for scripts using the specified secret
-func GetScriptVolume(secretName string) corev1.Volume {
-	var scriptMode int32 = 0740
-	return corev1.Volume{
-		Name: scriptVolume,
-		VolumeSource: corev1.VolumeSource{
-			Secret: &corev1.SecretVolumeSource{
-				DefaultMode: &scriptMode,
-				SecretName:  secretName,
-			},
-		},
 	}
 }

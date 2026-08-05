@@ -427,7 +427,7 @@ var _ = Describe("Watcher controller", func() {
 			deployment := th.GetStatefulSet(watcherTest.WatcherAPIStatefulSet)
 			Expect(deployment.Spec.Template.Spec.ServiceAccountName).To(Equal("watcher-watcher"))
 			Expect(int(*deployment.Spec.Replicas)).To(Equal(1))
-			Expect(deployment.Spec.Template.Spec.Volumes).To(HaveLen(3))
+			Expect(deployment.Spec.Template.Spec.Volumes).To(HaveLen(4))
 			Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(2))
 			Expect(deployment.Spec.Selector.MatchLabels).To(Equal(map[string]string{"service": "watcher-api"}))
 
@@ -444,7 +444,7 @@ var _ = Describe("Watcher controller", func() {
 			applierDeploy := th.GetStatefulSet(watcherTest.WatcherApplierStatefulSet)
 			Expect(applierDeploy.Spec.Template.Spec.ServiceAccountName).To(Equal("watcher-watcher"))
 			Expect(int(*applierDeploy.Spec.Replicas)).To(Equal(1))
-			Expect(applierDeploy.Spec.Template.Spec.Volumes).To(HaveLen(3))
+			Expect(applierDeploy.Spec.Template.Spec.Volumes).To(HaveLen(2))
 			Expect(applierDeploy.Spec.Template.Spec.Containers).To(HaveLen(1))
 			Expect(applierDeploy.Spec.Selector.MatchLabels).To(Equal(map[string]string{"service": "watcher-applier"}))
 
@@ -464,33 +464,23 @@ var _ = Describe("Watcher controller", func() {
 			decisionengineStatefulSet := th.GetStatefulSet(watcherTest.WatcherDecisionEngineStatefulSet)
 			Expect(decisionengineStatefulSet.Spec.Template.Spec.ServiceAccountName).To(Equal("watcher-watcher"))
 			Expect(int(*decisionengineStatefulSet.Spec.Replicas)).To(Equal(1))
-			Expect(decisionengineStatefulSet.Spec.Template.Spec.Volumes).To(HaveLen(3))
+			Expect(decisionengineStatefulSet.Spec.Template.Spec.Volumes).To(HaveLen(2))
 			Expect(decisionengineStatefulSet.Spec.Template.Spec.Containers).To(HaveLen(1))
 			Expect(decisionengineStatefulSet.Spec.Selector.MatchLabels).To(Equal(map[string]string{"service": "watcher-decision-engine"}))
 
 			// The CronJob for DB Purge is created properly
-			// Check the scripts secret is created
-			scriptsSecret := th.GetSecret(
-				types.NamespacedName{
-					Name:      watcherTest.Instance.Name + "-scripts",
-					Namespace: watcherTest.Instance.Namespace,
-				},
-			)
-
-			Expect(scriptsSecret).ShouldNot(BeNil())
-			Expect(scriptsSecret.Data).Should(HaveKey("dbpurge.sh"))
-			scriptData := string(scriptsSecret.Data["dbpurge.sh"])
-			Expect(scriptData).To(ContainSubstring("watcher-db-manage --config-dir /etc/watcher/watcher.conf.d/ --debug purge"))
 			cron := GetCronJob(types.NamespacedName{Namespace: watcherTest.Instance.Namespace,
 				Name: watcherTest.Instance.Name + "-db-purge"})
 
-			jobEnv := cron.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Env
-			Expect(cron.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Image).To(
+			container := cron.Spec.JobTemplate.Spec.Template.Spec.Containers[0]
+			Expect(container.Command).To(Equal([]string{
+				"/bin/bash", "-c",
+				fmt.Sprintf("echo y | watcher-db-manage --config-dir /etc/watcher/watcher.conf.d/ --debug purge -d %d", *Watcher.Spec.DBPurge.PurgeAge),
+			}))
+			Expect(container.Image).To(
 				Equal(Watcher.Spec.APIContainerImageURL))
 			Expect(cron.Spec.Schedule).To(Equal(*Watcher.Spec.DBPurge.Schedule))
 			Expect(cron.Labels["service"]).To(Equal("watcher"))
-			Expect(GetEnvVarValue(jobEnv, "PURGE_AGE", "")).To(
-				Equal(fmt.Sprintf("%d", *Watcher.Spec.DBPurge.PurgeAge)))
 		})
 		It("Should expose the watcher public service without TLS", func() {
 			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
@@ -1028,7 +1018,7 @@ var _ = Describe("Watcher controller", func() {
 			deployment := th.GetStatefulSet(watcherTest.WatcherAPIStatefulSet)
 			Expect(deployment.Spec.Template.Spec.ServiceAccountName).To(Equal("watcher-watcher"))
 			Expect(int(*deployment.Spec.Replicas)).To(Equal(2))
-			Expect(deployment.Spec.Template.Spec.Volumes).To(HaveLen(5))
+			Expect(deployment.Spec.Template.Spec.Volumes).To(HaveLen(6))
 			Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(2))
 			Expect(deployment.Spec.Selector.MatchLabels).To(Equal(map[string]string{"service": "watcher-api"}))
 
@@ -1069,7 +1059,7 @@ var _ = Describe("Watcher controller", func() {
 			applierDeploy := th.GetStatefulSet(watcherTest.WatcherApplierStatefulSet)
 			Expect(applierDeploy.Spec.Template.Spec.ServiceAccountName).To(Equal("watcher-watcher"))
 			Expect(int(*applierDeploy.Spec.Replicas)).To(Equal(1))
-			Expect(applierDeploy.Spec.Template.Spec.Volumes).To(HaveLen(4))
+			Expect(applierDeploy.Spec.Template.Spec.Volumes).To(HaveLen(3))
 			Expect(applierDeploy.Spec.Template.Spec.Containers).To(HaveLen(1))
 			Expect(applierDeploy.Spec.Selector.MatchLabels).To(Equal(map[string]string{"service": "watcher-applier"}))
 
@@ -1110,7 +1100,7 @@ var _ = Describe("Watcher controller", func() {
 			decisionEngineStatefulSet := th.GetStatefulSet(watcherTest.WatcherDecisionEngineStatefulSet)
 			Expect(decisionEngineStatefulSet.Spec.Template.Spec.ServiceAccountName).To(Equal("watcher-watcher"))
 			Expect(int(*decisionEngineStatefulSet.Spec.Replicas)).To(Equal(1))
-			Expect(decisionEngineStatefulSet.Spec.Template.Spec.Volumes).To(HaveLen(5))
+			Expect(decisionEngineStatefulSet.Spec.Template.Spec.Volumes).To(HaveLen(4))
 			Expect(decisionEngineStatefulSet.Spec.Template.Spec.Containers).To(HaveLen(1))
 			Expect(decisionEngineStatefulSet.Spec.Selector.MatchLabels).To(Equal(map[string]string{"service": "watcher-decision-engine"}))
 
@@ -1122,28 +1112,18 @@ var _ = Describe("Watcher controller", func() {
 			Expect(createdConfigSecret.Data["02-service-custom.conf"]).Should(Equal([]byte("# Service config DecisionEngine")))
 
 			// The CronJob for DB Purge is created properly
-			// Check the scripts secret is created
-			scriptsSecret := th.GetSecret(
-				types.NamespacedName{
-					Name:      watcherTest.Instance.Name + "-scripts",
-					Namespace: watcherTest.Instance.Namespace,
-				},
-			)
-
-			Expect(scriptsSecret).ShouldNot(BeNil())
-			Expect(scriptsSecret.Data).Should(HaveKey("dbpurge.sh"))
-			scriptData := string(scriptsSecret.Data["dbpurge.sh"])
-			Expect(scriptData).To(ContainSubstring("watcher-db-manage --config-dir /etc/watcher/watcher.conf.d/ --debug purge"))
 			cron := GetCronJob(types.NamespacedName{Namespace: watcherTest.Instance.Namespace,
 				Name: watcherTest.Instance.Name + "-db-purge"})
 
-			jobEnv := cron.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Env
-			Expect(cron.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Image).To(
+			container := cron.Spec.JobTemplate.Spec.Template.Spec.Containers[0]
+			Expect(container.Command).To(Equal([]string{
+				"/bin/bash", "-c",
+				"echo y | watcher-db-manage --config-dir /etc/watcher/watcher.conf.d/ --debug purge -d 1",
+			}))
+			Expect(container.Image).To(
 				Equal(Watcher.Spec.APIContainerImageURL))
 			Expect(cron.Spec.Schedule).To(Equal("1 2 * * *"))
 			Expect(cron.Labels["service"]).To(Equal("watcher"))
-			Expect(GetEnvVarValue(jobEnv, "PURGE_AGE", "")).To(
-				Equal(fmt.Sprintf("%d", 1)))
 		})
 	})
 
