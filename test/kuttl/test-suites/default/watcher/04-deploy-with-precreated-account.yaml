@@ -26,6 +26,8 @@ spec:
     replicas: 2
     customServiceConfig: |
       # Service config
+  applierServiceTemplate:
+    replicas: 2
   dbPurge:
     purgeAge: 1
     schedule: "* * * * *"

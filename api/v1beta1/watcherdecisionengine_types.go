@@ -40,7 +40,7 @@ type WatcherDecisionEngineSpec struct {
 
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=1
-	// +kubebuilder:validation:Maximum=1
+	// +kubebuilder:validation:Maximum=32
 	// +kubebuilder:validation:Minimum=0
 	// Replicas of Watcher service to run
 	Replicas *int32 `json:"replicas"`
@@ -80,7 +80,7 @@ type WatcherDecisionEngineTemplate struct {
 
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=1
-	// +kubebuilder:validation:Maximum=1
+	// +kubebuilder:validation:Maximum=32
 	// +kubebuilder:validation:Minimum=0
 	// Replicas of WatcherDecisionEngine service to run
 	Replicas *int32 `json:"replicas"`

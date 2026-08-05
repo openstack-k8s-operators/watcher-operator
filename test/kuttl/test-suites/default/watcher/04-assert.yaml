@@ -18,6 +18,8 @@ spec:
     resources: {}
     customServiceConfig: |
       # Service config
+  applierServiceTemplate:
+    replicas: 2
   dbPurge:
     purgeAge: 1
     schedule: "* * * * *"
@@ -342,7 +344,7 @@ spec:
   passwordSelectors:
     service: WatcherPassword
   preserveJobs: false
-  replicas: 1
+  replicas: 2
   resources: {}
   secret: watcher-kuttl
   serviceAccount: watcher-watcher-kuttl
@@ -377,14 +379,14 @@ metadata:
   labels:
     service: watcher-applier
 spec:
-  replicas: 1
+  replicas: 2
   template:
     spec:
       containers:
       - name: watcher-applier
 status:
-  readyReplicas: 1
-  replicas: 1
+  readyReplicas: 2
+  replicas: 2
 ---
 apiVersion: v1
 kind: Pod
@@ -392,6 +394,18 @@ metadata:
   labels:
     service: watcher-applier
   name: watcher-kuttl-applier-0
+spec:
+  containers:
+  - name: watcher-applier
+status:
+  phase: Running
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    service: watcher-applier
+  name: watcher-kuttl-applier-1
 spec:
   containers:
   - name: watcher-applier
