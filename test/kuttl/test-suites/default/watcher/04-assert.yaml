@@ -193,11 +193,6 @@ kind: Secret
 metadata:
   name: watcher-kuttl-config-data
 ---
-apiVersion: v1
-kind: Secret
-metadata:
-  name: watcher-kuttl-scripts
----
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -214,13 +209,10 @@ spec:
         spec:
           containers:
           - name: watcher-db-manage
-            env:
-            - name: KOLLA_BOOTSTRAP
-              value: "true"
-            - name: KOLLA_CONFIG_STRATEGY
-              value: COPY_ALWAYS
-            - name: PURGE_AGE
-              value: "1"
+            command:
+            - /bin/bash
+            - -c
+            - echo y | watcher-db-manage --config-dir /etc/watcher/watcher.conf.d/ --debug purge -d 1
           serviceAccount: watcher-watcher-kuttl
   schedule: "* * * * *"
 ---

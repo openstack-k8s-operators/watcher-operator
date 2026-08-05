@@ -1,26 +1,19 @@
 package watcher
 
 import (
-	"k8s.io/utils/ptr"
-
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
 
 	"github.com/openstack-k8s-operators/lib-common/modules/common/env"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/pod"
+	"github.com/openstack-k8s-operators/lib-common/modules/users"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-)
-
-const (
-	// DBSyncCommand -
-	DBSyncCommand = "/usr/local/bin/kolla_start"
+	"k8s.io/utils/ptr"
 )
 
 // DbSyncJob func
 func DbSyncJob(instance *watcherv1beta1.Watcher, labels map[string]string, annotations map[string]string) *batchv1.Job {
-	secretNames := []string{}
-	var config0644AccessMode int32 = 0644
-
 	// Unlike the individual Watcher services, the DbSyncJob doesn't need a
 	// secret that contains all of the config snippets required by every
 	// service, The two snippet files that it does need (DefaultsConfigFileName
@@ -31,12 +24,16 @@ func DbSyncJob(instance *watcherv1beta1.Watcher, labels map[string]string, annot
 			Name: "db-sync-config-data",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					DefaultMode: &config0644AccessMode,
+					DefaultMode: &config0440AccessMode,
 					SecretName:  instance.Name + "-config-data",
 					Items: []corev1.KeyToPath{
 						{
 							Key:  DefaultsConfigFileName,
 							Path: DefaultsConfigFileName,
+						},
+						{
+							Key:  "my.cnf",
+							Path: "my.cnf",
 						},
 					},
 				},
@@ -51,9 +48,9 @@ func DbSyncJob(instance *watcherv1beta1.Watcher, labels map[string]string, annot
 			ReadOnly:  true,
 		},
 		{
-			Name:      "config-data",
-			MountPath: "/var/lib/kolla/config_files/config.json",
-			SubPath:   "watcher-dbsync-config.json",
+			Name:      "db-sync-config-data",
+			MountPath: "/etc/my.cnf",
+			SubPath:   "my.cnf",
 			ReadOnly:  true,
 		},
 	}
@@ -64,11 +61,9 @@ func DbSyncJob(instance *watcherv1beta1.Watcher, labels map[string]string, annot
 		dbSyncMounts = append(dbSyncMounts, instance.Spec.APIServiceTemplate.TLS.CreateVolumeMounts(nil)...)
 	}
 
-	args := []string{"-c", DBSyncCommand}
+	args := []string{"upgrade"}
 
 	envVars := map[string]env.Setter{}
-	envVars["KOLLA_CONFIG_STRATEGY"] = env.SetValue("COPY_ALWAYS")
-	envVars["KOLLA_BOOTSTRAP"] = env.SetValue("TRUE")
 
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -82,22 +77,21 @@ func DbSyncJob(instance *watcherv1beta1.Watcher, labels map[string]string, annot
 					Annotations: annotations,
 				},
 				Spec: corev1.PodSpec{
-					RestartPolicy:      corev1.RestartPolicyOnFailure,
-					ServiceAccountName: instance.RbacResourceName(),
+					RestartPolicy:                corev1.RestartPolicyOnFailure,
+					ServiceAccountName:           instance.RbacResourceName(),
+					AutomountServiceAccountToken: ptr.To(false),
+					SecurityContext:              pod.RestrictivePodSecurityContext(users.WatcherUID, users.WatcherGID),
 					Containers: []corev1.Container{
 						{
 							Name: instance.Name + "-db-sync",
 							Command: []string{
-								"/bin/bash",
+								"watcher-db-manage",
 							},
-							Args:  args,
-							Image: instance.Spec.APIContainerImageURL,
-							SecurityContext: &corev1.SecurityContext{
-								RunAsUser: ptr.To(WatcherUserID),
-							},
-							Env: env.MergeEnvs([]corev1.EnvVar{}, envVars),
-							VolumeMounts: append(GetVolumeMounts(secretNames),
-								dbSyncMounts...),
+							Args:            args,
+							Image:           instance.Spec.APIContainerImageURL,
+							SecurityContext: pod.RestrictiveSecurityContext(users.WatcherUID, users.WatcherGID),
+							Env:             env.MergeEnvs([]corev1.EnvVar{}, envVars),
+							VolumeMounts:    dbSyncMounts,
 						},
 					},
 				},
@@ -105,11 +99,7 @@ func DbSyncJob(instance *watcherv1beta1.Watcher, labels map[string]string, annot
 		},
 	}
 
-	job.Spec.Template.Spec.Volumes = append(GetVolumes(
-		instance.Name,
-		secretNames),
-		dbSyncVolume...,
-	)
+	job.Spec.Template.Spec.Volumes = dbSyncVolume
 
 	return job
 }

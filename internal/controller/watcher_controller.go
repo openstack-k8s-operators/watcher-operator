@@ -98,7 +98,7 @@ func (r *WatcherReconciler) GetLogger(ctx context.Context) logr.Logger {
 //+kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch
 //+kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=roles,verbs=get;list;watch;create;update;patch
 //+kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=rolebindings,verbs=get;list;watch;create;update;patch
-//+kubebuilder:rbac:groups="security.openshift.io",resourceNames=anyuid,resources=securitycontextconstraints,verbs=use
+//+kubebuilder:rbac:groups="security.openshift.io",resourceNames=nonroot-v2,resources=securitycontextconstraints,verbs=use
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -684,7 +684,7 @@ func (r *WatcherReconciler) ensureRbac(
 	rbacRules := []rbacv1.PolicyRule{
 		{
 			APIGroups:     []string{"security.openshift.io"},
-			ResourceNames: []string{"anyuid"},
+			ResourceNames: []string{"nonroot-v2"},
 			Resources:     []string{"securitycontextconstraints"},
 			Verbs:         []string{"use"},
 		},
@@ -948,7 +948,7 @@ func (r *WatcherReconciler) generateServiceConfigDBJobs(
 		templateParameters["ACSecret"] = acData.Secret
 	}
 
-	return GenerateConfigsGeneric(ctx, helper, instance, envVars, templateParameters, customData, labels, true, []string{})
+	return GenerateConfigsGeneric(ctx, helper, instance, envVars, templateParameters, customData, labels, false, []string{})
 }
 
 func (r *WatcherReconciler) ensureDBSync(

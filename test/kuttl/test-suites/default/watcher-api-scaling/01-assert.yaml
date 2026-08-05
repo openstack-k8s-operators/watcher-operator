@@ -200,11 +200,6 @@ kind: Secret
 metadata:
   name: watcher-kuttl-config-data
 ---
-apiVersion: v1
-kind: Secret
-metadata:
-  name: watcher-kuttl-scripts
----
 apiVersion: watcher.openstack.org/v1beta1
 kind: WatcherAPI
 metadata:

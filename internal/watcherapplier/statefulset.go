@@ -7,19 +7,19 @@ import (
 	"github.com/openstack-k8s-operators/lib-common/modules/common"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/affinity"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/env"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/pod"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/volume"
+	"github.com/openstack-k8s-operators/lib-common/modules/users"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
 	watcher "github.com/openstack-k8s-operators/watcher-operator/internal/watcher"
-	"k8s.io/utils/ptr"
 )
 
 const (
-	// ServiceCommand -
-	ServiceCommand = "/usr/local/bin/kolla_start"
-
 	// ComponentName -
 	ComponentName = watcher.ServiceName + "-applier"
 )
@@ -32,12 +32,8 @@ func StatefulSet(
 	topology *topologyv1.Topology,
 	memcached *memcachedv1.Memcached,
 ) *appsv1.StatefulSet {
-	var config0644AccessMode int32 = 0644
-
 	envVars := map[string]env.Setter{}
-	envVars["KOLLA_CONFIG_STRATEGY"] = env.SetValue("COPY_ALWAYS")
 	envVars["CONFIG_HASH"] = env.SetValue(configHash)
-	args := []string{"-c", ServiceCommand}
 
 	// This allows the pod to start up slowly. The pod will only be killed
 	// if it does not succeed a probe in 60 seconds.
@@ -75,22 +71,12 @@ func StatefulSet(
 		},
 	}
 
-	volumes := append(watcher.GetLogVolume(),
-		corev1.Volume{
-			Name: "config-data-custom",
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					DefaultMode: &config0644AccessMode,
-					SecretName:  instance.Name + "-config-data",
-				},
-			},
-		},
-	)
+	volumes := []corev1.Volume{volume.WritableDirVolume(watcher.LogVolume)}
 
 	volumeMounts := []corev1.VolumeMount{
-		watcher.GetKollaConfigVolumeMount(ComponentName),
+		watcher.GetServiceCustomVolumeMount(),
+		volume.WritableDirVolumeMount(watcher.LogVolume, "/var/log/watcher"),
 	}
-	volumeMounts = append(volumeMounts, watcher.GetLogVolumeMount()...)
 
 	// Create mount for bundle CA if defined in TLS.CaBundleSecretName
 	if instance.Spec.TLS.CaBundleSecretName != "" {
@@ -100,8 +86,10 @@ func StatefulSet(
 
 	// add MTLS cert if defined
 	if memcached.Status.MTLSCert != "" {
+		certMountPath := memcachedv1.CertPathDst
+		keyMountPath := memcachedv1.KeyPathDst
 		volumes = append(volumes, memcached.CreateMTLSVolume())
-		volumeMounts = append(volumeMounts, memcached.CreateMTLSVolumeMounts(nil, nil)...)
+		volumeMounts = append(volumeMounts, memcached.CreateMTLSVolumeMounts(&certMountPath, &keyMountPath)...)
 	}
 
 	statefulset := &appsv1.StatefulSet{
@@ -120,19 +108,19 @@ func StatefulSet(
 					Labels: labels,
 				},
 				Spec: corev1.PodSpec{
-					ServiceAccountName: instance.Spec.ServiceAccount,
+					ServiceAccountName:           instance.Spec.ServiceAccount,
+					AutomountServiceAccountToken: ptr.To(false),
+					SecurityContext:              pod.RestrictivePodSecurityContext(users.WatcherUID, users.WatcherGID),
 					Containers: []corev1.Container{
 						{
 							Name: ComponentName,
 							Command: []string{
-								"/bin/bash",
+								"/usr/bin/watcher-applier",
 							},
-							Args:  args,
-							Image: instance.Spec.ContainerImage,
-							SecurityContext: &corev1.SecurityContext{
-								RunAsUser: ptr.To(watcher.WatcherUserID),
-							},
-							Env: env.MergeEnvs([]corev1.EnvVar{}, envVars),
+							Args:            []string{"--config-dir", "/etc/watcher/watcher.conf.d"},
+							Image:           instance.Spec.ContainerImage,
+							SecurityContext: pod.RestrictiveSecurityContext(users.WatcherUID, users.WatcherGID),
+							Env:             env.MergeEnvs([]corev1.EnvVar{}, envVars),
 							VolumeMounts: append(watcher.GetVolumeMounts(
 								[]string{}),
 								volumeMounts...,
