@@ -39,17 +39,8 @@ const (
 	// WatcherLogPath is the path used by WatcherAPI to stream/store its logs
 	WatcherLogPath = "/var/log/watcher/"
 
-	// ConfigVolume is the default volume name used to mount service config
-	ConfigVolume = "config-data"
-
 	// PrometheusCaCertFolderPath is the path to deploy the Prometheus CaCert if needed
 	PrometheusCaCertFolderPath = "/etc/pki/ca-trust/extracted/pem/prometheus/"
-
-	// WatcherUserID is the linux user ID used by Kolla for watcher service
-	WatcherUserID int64 = 42451
-
-	// scriptVolume is the name of the volume used to ship scripts into pods
-	scriptVolume = "scripts-volume"
 
 	// ACConsumerFinalizer is added to AC secrets that watcher is actively consuming
 	ACConsumerFinalizer = "openstack.org/watcher-ac-consumer"

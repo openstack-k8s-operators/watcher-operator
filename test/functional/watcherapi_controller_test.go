@@ -199,7 +199,7 @@ var _ = Describe("WatcherAPI controller", func() {
 			deployment := th.GetStatefulSet(watcherTest.WatcherAPIStatefulSet)
 			Expect(deployment.Spec.Template.Spec.ServiceAccountName).To(Equal("watcher-sa"))
 			Expect(int(*deployment.Spec.Replicas)).To(Equal(1))
-			Expect(deployment.Spec.Template.Spec.Volumes).To(HaveLen(3))
+			Expect(deployment.Spec.Template.Spec.Volumes).To(HaveLen(4))
 			Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(2))
 			Expect(deployment.Spec.Selector.MatchLabels).To(Equal(map[string]string{"service": "watcher-api"}))
 
@@ -208,7 +208,7 @@ var _ = Describe("WatcherAPI controller", func() {
 			Expect(container.Image).To(Equal("test://watcher"))
 
 			container = deployment.Spec.Template.Spec.Containers[1]
-			Expect(container.VolumeMounts).To(HaveLen(4))
+			Expect(container.VolumeMounts).To(HaveLen(11))
 			Expect(container.Image).To(Equal("test://watcher"))
 
 			Expect(container.LivenessProbe.HTTPGet.Port.IntVal).To(Equal(int32(9322)))
