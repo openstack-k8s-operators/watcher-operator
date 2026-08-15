@@ -3,8 +3,8 @@ module github.com/openstack-k8s-operators/watcher-operator/api
 go 1.26.3
 
 require (
-	github.com/openstack-k8s-operators/infra-operator/apis v0.6.1-0.20260730060158-27ac5ce68f29
-	github.com/openstack-k8s-operators/lib-common/modules/common v0.6.1-0.20260725150835-623a52fe0391
+	github.com/openstack-k8s-operators/infra-operator/apis v0.6.1-0.20260811190835-054aa14112d8
+	github.com/openstack-k8s-operators/lib-common/modules/common v0.6.1-0.20260815052137-cfc51390472e
 	k8s.io/api v0.33.13
 	k8s.io/apimachinery v0.33.13
 	k8s.io/utils v0.0.0-20250820121507-0af2bda4dd1d
