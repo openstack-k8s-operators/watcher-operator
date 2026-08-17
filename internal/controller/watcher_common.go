@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -185,37 +184,6 @@ func NewReconcilerBase(
 // SetRequeueTimeout overrides the default RequeueTimeout of the Reconciler
 func (r *ReconcilerBase) SetRequeueTimeout(timeout time.Duration) {
 	r.RequeueTimeout = timeout
-}
-
-// statefulSetReadyForInput verifies readiness against an uncached StatefulSet
-// and correlates it with the input hash in the pod template.
-func (r *ReconcilerBase) statefulSetReadyForInput(
-	ctx context.Context,
-	name types.NamespacedName,
-	inputHash string,
-) (bool, error) {
-	statefulSet := &appsv1.StatefulSet{}
-	if err := r.APIReader.Get(ctx, name, statefulSet); err != nil {
-		return false, err
-	}
-
-	if statefulSet.Spec.Replicas == nil ||
-		*statefulSet.Spec.Replicas != statefulSet.Status.ReadyReplicas ||
-		*statefulSet.Spec.Replicas != statefulSet.Status.UpdatedReplicas ||
-		statefulSet.Generation != statefulSet.Status.ObservedGeneration ||
-		statefulSet.Status.CurrentRevision != statefulSet.Status.UpdateRevision {
-		return false, nil
-	}
-
-	for _, container := range statefulSet.Spec.Template.Spec.Containers {
-		for _, envVar := range container.Env {
-			if envVar.Name == "CONFIG_HASH" && envVar.Value == inputHash {
-				return true, nil
-			}
-		}
-	}
-
-	return false, nil
 }
 
 // Reconcilers holds all the Reconciler objects of the watcher-operator to

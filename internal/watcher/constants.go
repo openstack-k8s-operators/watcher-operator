@@ -44,4 +44,6 @@ const (
 
 	// ACConsumerFinalizer is added to AC secrets that watcher is actively consuming
 	ACConsumerFinalizer = "openstack.org/watcher-ac-consumer"
+	// TransportConsumerFinalizer is added to transport URL secrets that watcher is actively consuming
+	TransportConsumerFinalizer = "openstack.org/watcher-transport-consumer"
 )

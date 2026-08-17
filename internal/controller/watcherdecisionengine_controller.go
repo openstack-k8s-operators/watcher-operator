@@ -671,7 +671,7 @@ func (r *WatcherDecisionEngineReconciler) ensureDeployment(
 
 	ready := false
 	if statefulset.IsReady(statefulSet) {
-		ready, err = r.statefulSetReadyForInput(ctx, types.NamespacedName{
+		ready, err = statefulset.IsReadyForInput(ctx, r.APIReader, types.NamespacedName{
 			Name: statefulSet.Name, Namespace: statefulSet.Namespace,
 		}, inputHash)
 		if err != nil {

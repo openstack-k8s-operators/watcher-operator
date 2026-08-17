@@ -46,6 +46,7 @@ import (
 	"github.com/openstack-k8s-operators/lib-common/modules/common/helper"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/job"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/labels"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/object"
 	common_rbac "github.com/openstack-k8s-operators/lib-common/modules/common/rbac"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/secret"
 	"github.com/openstack-k8s-operators/lib-common/modules/common/tls"
@@ -227,14 +228,32 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 
 	instance.Status.Conditions.MarkTrue(watcherv1beta1.WatcherRabbitMQTransportURLReadyCondition, watcherv1beta1.WatcherRabbitMQTransportURLReadyMessage)
 
+	// Set status early for first-time setup so PatchInstance persists it
+	// even on early returns. During rotation (old != current), the status
+	// is only updated by FinalizeSecretRotation at end of reconcile.
+	if instance.Status.TransportURLSecret == "" {
+		instance.Status.TransportURLSecret = transportURL.Status.SecretName
+	}
+
+	if err := object.ManageSecretConsumerFinalizer(ctx, helper, instance.Namespace,
+		transportURL.Status.SecretName, watcher.TransportConsumerFinalizer); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	_ = op
 	// end of TransportURL creation
 
 	// create Notification RabbitMQ transportURL CR and get the actual URL from the associated secret that is created
 	notificationURLSecret := &corev1.Secret{}
 
+	// currentNotifSecret tracks the notification transport URL secret in use
+	// this reconcile; it feeds the end-of-reconcile rotation finalizer.
+	var currentNotifSecret string
+
 	// Determine if notifications are enabled by checking NotificationsBus.Cluster
-	if instance.Spec.NotificationsBus != nil && instance.Spec.NotificationsBus.Cluster != "" {
+	notificationsEnabled := instance.Spec.NotificationsBus != nil && instance.Spec.NotificationsBus.Cluster != ""
+
+	if notificationsEnabled {
 		instance.Status.Conditions.Set(condition.FalseCondition(
 			watcherv1beta1.WatcherNotificationTransportURLReadyCondition,
 			condition.RequestedReason,
@@ -270,6 +289,20 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 			return ctrl.Result{RequeueAfter: time.Duration(10) * time.Second}, nil
 		}
 		instance.Status.Conditions.MarkTrue(watcherv1beta1.WatcherNotificationTransportURLReadyCondition, watcherv1beta1.WatcherNotificationTransportURLReadyMessage)
+
+		currentNotifSecret = notificationURL.Status.SecretName
+
+		// Set status early for first-time setup so PatchInstance persists it
+		// even on early returns. During rotation (old != current), the status
+		// is only updated by FinalizeSecretRotation at end of reconcile.
+		if instance.Status.NotificationsTransportURLSecret == "" {
+			instance.Status.NotificationsTransportURLSecret = currentNotifSecret
+		}
+
+		if err := object.ManageSecretConsumerFinalizer(ctx, helper, instance.Namespace,
+			currentNotifSecret, watcher.TransportConsumerFinalizer); err != nil {
+			return ctrl.Result{}, err
+		}
 
 		// Cleanup orphaned notification TransportURLs that don't match the current name
 		// This happens AFTER successful creation to avoid deleting resources if creation fails
@@ -310,26 +343,13 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		notificationURLSecret = &notificationSecret
 		_ = op
 	} else {
+		// Notifications bus disabled. The config regenerated below no longer
+		// references the notifications transport URL, so its input hash changes
+		// and the sub-service workloads roll. Defer teardown of the
+		// TransportURL(s) and the consumer finalizer until that rollout is
+		// complete (guardReady at end of reconcile), otherwise the RabbitMQ user
+		// backing the secret would be revoked while pods still use it.
 		instance.Status.Conditions.Remove(watcherv1beta1.WatcherNotificationTransportURLReadyCondition)
-
-		// Ensure to delete all notification TransportURLs when notifications are disabled
-		transportURLList := &rabbitmqv1.TransportURLList{}
-		listOpts := []client.ListOption{
-			client.InNamespace(instance.Namespace),
-		}
-		if err := r.Client.List(ctx, transportURLList, listOpts...); err != nil {
-			return ctrl.Result{}, err
-		}
-
-		notificationTransportPrefix := fmt.Sprintf("%s-watcher-notification-", instance.Name)
-		for _, url := range transportURLList.Items {
-			if strings.HasPrefix(url.Name, notificationTransportPrefix) {
-				err = r.ensureMQDeleted(ctx, instance, url.Name)
-				if err != nil {
-					return ctrl.Result{}, err
-				}
-			}
-		}
 	}
 
 	// end of Notification TransportURL creation
@@ -563,6 +583,84 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		}
 	} else if instance.Status.ApplicationCredentialSecret != instance.Spec.Auth.ApplicationCredentialSecret {
 		instance.Status.ApplicationCredentialSecret = instance.Spec.Auth.ApplicationCredentialSecret
+	}
+
+	// Finalize transport URL and notification transport URL secret rotation.
+	// The consumer finalizer on the old secret is only released once every
+	// sub-service is ready with the new credentials (allServicesReady), so
+	// infra-operator cannot revoke a credential still in use by pods.
+	guardReady := allServicesReady
+
+	transportSecretName, err := object.FinalizeSecretRotation(
+		ctx, helper, instance.Namespace,
+		instance.Status.TransportURLSecret,
+		transportURL.Status.SecretName,
+		watcher.TransportConsumerFinalizer,
+		guardReady,
+	)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	instance.Status.TransportURLSecret = transportSecretName
+
+	if notificationsEnabled {
+		notifSecretName, err := object.FinalizeSecretRotation(
+			ctx, helper, instance.Namespace,
+			instance.Status.NotificationsTransportURLSecret,
+			currentNotifSecret,
+			watcher.TransportConsumerFinalizer,
+			guardReady,
+		)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		instance.Status.NotificationsTransportURLSecret = notifSecretName
+	} else if instance.Status.NotificationsTransportURLSecret != "" && guardReady {
+		// Notifications bus disabled and the sub-service workloads have rolled
+		// out a config that no longer references it: now it is safe to release
+		// the consumer finalizer and delete the notification TransportURL(s).
+		if err := object.RemoveSecretConsumerFinalizer(ctx, helper, instance.Namespace,
+			instance.Status.NotificationsTransportURLSecret, watcher.TransportConsumerFinalizer); err != nil {
+			return ctrl.Result{}, err
+		}
+
+		transportURLList := &rabbitmqv1.TransportURLList{}
+		listOpts := []client.ListOption{
+			client.InNamespace(instance.Namespace),
+		}
+		if err := r.Client.List(ctx, transportURLList, listOpts...); err != nil {
+			return ctrl.Result{}, err
+		}
+		notificationTransportPrefix := fmt.Sprintf("%s-watcher-notification-", instance.Name)
+		for _, url := range transportURLList.Items {
+			if strings.HasPrefix(url.Name, notificationTransportPrefix) {
+				if err := r.ensureMQDeleted(ctx, instance, url.Name); err != nil {
+					return ctrl.Result{}, err
+				}
+			}
+		}
+		instance.Status.NotificationsTransportURLSecret = ""
+	}
+
+	// Self-heal consumer finalizers stranded on secrets superseded during
+	// rapid rotation (A -> B -> C before the workloads became ready):
+	// FinalizeSecretRotation only ever releases the single tracked "old"
+	// secret, so any intermediate secret's finalizer would otherwise leak.
+	// keep enumerates every secret that legitimately still holds the
+	// finalizer; all others in the namespace are pruned.
+	if err := object.PruneSecretConsumerFinalizers(
+		ctx, helper, instance.Namespace, watcher.TransportConsumerFinalizer,
+		instance.Status.TransportURLSecret, transportURL.Status.SecretName,
+		instance.Status.NotificationsTransportURLSecret, currentNotifSecret,
+	); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := object.PruneSecretConsumerFinalizers(
+		ctx, helper, instance.Namespace, watcher.ACConsumerFinalizer,
+		instance.Status.ApplicationCredentialSecret,
+		instance.Spec.Auth.ApplicationCredentialSecret,
+	); err != nil {
+		return ctrl.Result{}, err
 	}
 
 	//
@@ -1431,6 +1529,17 @@ func (r *WatcherReconciler) reconcileDelete(ctx context.Context, instance *watch
 			secretName, watcher.ACConsumerFinalizer); err != nil {
 			return ctrl.Result{}, err
 		}
+	}
+
+	// Remove the transport consumer finalizer from every transport URL secret
+	// watcher was consuming (main + notifications, plus any secret superseded by
+	// an in-flight rotation). Pass no keep set so all secrets still carrying the
+	// finalizer are released before the Watcher CR is removed; otherwise they
+	// would be left stuck Terminating.
+	if err := object.PruneSecretConsumerFinalizers(
+		ctx, helper, instance.Namespace, watcher.TransportConsumerFinalizer,
+	); err != nil {
+		return ctrl.Result{}, err
 	}
 
 	controllerutil.RemoveFinalizer(instance, helper.GetFinalizer())

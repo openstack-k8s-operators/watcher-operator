@@ -2168,6 +2168,28 @@ var _ = Describe("Watcher controller", func() {
 			Expect(secret.Finalizers).NotTo(
 				ContainElement(watcher.ACConsumerFinalizer))
 		})
+
+		It("should remove the transport consumer finalizer from the transport secret on CR deletion", func() {
+			transportSecretName := "rabbitmq-secret" //nolint:gosec // G101
+
+			Eventually(func(g Gomega) {
+				secret := th.GetSecret(types.NamespacedName{
+					Namespace: watcherTest.Instance.Namespace,
+					Name:      transportSecretName,
+				})
+				g.Expect(secret.Finalizers).To(
+					ContainElement(watcher.TransportConsumerFinalizer))
+			}, timeout, interval).Should(Succeed())
+
+			th.DeleteInstance(GetWatcher(watcherTest.Instance))
+
+			secret := th.GetSecret(types.NamespacedName{
+				Namespace: watcherTest.Instance.Namespace,
+				Name:      transportSecretName,
+			})
+			Expect(secret.Finalizers).NotTo(
+				ContainElement(watcher.TransportConsumerFinalizer))
+		})
 	})
 
 	When("ApplicationCredential is adopted on existing deployment", func() {

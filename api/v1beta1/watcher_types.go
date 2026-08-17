@@ -67,6 +67,18 @@ type WatcherStatus struct {
 	// finalizer. Tracked so the controller can remove its finalizer from the
 	// old secret when the openstack-operator rotates the reference.
 	ApplicationCredentialSecret string `json:"applicationCredentialSecret,omitempty"`
+
+	// TransportURLSecret - the transport URL secret watcher is currently
+	// consuming and protecting with the openstack.org/watcher-transport-consumer
+	// finalizer. Tracked so the controller can remove its finalizer from the
+	// old secret when the transport URL is rotated.
+	TransportURLSecret string `json:"transportURLSecret,omitempty"`
+
+	// NotificationsTransportURLSecret - the notifications transport URL secret
+	// watcher is currently consuming and protecting with the
+	// openstack.org/watcher-transport-consumer finalizer. Tracked so the
+	// controller can remove its finalizer from the old secret on rotation.
+	NotificationsTransportURLSecret string `json:"notificationsTransportURLSecret,omitempty"`
 }
 
 // WatcherDBPurge defines the parameters for the Watcher database purging cron job
