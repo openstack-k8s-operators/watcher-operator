@@ -709,6 +709,69 @@ var _ = Describe("Watcher controller", func() {
 		})
 	})
 
+	When("Watcher is created with RELATED_IMAGE_WATCHER_BASE_IMAGE_URL_DEFAULT set and no container images in CR", func() {
+		BeforeEach(func() {
+			_ = os.Setenv("RELATED_IMAGE_WATCHER_BASE_IMAGE_URL_DEFAULT", "watcher-base-custom-image")
+			watcherv1beta1.SetupDefaults()
+			DeferCleanup(func() {
+				_ = os.Unsetenv("RELATED_IMAGE_WATCHER_BASE_IMAGE_URL_DEFAULT")
+				watcherv1beta1.SetupDefaults()
+			})
+			DeferCleanup(th.DeleteInstance, CreateWatcher(watcherTest.Instance, MinimalWatcherSpec))
+		})
+
+		It("should use the base image for all three services", func() {
+			Watcher := GetWatcher(watcherTest.Instance)
+			Expect(Watcher.Spec.APIContainerImageURL).To(Equal("watcher-base-custom-image"))
+			Expect(Watcher.Spec.DecisionEngineContainerImageURL).To(Equal("watcher-base-custom-image"))
+			Expect(Watcher.Spec.ApplierContainerImageURL).To(Equal("watcher-base-custom-image"))
+		})
+	})
+
+	When("Watcher is created with RELATED_IMAGE_WATCHER_BASE_IMAGE_URL_DEFAULT and per-service env vars set", func() {
+		BeforeEach(func() {
+			_ = os.Setenv("RELATED_IMAGE_WATCHER_BASE_IMAGE_URL_DEFAULT", "watcher-base-custom-image")
+			_ = os.Setenv("RELATED_IMAGE_WATCHER_API_IMAGE_URL_DEFAULT", "watcher-api-custom-image-env")
+			_ = os.Setenv("RELATED_IMAGE_WATCHER_DECISION_ENGINE_IMAGE_URL_DEFAULT", "watcher-decision-engine-custom-image-env")
+			_ = os.Setenv("RELATED_IMAGE_WATCHER_APPLIER_IMAGE_URL_DEFAULT", "watcher-applier-custom-image-env")
+			watcherv1beta1.SetupDefaults()
+			DeferCleanup(func() {
+				_ = os.Unsetenv("RELATED_IMAGE_WATCHER_BASE_IMAGE_URL_DEFAULT")
+				_ = os.Unsetenv("RELATED_IMAGE_WATCHER_API_IMAGE_URL_DEFAULT")
+				_ = os.Unsetenv("RELATED_IMAGE_WATCHER_DECISION_ENGINE_IMAGE_URL_DEFAULT")
+				_ = os.Unsetenv("RELATED_IMAGE_WATCHER_APPLIER_IMAGE_URL_DEFAULT")
+				watcherv1beta1.SetupDefaults()
+			})
+			DeferCleanup(th.DeleteInstance, CreateWatcher(watcherTest.Instance, MinimalWatcherSpec))
+		})
+
+		It("should use the base image, ignoring per-service env vars", func() {
+			Watcher := GetWatcher(watcherTest.Instance)
+			Expect(Watcher.Spec.APIContainerImageURL).To(Equal("watcher-base-custom-image"))
+			Expect(Watcher.Spec.DecisionEngineContainerImageURL).To(Equal("watcher-base-custom-image"))
+			Expect(Watcher.Spec.ApplierContainerImageURL).To(Equal("watcher-base-custom-image"))
+		})
+	})
+
+	When("Watcher is created with RELATED_IMAGE_WATCHER_BASE_IMAGE_URL_DEFAULT and container images in CR", func() {
+		BeforeEach(func() {
+			_ = os.Setenv("RELATED_IMAGE_WATCHER_BASE_IMAGE_URL_DEFAULT", "watcher-base-custom-image")
+			watcherv1beta1.SetupDefaults()
+			DeferCleanup(func() {
+				_ = os.Unsetenv("RELATED_IMAGE_WATCHER_BASE_IMAGE_URL_DEFAULT")
+				watcherv1beta1.SetupDefaults()
+			})
+			DeferCleanup(th.DeleteInstance, CreateWatcher(watcherTest.Instance, MinimalWatcherContainerSpec))
+		})
+
+		It("should use the images from the CR spec", func() {
+			Watcher := GetWatcher(watcherTest.Instance)
+			Expect(Watcher.Spec.APIContainerImageURL).To(Equal("watcher-api-custom-image"))
+			Expect(Watcher.Spec.DecisionEngineContainerImageURL).To(Equal("watcher-decision-engine-custom-image"))
+			Expect(Watcher.Spec.ApplierContainerImageURL).To(Equal("watcher-applier-custom-image"))
+		})
+	})
+
 	When("Watcher rejects when empty databaseinstance is used", func() {
 		It("should raise an error for empty databaseInstance", func() {
 			spec := GetDefaultWatcherAPISpec()

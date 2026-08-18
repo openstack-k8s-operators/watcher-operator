@@ -17,3 +17,5 @@ spec:
           value: quay.io/podified-master-centos9/openstack-watcher-decision-engine:current-podified
         - name: RELATED_IMAGE_WATCHER_APPLIER_IMAGE_URL_DEFAULT
           value: quay.io/podified-master-centos9/openstack-watcher-applier:current-podified
+        - name: RELATED_IMAGE_WATCHER_BASE_IMAGE_URL_DEFAULT
+          value: ''

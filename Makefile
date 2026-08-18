@@ -382,6 +382,7 @@ CATALOG_IMAGE ?= quay.io/openstack-k8s-operators/watcher-operator-index:latest
 WATCHER_API_CI_IMAGE ?= quay.io/podified-master-centos9/openstack-watcher-api:current-podified
 WATCHER_DECISION_ENGINE_CI_IMAGE ?= quay.io/podified-master-centos9/openstack-watcher-decision-engine:current-podified
 WATCHER_APPLIER_CI_IMAGE ?= quay.io/podified-master-centos9/openstack-watcher-applier:current-podified
+WATCHER_BASE_CI_IMAGE ?= ""
 
 WATCHER_SAMPLE_CR_PATH ?= config/samples/watcher_v1beta1_watcher.yaml
 
@@ -389,6 +390,7 @@ WATCHER_SAMPLE_CR_PATH ?= config/samples/watcher_v1beta1_watcher.yaml
 watcher: export WATCHER_API_IMAGE=${WATCHER_API_CI_IMAGE}
 watcher: export WATCHER_DECISION_ENGINE_IMAGE=${WATCHER_DECISION_ENGINE_CI_IMAGE}
 watcher: export WATCHER_APPLIER_IMAGE=${WATCHER_APPLIER_CI_IMAGE}
+watcher: export WATCHER_BASE_IMAGE=${WATCHER_BASE_CI_IMAGE}
 watcher: export CATALOG_IMG=${CATALOG_IMAGE}
 watcher: ## Install watcher operator via olm
 	# explicitly to delete any running watcher-operator deployments from openstack-operator here as
@@ -495,6 +497,7 @@ run-with-webhook: export WEBHOOK_PORT?=9443
 run-with-webhook: export RELATED_IMAGE_WATCHER_API_IMAGE_URL_DEFAULT=${WATCHER_API_CI_IMAGE}
 run-with-webhook: export RELATED_IMAGE_WATCHER_DECISION_ENGINE_IMAGE_URL_DEFAULT=${WATCHER_DECISION_ENGINE_CI_IMAGE}
 run-with-webhook: export RELATED_IMAGE_WATCHER_APPLIER_IMAGE_URL_DEFAULT=${WATCHER_APPLIER_CI_IMAGE}
+run-with-webhook: export RELATED_IMAGE_WATCHER_BASE_IMAGE_URL_DEFAULT=${WATCHER_BASE_IMAGE}
 run-with-webhook: manifests generate fmt vet ## Run a controller from your host.
 	/bin/bash hack/clean_local_webhook.sh
 	/bin/bash hack/run_with_local_webhook.sh
