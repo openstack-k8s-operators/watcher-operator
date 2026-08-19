@@ -195,7 +195,7 @@
       cifmw_test_operator_tempest_external_plugin:
         - repository: "https://opendev.org/openstack/watcher-tempest-plugin.git"
           changeRepository: "https://review.opendev.org/openstack/watcher-tempest-plugin"
-          changeRefspec: "380572db57798530b64dcac14c6b01b0382c5d8e"
+          changeRefspec: "924551f526a40ed9328e0ff0a5d71acff9145950"
       watcher_scenario: "edpm-no-notifications"
 
 - job:
