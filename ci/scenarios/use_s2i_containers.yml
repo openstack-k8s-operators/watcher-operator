@@ -1,0 +1,4 @@
+---
+post_deploy_99_patch_s2i_containers:
+  source: "{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].src_dir }}/ci/playbooks/use-s2i-containers.yaml"
+  type: playbook

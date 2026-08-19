@@ -1,0 +1,29 @@
+- name: Deploy s2i containers
+  hosts:  "{{ cifmw_target_hook_host | default('localhost')  }}"
+  gather_facts: true
+  environment:
+    KUBECONFIG: "{{ cifmw_openshift_kubeconfig }}"
+    PATH: "{{ cifmw_path }}"
+  tasks:
+    - name: Make sure logs directory exists
+      ansible.builtin.file:
+        path: "{{ logs_dir | default(cifmw_path) }}"
+        state: directory
+        recurse: true
+    - name: Generate container update template file
+      ansible.builtin.template:
+        src: "patch-openstack-versions.yaml.j2"
+        dest: "{{ logs_dir | default(cifmw_path) }}/s2i-patch-containers.yaml"
+    - name: Patch the openstackversions to use the master s2i containers
+      ansible.builtin.shell:
+        cmd: |
+          oc patch openstackversions controlplane --type merge --patch-file {{ logs_dir | default(cifmw_path) }}/s2i-patch-containers.yaml
+    - name: Wait for OpenStack controlplane to reconcile with S2I containers
+      ansible.builtin.command:
+        cmd: >-
+          oc wait OpenStackControlPlane controlplane
+          --namespace=openstack
+          --for=condition=Ready
+          --timeout=600s
+      retries: 3
+      delay: 10
