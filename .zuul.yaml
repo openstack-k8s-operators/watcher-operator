@@ -5,12 +5,9 @@
     merge-mode: rebase
     templates:
       - opendev-master-watcher-operator-pipeline
-      - opendev-epoxy-watcher-operator-pipeline
     github-check:
       jobs:
         - noop
-        - watcher-operator-doc-preview
-        - watcher-operator-kuttl
 
 - job:
     name: watcher-operator-base
@@ -266,6 +263,8 @@
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
            src_dir }}/scenarios/centos-9/multinode-ci.yml"
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/scenarios/use_s2i_containers.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
            src_dir }}/ci/scenarios/edpm.yml"
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
            src_dir }}/ci/tests/watcher-tempest.yml"
@@ -306,7 +305,12 @@
     github-check:
       jobs:
         - openstack-meta-content-provider-master
-        - watcher-operator-validation-master
+        - watcher-operator-validation-master:
+            vars:
+              cifmw_test_operator_tempest_registry: quay.io
+              cifmw_test_operator_tempest_namespace: raukadah
+              cifmw_test_operator_tempest_image_tag: master-latest
+              cifmw_test_operator_tempest_container: openstack-tempest
 
 - project-template:
     name: opendev-epoxy-watcher-operator-pipeline

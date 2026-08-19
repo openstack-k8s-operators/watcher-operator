@@ -1,5 +1,11 @@
 spec:
   customContainerImages:
-    watcherAPIImage: {{ _registry_url }}/openstack-watcher-api:{{ _tag }}
-    watcherApplierImage: {{ _registry_url }}/openstack-watcher-applier:{{ _tag }}
-    watcherDecisionEngineImage: {{ _registry_url }}/openstack-watcher-decision-engine:{{ _tag }}
+    watcherAPIImage: quay.io/openstack-k8s-operators/openstack-watcher-base:master-latest
+    watcherApplierImage: quay.io/openstack-k8s-operators/openstack-watcher-base:master-latest
+    watcherDecisionEngineImage: quay.io/openstack-k8s-operators/openstack-watcher-base:master-latest
+    cinderAPIImage: quay.io/openstack-k8s-operators/openstack-cinder-api:master-latest
+    cinderBackupImage: quay.io/openstack-k8s-operators/openstack-cinder-backup:master-latest
+    cinderSchedulerImage: quay.io/openstack-k8s-operators/openstack-cinder-scheduler:master-latest
+    cinderVolumeImage: quay.io/openstack-k8s-operators/openstack-cinder-volume:master-latest
+    glanceAPIImage: quay.io/openstack-k8s-operators/openstack-glance-api:master-latest
+    openstackClientImage: quay.io/raukadah/openstack-openstackclient:master-latest
