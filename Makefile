@@ -262,10 +262,18 @@ endif
 endif
 
 .PHONY: bundle
-bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
+bundle: manifests kustomize operator-sdk yq ## Generate bundle manifests and metadata, then validate generated files.
 	$(OPERATOR_SDK) generate kustomize manifests -q
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
-	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS)
+	# Drop RELATED_IMAGE_* env vars with an empty value before generating the
+	# bundle. operator-sdk turns every RELATED_IMAGE_* manager env var into a
+	# relatedImages entry, and with --use-image-digests an empty value makes
+	# pinImages panic ("interface conversion: nil, not string"). Empty
+	# RELATED_IMAGE_* vars are defaulting placeholders; skip them here and let
+	# non-empty ones still be pinned for offline mirroring.
+	$(KUSTOMIZE) build config/manifests | \
+		$(YQ) 'del(.spec.template.spec.containers[].env[] | select((.name | test("^RELATED_IMAGE_")) and .value == ""))' - | \
+		$(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS)
 	$(OPERATOR_SDK) bundle validate ./bundle
 
 .PHONY: bundle-build
@@ -290,6 +298,24 @@ ifeq (,$(shell which opm 2>/dev/null))
 	}
 else
 OPM = $(shell which opm)
+endif
+endif
+
+.PHONY: yq
+YQ = ./bin/yq
+YQ_VERSION ?= v4.53.6
+yq: ## Download yq locally if necessary.
+ifeq (,$(wildcard $(YQ)))
+ifeq (,$(shell which yq 2>/dev/null))
+	@{ \
+	set -e ;\
+	mkdir -p $(dir $(YQ)) ;\
+	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH) && \
+	curl -sSLo $(YQ) https://github.com/mikefarah/yq/releases/download/$(YQ_VERSION)/yq_$${OS}_$${ARCH} ;\
+	chmod +x $(YQ) ;\
+	}
+else
+YQ = $(shell which yq)
 endif
 endif
 
