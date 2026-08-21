@@ -241,21 +241,23 @@ func (r *WatcherImages) Default(defaults WatcherDefaults) {
 
 // SetupDefaults initializes any CRD field defaults based on environment variables (the defaulting mechanism itself is implemented via webhooks)
 func SetupDefaults() {
-	// Acquire environmental defaults and initialize Watcher defaults with them
+	// Acquire environmental defaults and initialize Watcher defaults with them.
+	// Per-service env vars take precedence over the base image, which in turn
+	// takes precedence over the compiled-in constants.
 	baseImage := util.GetEnvVar("RELATED_IMAGE_WATCHER_BASE_IMAGE_URL_DEFAULT", "")
-	var watcherDefaults WatcherDefaults
-	if baseImage != "" {
-		watcherDefaults = WatcherDefaults{
-			APIContainerImageURL:            baseImage,
-			ApplierContainerImageURL:        baseImage,
-			DecisionEngineContainerImageURL: baseImage,
+	fallback := func(envVar, compiled string) string {
+		if v := util.GetEnvVar(envVar, ""); v != "" {
+			return v
 		}
-	} else {
-		watcherDefaults = WatcherDefaults{
-			APIContainerImageURL:            util.GetEnvVar("RELATED_IMAGE_WATCHER_API_IMAGE_URL_DEFAULT", WatcherAPIContainerImage),
-			ApplierContainerImageURL:        util.GetEnvVar("RELATED_IMAGE_WATCHER_APPLIER_IMAGE_URL_DEFAULT", WatcherApplierContainerImage),
-			DecisionEngineContainerImageURL: util.GetEnvVar("RELATED_IMAGE_WATCHER_DECISION_ENGINE_IMAGE_URL_DEFAULT", WatcherDecisionEngineContainerImage),
+		if baseImage != "" {
+			return baseImage
 		}
+		return compiled
+	}
+	watcherDefaults := WatcherDefaults{
+		APIContainerImageURL:            fallback("RELATED_IMAGE_WATCHER_API_IMAGE_URL_DEFAULT", WatcherAPIContainerImage),
+		ApplierContainerImageURL:        fallback("RELATED_IMAGE_WATCHER_APPLIER_IMAGE_URL_DEFAULT", WatcherApplierContainerImage),
+		DecisionEngineContainerImageURL: fallback("RELATED_IMAGE_WATCHER_DECISION_ENGINE_IMAGE_URL_DEFAULT", WatcherDecisionEngineContainerImage),
 	}
 	SetupWatcherDefaults(watcherDefaults)
 }

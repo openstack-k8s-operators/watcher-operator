@@ -18,4 +18,4 @@ spec:
         - name: RELATED_IMAGE_WATCHER_APPLIER_IMAGE_URL_DEFAULT
           value: quay.io/podified-master-centos9/openstack-watcher-applier:current-podified
         - name: RELATED_IMAGE_WATCHER_BASE_IMAGE_URL_DEFAULT
-          value: ''
+          value: quay.io/openstack-k8s-operators/openstack-watcher-base:master-latest

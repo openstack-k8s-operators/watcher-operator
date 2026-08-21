@@ -32,4 +32,7 @@
         script: make watcher
         extra_args:
           CATALOG_IMAGE: "{{ watcher_catalog_image | default('quay.io/openstack-k8s-operators/watcher-operator-index:latest') }}"
+          WATCHER_API_CI_IMAGE: ""
+          WATCHER_DECISION_ENGINE_CI_IMAGE: ""
+          WATCHER_APPLIER_CI_IMAGE: ""
           WATCHER_BASE_CI_IMAGE: "quay.io/openstack-k8s-operators/openstack-watcher-base:master-latest"

@@ -382,7 +382,7 @@ CATALOG_IMAGE ?= quay.io/openstack-k8s-operators/watcher-operator-index:latest
 WATCHER_API_CI_IMAGE ?= quay.io/podified-master-centos9/openstack-watcher-api:current-podified
 WATCHER_DECISION_ENGINE_CI_IMAGE ?= quay.io/podified-master-centos9/openstack-watcher-decision-engine:current-podified
 WATCHER_APPLIER_CI_IMAGE ?= quay.io/podified-master-centos9/openstack-watcher-applier:current-podified
-WATCHER_BASE_CI_IMAGE ?= ""
+WATCHER_BASE_CI_IMAGE ?= quay.io/openstack-k8s-operators/openstack-watcher-base:master-latest
 
 WATCHER_SAMPLE_CR_PATH ?= config/samples/watcher_v1beta1_watcher.yaml
 
