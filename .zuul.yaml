@@ -61,12 +61,14 @@
     name: watcher-operator-validation-base
     parent: watcher-operator-base
     abstract: true
-    dependencies: ["openstack-meta-content-provider-master"]
     description: |
       A intermediate base job to set config that is needed for jobs running
       in the operator check pipeline but will not be used for other jobs
       inheriting from watcher-operator-base, like the one running in the
       master pipeline.
+      Content-provider dependencies are set per pipeline so github-check can
+      use openstack-k8s-operators-content-provider while openstack-check keeps
+      the meta provider.
     vars:
       # Donot use openstack services containers from meta content provider master
       # job.
@@ -87,11 +89,11 @@
 - job:
     name: watcher-operator-kuttl
     nodeset: centos-9-medium-crc-cloud-ocp-4-18-1-3xl
-    dependencies: ["openstack-meta-content-provider-master"]
+    dependencies: ["openstack-k8s-operators-content-provider"]
     parent: cifmw-multinode-kuttl-operator-target
     description: |
       A zuul job to run watcher operator kuttl tests.
-      It will pull operator images from meta content provider. There is no
+      It will pull operator images from the non-meta content provider. There is no
       change in openstack services container images.
     vars:
       # Do not fetch dlrn md5 hash
@@ -121,6 +123,62 @@
     vars:
       asciidoc_available: true
       doc_available: false
+
+- job:
+    name: watcher-s2i-content-provider
+    parent: s2i-openstack-container-content-provider
+    description: |
+      Build s2i watcher images for watcher-s2i-tempest.
+    required-projects:
+      - name: openstack-k8s-operators/s2i-openstack-containers
+        override-checkout: main
+    vars:
+      s2i_ci_images:
+        - watcher/watcher-base
+
+- job:
+    name: watcher-s2i-tempest
+    parent: watcher-operator-validation-base
+    description: |
+      Validate speculatively-built s2i watcher images against a live
+      OpenStack deployment with watcher enabled. s2i-built images from
+      the content provider are applied to OpenStackVersion during
+      edpm_prepare via ci-framework set_containers before the control
+      plane is deployed.
+    required-projects:
+      - name: openstack-k8s-operators/s2i-openstack-containers
+        override-checkout: main
+    vars:
+      # Operator CP owns content_provider_registry_ip (catalog + CRC insecure list).
+      cifmw_crc_additional_insecure_registries:
+        - "{{ s2i_content_provider_registry_ip }}:5001"
+      cifmw_crc_additional_allowed_registries:
+        - "{{ s2i_content_provider_registry_ip }}:5001"
+      cifmw_set_containers_preserve_unlisted: true
+      cifmw_set_containers_images: >-
+        {{
+          s2i_content_provider_os_custom_container_images | dict2items |
+          json_query('[].{name: key, full_registry: value}')
+        }}
+      # Same extras as watcher-operator-base: edpm.yml enables telemetry
+      # metricStorage (Prometheus remote-write) and notifications; watcher-tempest.yml
+      # points tempest at Prometheus instead of Gnocchi.
+      cifmw_extras:
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
+           src_dir }}/scenarios/centos-9/multinode-ci.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
+           src_dir }}/scenarios/centos-9/horizon.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/scenarios/{{ watcher_scenario }}.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/tests/watcher-tempest.yml"
+      # watcher-tempest.yml falls back to quay.io/podified-antelope-centos9 when
+      # content_provider_os_registry_url is unset. That image's tempest plugin still
+      # talks to Gnocchi. Use the same master tempest image as validation-master.
+      cifmw_test_operator_tempest_registry: quay.io
+      cifmw_test_operator_tempest_namespace: openstack-k8s-operators
+      cifmw_test_operator_tempest_image_tag: master-latest
+      cifmw_test_operator_tempest_container: openstack-tempest
 
 ##########################################################
 #                                                        #
@@ -226,11 +284,32 @@
     name: opendev-master-watcher-operator-pipeline
     github-check:
       jobs:
-        - openstack-meta-content-provider-master
-        - watcher-operator-validation-master
+        # Operator images only. Watcher service images come from s2i.
+        - openstack-k8s-operators-content-provider:
+            vars:
+              cifmw_install_yamls_sdk_version: v1.41.1
+              cifmw_operator_build_operators:
+                - name: watcher-operator
+                  src: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator"
+                - name: openstack-operator
+                  src: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/openstack-operator"
+                  image_base: watcher
+        - watcher-operator-validation-master:
+            dependencies:
+              - openstack-k8s-operators-content-provider
+            vars:
+              cifmw_update_containers_openstack: false
+              cifmw_update_containers_watcher: false
 
 - project-template:
     name: opendev-watcher-edpm-pipeline
+    description: |
+      EDPM validation for OpenDev watcher projects, plus speculative
+      s2i watcher image rebuild and deploy. RDO config already applies
+      this template to watcher, python-watcherclient, and
+      watcher-tempest-plugin. The s2i jobs are limited to watcher/
+      source paths so client and tempest-plugin changes do not rebuild
+      containers (auto-detect would find no sources.txt match).
     openstack-check:
       jobs:
         - openstack-meta-content-provider-master:
@@ -267,6 +346,30 @@
             irrelevant-files: *irrelevant_files_watcher
             required-projects:
               - github.com/openstack-k8s-operators/watcher-operator
+            dependencies:
+              - openstack-meta-content-provider-master
+        - watcher-s2i-content-provider:
+            voting: false
+            branches: master
+            override-checkout: main
+            files:
+              - ^watcher/
+            irrelevant-files: *irrelevant_files_watcher
+            vars:
+              s2i_ci_images: auto
+        - watcher-s2i-tempest:
+            voting: false
+            branches: master
+            override-checkout: main
+            files:
+              - ^watcher/
+            irrelevant-files: *irrelevant_files_watcher
+            required-projects:
+              - github.com/openstack-k8s-operators/watcher-operator
+              - github.com/openstack-k8s-operators/s2i-openstack-containers
+            dependencies:
+              - openstack-meta-content-provider-master
+              - watcher-s2i-content-provider
 
 - project:
     name: openstack-k8s-operators/watcher-operator
@@ -279,3 +382,10 @@
         - noop
         - watcher-operator-doc-preview
         - watcher-operator-kuttl
+        - watcher-s2i-content-provider:
+            voting: false
+        - watcher-s2i-tempest:
+            voting: false
+            dependencies:
+              - openstack-k8s-operators-content-provider
+              - watcher-s2i-content-provider
