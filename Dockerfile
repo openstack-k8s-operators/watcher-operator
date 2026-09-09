@@ -4,6 +4,7 @@ ARG OPERATOR_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-minimal:9.6
 # Build the manager binary
 FROM $GOLANG_BUILDER AS builder
 
+# Update this file to check cp for operators
 #Arguments required by OSBS build system
 ARG CACHITO_ENV_FILE=/remote-source/cachito.env
 ARG REMOTE_SOURCE=.
