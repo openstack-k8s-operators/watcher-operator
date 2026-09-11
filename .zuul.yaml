@@ -20,6 +20,28 @@
            src_dir }}/ci/tests/watcher-tempest.yml"
 
 - job:
+    name: watcher-operator-base-centos-10
+    nodeset: centos-10-medium-2x-centos-10-crc-cloud-ocp-4-20-1-3xl
+    parent: podified-multinode-edpm-deployment-crc-2comp-centos-10
+    description: |
+      A multinode EDPM Zuul job which has one ansible controller, one
+      extracted crc and two computes. It will be used for testing watcher-operator.
+      Configures Nova and Cinder to send notifications over a dedicated rabbitmq instance.
+    vars:
+      watcher_scenario: "edpm"
+      cifmw_extras:
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
+           src_dir }}/scenarios/centos-10/base.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
+           src_dir }}/scenarios/centos-10/multinode-ci.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
+           src_dir }}/scenarios/centos-10/horizon.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/scenarios/{{ watcher_scenario }}.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/tests/watcher-tempest.yml"
+
+- job:
     name: periodic-watcher-operator-validation-master
     parent: watcher-operator-base
     description: |
@@ -69,7 +91,7 @@
       Content-provider dependencies are set per pipeline so github-check can
       use openstack-k8s-operators-content-provider while openstack-check keeps
       the meta provider.
-    vars:
+    vars: &watcher-operator-validation-base-vars
       # Donot use openstack services containers from meta content provider master
       # job.
       cifmw_update_containers_openstack: false
@@ -85,6 +107,20 @@
       - .pre-commit-config.yaml
       - tests?\/functional
       - ^docs/
+
+- job:
+    name: watcher-operator-validation-base-centos-10
+    parent: watcher-operator-base-centos-10
+    abstract: true
+    description: |
+      A intermediate base job to set config that is needed for jobs running
+      in the operator check pipeline but will not be used for other jobs
+      inheriting from watcher-operator-base, like the one running in the
+      master pipeline.
+      Content-provider dependencies are set per pipeline so github-check can
+      use openstack-k8s-operators-content-provider while openstack-check keeps
+      the meta provider.
+    vars: *watcher-operator-validation-base-vars
 
 - job:
     name: watcher-operator-kuttl
@@ -138,7 +174,7 @@
 
 - job:
     name: watcher-s2i-tempest
-    parent: watcher-operator-validation-base
+    parent: watcher-operator-validation-base-centos-10
     description: |
       Validate speculatively-built s2i watcher images against a live
       OpenStack deployment with watcher enabled. s2i-built images from
@@ -165,9 +201,11 @@
       # points tempest at Prometheus instead of Gnocchi.
       cifmw_extras:
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
-           src_dir }}/scenarios/centos-9/multinode-ci.yml"
+           src_dir }}/scenarios/centos-10/base.yml"
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
-           src_dir }}/scenarios/centos-9/horizon.yml"
+           src_dir }}/scenarios/centos-10/multinode-ci.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
+           src_dir }}/scenarios/centos-10/horizon.yml"
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
            src_dir }}/ci/scenarios/{{ watcher_scenario }}.yml"
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
