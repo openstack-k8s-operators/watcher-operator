@@ -6,14 +6,14 @@ require (
 	github.com/go-logr/logr v1.4.4
 	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.32.1
-	github.com/onsi/gomega v1.42.1
+	github.com/onsi/gomega v1.43.0
 	github.com/openshift/api v3.9.0+incompatible
-	github.com/openstack-k8s-operators/infra-operator/apis v0.6.1-0.20260820165931-18e54edd62e6
-	github.com/openstack-k8s-operators/keystone-operator/api v0.6.1-0.20260822072640-7bd662ad0284
-	github.com/openstack-k8s-operators/lib-common/modules/common v0.6.1-0.20260824142420-113dc64ecfd4
-	github.com/openstack-k8s-operators/lib-common/modules/test v0.6.1-0.20260824142420-113dc64ecfd4
-	github.com/openstack-k8s-operators/lib-common/modules/users v0.0.0-20260905135931-526eb6f05187
-	github.com/openstack-k8s-operators/mariadb-operator/api v0.6.1-0.20260822071633-1e127e728e62
+	github.com/openstack-k8s-operators/infra-operator/apis v0.6.1-0.20260910123137-52663de4900c
+	github.com/openstack-k8s-operators/keystone-operator/api v0.6.1-0.20260905072629-36e05507b30a
+	github.com/openstack-k8s-operators/lib-common/modules/common v0.6.1-0.20260911152322-92cbe8cb7d0a
+	github.com/openstack-k8s-operators/lib-common/modules/test v0.6.1-0.20260911152322-92cbe8cb7d0a
+	github.com/openstack-k8s-operators/lib-common/modules/users v0.0.0-20260911152322-92cbe8cb7d0a
+	github.com/openstack-k8s-operators/mariadb-operator/api v0.6.1-0.20260908120707-b40f88a1542c
 	github.com/openstack-k8s-operators/watcher-operator/api v0.0.0-00010101000000-000000000000
 	go.uber.org/zap v1.28.0
 	gopkg.in/yaml.v3 v3.0.1
