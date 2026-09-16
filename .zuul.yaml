@@ -176,7 +176,7 @@
       # content_provider_os_registry_url is unset. That image's tempest plugin still
       # talks to Gnocchi. Use the same master tempest image as validation-master.
       cifmw_test_operator_tempest_registry: quay.io
-      cifmw_test_operator_tempest_namespace: openstack-k8s-operators
+      cifmw_test_operator_tempest_namespace: openstack-s2i-containers
       cifmw_test_operator_tempest_image_tag: master-latest
       cifmw_test_operator_tempest_container: openstack-tempest
 
@@ -236,7 +236,7 @@
       watcher_services_tag: watcher_latest
       watcher_registry_url: "{{ content_provider_os_registry_url }}"
       cifmw_test_operator_tempest_registry: quay.io
-      cifmw_test_operator_tempest_namespace: openstack-k8s-operators
+      cifmw_test_operator_tempest_namespace: openstack-s2i-containers
       cifmw_test_operator_tempest_image_tag: master-latest
       cifmw_test_operator_tempest_container: openstack-tempest
       cifmw_extras:
