@@ -371,6 +371,28 @@
               - openstack-meta-content-provider-master
               - watcher-s2i-content-provider
 
+- project-template:
+    name: watcher-operator-s2i-component-jobs
+    description: |
+      Project template to be used in the s2i repository
+      to validate changes to containers impacting Watcher.
+    github-check:
+      jobs:
+        - watcher-s2i-tempest:
+            required-projects:
+              - name: openstack-k8s-operators/s2i-openstack-containers
+                override-checkout: main
+              - name: openstack-k8s-operators/watcher-operator
+                override-checkout: main
+            vars:
+              content_provider_registry_ip: '{{ s2i_content_provider_registry_ip }}'
+            files:
+              - ^containers/watcher/
+              - ^containers/base/
+            dependencies:
+              - s2i-openstack-container-content-provider
+              - s2i-openstack-container-consumer-smoke
+
 - project:
     name: openstack-k8s-operators/watcher-operator
     default-branch: main
