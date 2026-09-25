@@ -312,14 +312,11 @@
       containers (auto-detect would find no sources.txt match).
     openstack-check:
       jobs:
-        - openstack-meta-content-provider-master:
+        - watcher-s2i-content-provider:
             branches: master
-            # Note(chandankumar): Add override checkout at project template
-            # pipeline so that RDO zuul discovers the job and complete the job
-            # graph in order to run the job.
             override-checkout: main
-            required-projects:
-              - github.com/openstack-k8s-operators/watcher-operator
+            files:
+              - ^watcher/
             irrelevant-files: &irrelevant_files_watcher
             # From watcher irrelevant_files from watcher-grenade job job: https://github.com/openstack/watcher/blob/master/.zuul.yaml#L151
             # - ^(test-|)requirements.txt$ It is needed to find dependency issue while building packages in content provider.
@@ -332,33 +329,11 @@
               - ^setup.cfg$
               - ^tools/.*$
               - ^tox.ini$
-            # Build watcher-operator always in meta content provider
-            vars:
-              cifmw_operator_build_operators:
-                - name: watcher-operator
-                  src: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator"
-                - name: openstack-operator
-                  src: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/openstack-operator"
-                  image_base: watcher
-        - watcher-operator-validation-master:
-            branches: master
-            override-checkout: main
-            irrelevant-files: *irrelevant_files_watcher
-            required-projects:
-              - github.com/openstack-k8s-operators/watcher-operator
-            dependencies:
-              - openstack-meta-content-provider-master
-        - watcher-s2i-content-provider:
-            voting: false
-            branches: master
-            override-checkout: main
-            files:
-              - ^watcher/
-            irrelevant-files: *irrelevant_files_watcher
             vars:
               s2i_ci_images: auto
+              ensure_tox_executable: /usr/local/bin/tox
+              ensure_global_symlinks: true
         - watcher-s2i-tempest:
-            voting: false
             branches: master
             override-checkout: main
             files:
@@ -368,8 +343,9 @@
               - github.com/openstack-k8s-operators/watcher-operator
               - github.com/openstack-k8s-operators/s2i-openstack-containers
             dependencies:
-              - openstack-meta-content-provider-master
               - watcher-s2i-content-provider
+            vars:
+              content_provider_registry_ip: '{{ s2i_content_provider_registry_ip }}'
 
 - project-template:
     name: watcher-operator-s2i-component-jobs
