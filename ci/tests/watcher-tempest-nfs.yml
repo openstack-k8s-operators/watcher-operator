@@ -32,3 +32,6 @@ cifmw_test_operator_tempest_tempestconf_config:
     optimize.run_continuous_audit_tests true
     optimize.run_zone_migration_extra_tests true
     optimize.run_zone_migration_storage_tests true
+    optimize.run_bfv_tests true
+    optimize.run_skipped_action_tests true
+    optimize.run_delete_shelve_action_tests true
