@@ -20,6 +20,27 @@
            src_dir }}/ci/tests/watcher-tempest.yml"
 
 - job:
+    name: watcher-operator-s2i-base
+    nodeset: centos-9-medium-2x-centos-9-crc-cloud-ocp-4-20-1-3xl
+    parent: s2i-test-base
+    description: |
+      A multinode EDPM Zuul job which has one ansible controller, one
+      extracted crc and two computes. It will be used for testing watcher-operator.
+      Configures Nova and Cinder to send notifications over a dedicated rabbitmq instance.
+      Uses openstack images based on s2i geneation process
+    vars:
+      watcher_scenario: "edpm"
+      cifmw_extras:
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
+           src_dir }}/scenarios/centos-9/multinode-ci.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
+           src_dir }}/scenarios/centos-9/horizon.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/scenarios/{{ watcher_scenario }}.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/tests/watcher-tempest.yml"
+
+- job:
     name: periodic-watcher-operator-validation-master
     parent: watcher-operator-base
     description: |
@@ -87,6 +108,29 @@
       - ^docs/
 
 - job:
+    name: watcher-operator-validation-s2i-base
+    parent: watcher-operator-s2i-base
+    abstract: true
+    description: |
+      A intermediate base job to set config that is needed for jobs running
+      in the operator check pipeline but will not be used for other jobs
+      inheriting from watcher-operator-base, like the one running in the
+      master pipeline.
+      Content-provider dependencies are set per pipeline so github-check can
+      use openstack-k8s-operators-content-provider while openstack-check keeps
+      the meta provider.
+      Uses openstack images based on s2i geneation process
+    vars:
+      # Donot use openstack services containers from meta content provider master
+      # job.
+      cifmw_update_containers_openstack: false
+      cifmw_edpm_telemetry_enabled_exporters:
+        - podman_exporter
+        - openstack_network_exporter
+      zuul_log_collection: false
+    irrelevant-files: *irrelevant_files_operator
+
+- job:
     name: watcher-operator-kuttl
     nodeset: centos-9-medium-crc-cloud-ocp-4-18-1-3xl
     dependencies: ["openstack-k8s-operators-content-provider"]
@@ -138,7 +182,7 @@
 
 - job:
     name: watcher-s2i-tempest
-    parent: watcher-operator-validation-base
+    parent: watcher-operator-validation-s2i-base
     description: |
       Validate speculatively-built s2i watcher images against a live
       OpenStack deployment with watcher enabled. s2i-built images from
@@ -160,9 +204,12 @@
           s2i_content_provider_os_custom_container_images | dict2items |
           json_query('[].{name: key, full_registry: value}')
         }}
-      # Same extras as watcher-operator-base: edpm.yml enables telemetry
-      # metricStorage (Prometheus remote-write) and notifications; watcher-tempest.yml
-      # points tempest at Prometheus instead of Gnocchi.
+      # Same extras as watcher-operator-validation-master so the same set of
+      # tempest tests runs: edpm.yml enables telemetry metricStorage (Prometheus
+      # remote-write) and notifications; watcher-tempest.yml points tempest at
+      # Prometheus instead of Gnocchi; watcher-tempest-nfs.yml enables the
+      # zone/storage migration tests and drops the volume_migration exclusion;
+      # nfs.yml provides the cinder NFS backend those migration tests require.
       cifmw_extras:
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
            src_dir }}/scenarios/centos-9/multinode-ci.yml"
@@ -172,6 +219,10 @@
            src_dir }}/ci/scenarios/{{ watcher_scenario }}.yml"
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
            src_dir }}/ci/tests/watcher-tempest.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/tests/watcher-tempest-nfs.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/scenarios/nfs.yml"
       # watcher-tempest.yml falls back to quay.io/podified-antelope-centos9 when
       # content_provider_os_registry_url is unset. That image's tempest plugin still
       # talks to Gnocchi. Use the same master tempest image as validation-master.
@@ -380,10 +431,8 @@
         - noop
         - watcher-operator-doc-preview
         - watcher-operator-kuttl
-        - watcher-s2i-content-provider:
-            voting: false
+        - watcher-s2i-content-provider
         - watcher-s2i-tempest:
-            voting: false
             dependencies:
               - openstack-k8s-operators-content-provider
               - watcher-s2i-content-provider

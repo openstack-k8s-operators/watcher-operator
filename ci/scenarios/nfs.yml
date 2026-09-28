@@ -6,6 +6,8 @@ cifmw_nfs_shares:
   - cinder_backend_2
   - cinderbackup
 
+cifmw_edpm_prepare_cindervolumes: ['nfs', 'nfs-2']
+
 cifmw_update_containers_cindervolumes:
   - nfs
   - nfs-2
