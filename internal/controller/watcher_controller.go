@@ -431,9 +431,8 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 	// The old secret's finalizer is removed later (after all services deploy)
 	// so that rapid rotations don't revoke a credential still in use by pods.
 	if instance.Spec.Auth.ApplicationCredentialSecret != "" {
-		if err := keystonev1.ManageACSecretFinalizer(ctx, helper, instance.Namespace,
+		if err := object.ManageSecretConsumerFinalizer(ctx, helper, instance.Namespace,
 			instance.Spec.Auth.ApplicationCredentialSecret,
-			"",
 			watcher.ACConsumerFinalizer); err != nil {
 			instance.Status.Conditions.Set(condition.FalseCondition(
 				condition.InputReadyCondition,
@@ -567,24 +566,6 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		watcherDecisionEngine.Status.AppliedInputSecretHash == subLevelSecretHash &&
 		watcherDecisionEngine.IsReady()
 
-	// Manage the old AC secret's finalizer and status tracking.
-	// On rotation (old != new), only remove the old secret's finalizer after
-	// all sub-services are ready with the new credentials. This prevents
-	// premature revocation during rapid rotations.
-	isRotation := instance.Status.ApplicationCredentialSecret != "" && instance.Status.ApplicationCredentialSecret != instance.Spec.Auth.ApplicationCredentialSecret
-
-	if isRotation {
-		if allServicesReady {
-			if err := keystonev1.RemoveACSecretConsumerFinalizer(ctx, helper, instance.Namespace,
-				instance.Status.ApplicationCredentialSecret, watcher.ACConsumerFinalizer); err != nil {
-				return ctrl.Result{}, err
-			}
-			instance.Status.ApplicationCredentialSecret = instance.Spec.Auth.ApplicationCredentialSecret
-		}
-	} else if instance.Status.ApplicationCredentialSecret != instance.Spec.Auth.ApplicationCredentialSecret {
-		instance.Status.ApplicationCredentialSecret = instance.Spec.Auth.ApplicationCredentialSecret
-	}
-
 	// Finalize transport URL and notification transport URL secret rotation.
 	// The consumer finalizer on the old secret is only released once every
 	// sub-service is ready with the new credentials (allServicesReady), so
@@ -641,6 +622,19 @@ func (r *WatcherReconciler) Reconcile(ctx context.Context, req ctrl.Request) (re
 		}
 		instance.Status.NotificationsTransportURLSecret = ""
 	}
+
+	// Finalize AC secret rotation
+	acSecretName, err := object.FinalizeSecretRotation(
+		ctx, helper, instance.Namespace,
+		instance.Status.ApplicationCredentialSecret,
+		instance.Spec.Auth.ApplicationCredentialSecret,
+		watcher.ACConsumerFinalizer,
+		guardReady,
+	)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	instance.Status.ApplicationCredentialSecret = acSecretName
 
 	// Self-heal consumer finalizers stranded on secrets superseded during
 	// rapid rotation (A -> B -> C before the workloads became ready):
@@ -1520,17 +1514,6 @@ func (r *WatcherReconciler) reconcileDelete(ctx context.Context, instance *watch
 	}
 	//
 
-	// Remove consumer finalizer from AC secrets watcher was consuming.
-	for _, secretName := range []string{
-		instance.Status.ApplicationCredentialSecret,
-		instance.Spec.Auth.ApplicationCredentialSecret,
-	} {
-		if err := keystonev1.RemoveACSecretConsumerFinalizer(ctx, helper, instance.Namespace,
-			secretName, watcher.ACConsumerFinalizer); err != nil {
-			return ctrl.Result{}, err
-		}
-	}
-
 	// Remove the transport consumer finalizer from every transport URL secret
 	// watcher was consuming (main + notifications, plus any secret superseded by
 	// an in-flight rotation). Pass no keep set so all secrets still carrying the
@@ -1538,6 +1521,14 @@ func (r *WatcherReconciler) reconcileDelete(ctx context.Context, instance *watch
 	// would be left stuck Terminating.
 	if err := object.PruneSecretConsumerFinalizers(
 		ctx, helper, instance.Namespace, watcher.TransportConsumerFinalizer,
+	); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// Remove the AC consumer finalizer from every AC secret watcher was
+	// protecting so their owning application credentials can be revoked.
+	if err := object.PruneSecretConsumerFinalizers(
+		ctx, helper, instance.Namespace, watcher.ACConsumerFinalizer,
 	); err != nil {
 		return ctrl.Result{}, err
 	}
