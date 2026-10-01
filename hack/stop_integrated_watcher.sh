@@ -16,6 +16,9 @@ if [ -z ${WATCHER_CSV_NAME} ]; then
         if [ -n "${WATCHER_POD_NAME}" ]; then
             oc wait --for=delete "${WATCHER_POD_NAME}" -n openstack-operators --timeout=60s
         fi
+        # Remove the deployment to avoid incompatibility in definition with the deployment created by watcher-operator
+        oc delete deployment watcher-operator-controller-manager -n openstack-operators
+        oc wait --for=delete deployment watcher-operator-controller-manager -n openstack-operators --timeout=60s
     else
         echo "Openstack operator is not installed"
     fi
