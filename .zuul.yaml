@@ -101,7 +101,6 @@
       deploy_watcher_operator_extra_vars:
         watcher_catalog_image: "{{ cifmw_operator_build_output['operators']['watcher-operator'].image_catalog }}"
         # use master content for watcher services
-        content_provider_os_registry_url: "{{ content_provider_os_registry_url }}"
         watcher_services_tag: watcher_latest
       cifmw_extras:
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
