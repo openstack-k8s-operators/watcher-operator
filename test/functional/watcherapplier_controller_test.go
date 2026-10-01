@@ -196,26 +196,18 @@ var _ = Describe("WatcherApplier controller", func() {
 
 			// indentaion is forced by use of raw literal
 			expectedSections := []string{`
-[cinder_client]
-endpoint_type = internal
-region_name = regionOne`, `
-[glance_client]
-endpoint_type = internal
-region_name = regionOne`, `
+[cinder]
+`, `
 [ironic_client]
 endpoint_type = internal
 region_name = regionOne`, `
-[keystone_client]
-interface = internal
-region_name = regionOne`, `
-[neutron_client]
-endpoint_type = internal
-region_name = regionOne`, `
-[nova_client]
-endpoint_type = internal
-region_name = regionOne`, `
-[placement_client]
-interface = internal
+[keystone]
+`, `
+[nova]
+`, `
+[placement]
+`, `
+valid_interfaces = internal
 region_name = regionOne`, `
 [watcher_workflow_engines.taskflow]
 max_workers = 8`, `
@@ -759,26 +751,18 @@ transport_url =`
 
 			// indentaion is forced by use of raw literal
 			expectedSections := []string{`
-[cinder_client]
-endpoint_type = internal
-region_name = regionTwo`, `
-[glance_client]
-endpoint_type = internal
-region_name = regionTwo`, `
+[cinder]
+`, `
 [ironic_client]
 endpoint_type = internal
 region_name = regionTwo`, `
-[keystone_client]
-interface = internal
-region_name = regionTwo`, `
-[neutron_client]
-endpoint_type = internal
-region_name = regionTwo`, `
-[nova_client]
-endpoint_type = internal
-region_name = regionTwo`, `
-[placement_client]
-interface = internal
+[keystone]
+`, `
+[nova]
+`, `
+[placement]
+`, `
+valid_interfaces = internal
 region_name = regionTwo`, `
 [watcher_workflow_engines.taskflow]
 max_workers = 8`, `
