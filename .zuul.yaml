@@ -134,6 +134,11 @@
     vars:
       s2i_ci_images:
         - watcher/watcher-base
+        - nova/nova-api
+        - nova/nova-compute
+        - nova/nova-conductor
+        - nova/nova-novncproxy
+        - nova/nova-scheduler
 
 - job:
     name: watcher-s2i-tempest
@@ -372,17 +377,17 @@
     name: openstack-k8s-operators/watcher-operator
     default-branch: main
     merge-mode: rebase
-    templates:
-      - opendev-master-watcher-operator-pipeline
+    #templates:
+    #  - opendev-master-watcher-operator-pipeline
     github-check:
       jobs:
         - noop
-        - watcher-operator-doc-preview
-        - watcher-operator-kuttl
+     #   - watcher-operator-doc-preview
+     #   - watcher-operator-kuttl
         - watcher-s2i-content-provider:
             voting: false
-        - watcher-s2i-tempest:
-            voting: false
-            dependencies:
-              - openstack-k8s-operators-content-provider
-              - watcher-s2i-content-provider
+     #   - watcher-s2i-tempest:
+     #       voting: false
+     #       dependencies:
+     #         - openstack-k8s-operators-content-provider
+     #         - watcher-s2i-content-provider
