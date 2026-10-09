@@ -1,0 +1,142 @@
+---
+# Merged content provider run playbook
+# 1. Runs ci-framework content provider (deploys registry + builds operators)
+# 2. Prepares s2i to use the ci-framework registry
+# 3. Runs s2i build (reuses existing s2i shared/run.yaml)
+# 4. Returns merged Zuul variables
+
+- name: "Run ci/playbooks/merged_content_provider_run.yaml"
+  hosts: "{{ cifmw_zuul_target_host | default('all') }}"
+  gather_facts: true
+  vars:
+    s2i_ci_output_dir: "{{ ansible_user_dir }}/zuul-output"
+    s2i_ci_registry_connection_file: >-
+      {{ s2i_ci_output_dir }}/.s2i-ci-registry-connection.json
+
+  tasks:
+    - name: Filter out host if needed
+      when:
+        - cifmw_zuul_target_host is defined
+        - cifmw_zuul_target_host != 'all'
+        - inventory_hostname != cifmw_zuul_target_host
+      ansible.builtin.meta: end_host
+
+    # Step 1: Run ci-framework content provider (operators + registry)
+    - name: Deploy ci-framework content provider
+      environment:
+        ANSIBLE_CONFIG: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/ci-framework/ansible.cfg"
+      ansible.builtin.command:
+        chdir: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/ci-framework"
+        cmd: >-
+          ansible-playbook -i localhost,
+          -c local ci/playbooks/content_provider/content_provider.yml
+          -e @group_vars/all.yml
+          -e @scenarios/centos-9/base.yml
+          -e @scenarios/centos-9/content_provider.yml
+          -e "@{{ ansible_user_dir }}/ci-framework-data/artifacts/parameters/zuul-params.yml"
+          -e "cifmw_rp_registry_ip={{ cifmw_rp_registry_ip }}"
+
+    - name: Include ci-framework ansible vars file
+      ansible.builtin.slurp:
+        src: "{{ cifmw_artifacts_basedir }}/artifacts/ansible-vars.yml"
+      register: inner_ansible
+
+    - name: Get ci-framework ansible vars
+      ansible.builtin.set_fact:
+        inner_ansible_vars: "{{ inner_ansible.content | b64decode | from_yaml }}"
+
+    # Step 2: Prepare s2i to use ci-framework registry
+    - name: Create s2i output directory
+      ansible.builtin.file:
+        path: "{{ s2i_ci_output_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Write s2i registry connection file pointing to ci-framework registry
+      ansible.builtin.copy:
+        dest: "{{ s2i_ci_registry_connection_file }}"
+        mode: "0600"
+        content: |
+          {{ {
+               'endpoint': cifmw_rp_registry_ip ~ ':' ~ (cifmw_rp_registry_port | default('5001')),
+               'public_host': cifmw_rp_registry_ip,
+               'public_port': cifmw_rp_registry_port | default('5001'),
+               'auth_file': '',
+               'cert_dir': ''
+             } | to_nice_json }}
+
+    # Step 3: Run s2i container build using shared playbook
+    - name: Run s2i container build
+      ansible.builtin.command:
+        chdir: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/s2i-openstack-containers"
+        cmd: >-
+          ansible-playbook -i localhost,
+          -c local playbooks/container-ci/shared/run.yaml
+          -e "@{{ ansible_user_dir }}/ci-framework-data/artifacts/parameters/zuul-params.yml"
+          -e "s2i_ci_registry_connection_file={{ s2i_ci_registry_connection_file }}"
+          -e "s2i_ci_output_dir={{ s2i_ci_output_dir }}"
+          -e "s2i_ci_container_project={{ s2i_ci_container_project }}"
+          -e "s2i_ci_images={{ s2i_ci_images | to_json }}"
+          -e "s2i_ci_stream={{ s2i_ci_stream }}"
+          -e "s2i_ci_content_provider={{ s2i_ci_content_provider }}"
+          -e "s2i_ci_use_provider_pip_mirror={{ s2i_ci_use_provider_pip_mirror }}"
+          -e "s2i_ci_enable_rpm_cache={{ s2i_ci_enable_rpm_cache }}"
+          -e "s2i_ci_rpm_cache_use_provider_mirror={{ s2i_ci_rpm_cache_use_provider_mirror }}"
+      register: s2i_build_output
+
+    - name: Show s2i build output
+      ansible.builtin.debug:
+        var: s2i_build_output.stdout_lines
+
+    # Step 4: Get s2i artifacts
+    - name: Check if s2i wrote artifacts
+      ansible.builtin.stat:
+        path: "{{ s2i_ci_output_dir }}/logs/container-build/published-images.json"
+      register: s2i_artifacts
+
+    - name: Load s2i published images
+      when: s2i_artifacts.stat.exists
+      ansible.builtin.slurp:
+        src: "{{ s2i_ci_output_dir }}/logs/container-build/published-images.json"
+      register: s2i_published_data
+
+    - name: Parse s2i published images
+      when: s2i_artifacts.stat.exists
+      ansible.builtin.set_fact:
+        s2i_ci_published_metadata: "{{ s2i_published_data.content | b64decode | from_json }}"
+
+    - name: Set s2i output variables
+      when: s2i_artifacts.stat.exists
+      ansible.builtin.set_fact:
+        s2i_ci_custom_container_images: "{{ s2i_ci_published_metadata.custom_container_images | default({}) }}"
+        s2i_ci_published_images: "{{ s2i_ci_published_metadata.images | default([]) }}"
+        s2i_ci_tag: "{{ s2i_ci_published_metadata.tag | default('latest') }}"
+
+    - name: Set content provider IP
+      ansible.builtin.set_fact:
+        content_provider_ip: "{{ cifmw_rp_registry_ip }}"
+
+    # Step 5: Return merged Zuul data
+    - name: Set up content registry IP address
+      vars:
+        _registry_ip: "{{ content_provider_ip | default('') | trim }}"
+        _registry_available: "{{ _registry_ip != '' }}"
+        _registry_ip_port: "{{ _registry_ip }}:{{ cifmw_rp_registry_port | default('5001') }}"
+      zuul_return:
+        data:
+          zuul:
+            pause: true
+          # Operator build outputs
+          cifmw_operator_build_output: "{{ inner_ansible_vars.cifmw_operator_build_output }}"
+          cifmw_build_images_output: "{{ inner_ansible_vars.cifmw_build_images_output | default({}) }}"
+          content_provider_registry_available: "{{ _registry_available }}"
+          content_provider_registry_ip: "{{ _registry_ip }}"
+          content_provider_registry_ip_port: "{{ _registry_ip_port if _registry_available else '' }}"
+          # S2I outputs (namespaced to avoid collision)
+          s2i_content_provider_os_custom_container_images: "{{ s2i_ci_custom_container_images | default({}) }}"
+          s2i_content_provider_os_registry_url: "{{ _registry_ip_port if _registry_available else 'null' }}"
+          s2i_content_provider_os_registry_namespace: "openstack"
+          s2i_content_provider_os_registry_tag: "{{ s2i_ci_tag | default('latest') }}"
+          s2i_content_provider_registry_available: "{{ _registry_available }}"
+          s2i_content_provider_registry_ip: "{{ _registry_ip }}"
+          s2i_content_provider_registry_ip_port: "{{ _registry_ip_port if _registry_available else '' }}"

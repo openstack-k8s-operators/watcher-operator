@@ -1,0 +1,9 @@
+---
+# Prepare s2i build environment to use ci-framework registry
+# This runs AFTER the parent job's pre-run (ci/playbooks/content_provider/pre.yml)
+# which already deployed the registry at cifmw_rp_registry_ip:5001
+# We just need to prepare s2i package mirrors
+
+- name: Prepare s2i package caches for container builds
+  ansible.builtin.import_playbook: >-
+    {{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/s2i-openstack-containers/playbooks/container-ci/zuul/prepare-mirrors.yaml

@@ -125,7 +125,7 @@
 - job:
     name: watcher-operator-kuttl
     nodeset: centos-9-medium-crc-cloud-ocp-4-18-1-3xl
-    dependencies: ["openstack-k8s-operators-content-provider"]
+    dependencies: ["watcher-operator-merged-content-provider"]
     parent: cifmw-multinode-kuttl-operator-target
     description: |
       A zuul job to run watcher operator kuttl tests.
@@ -322,26 +322,55 @@
 #                                                        #
 ##########################################################
 
+- job:
+    name: watcher-operator-merged-content-provider
+    parent: openstack-k8s-operators-content-provider
+    description: |
+      Merged content provider that builds both operator images
+      (watcher-operator, openstack-operator) and watcher s2i service images
+      in a single registry for the github-check pipeline. This eliminates
+      the need for two separate registries. Reuses existing s2i playbooks.
+    required-projects:
+      - name: openstack-k8s-operators/s2i-openstack-containers
+        override-checkout: main
+    pre-run:
+      - ci/playbooks/merged_content_provider_prep_s2i.yaml
+    run:
+      - ci/playbooks/merged_content_provider_run.yaml
+    vars:
+      cifmw_install_yamls_sdk_version: v1.41.1
+      cifmw_operator_build_operators:
+        - name: watcher-operator
+          src: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator"
+        - name: openstack-operator
+          src: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/openstack-operator"
+          image_base: watcher
+      # S2I container build configuration - will use ci-framework registry
+      s2i_ci_container_project: >-
+        github.com/openstack-k8s-operators/s2i-openstack-containers
+      s2i_ci_images:
+        - watcher/watcher-base
+      s2i_ci_stream: master
+      s2i_ci_content_provider: true
+      s2i_ci_use_provider_pip_mirror: true
+      s2i_ci_enable_rpm_cache: true
+      s2i_ci_rpm_cache_use_provider_mirror: false
+
 - project-template:
     name: opendev-master-watcher-operator-pipeline
     github-check:
       jobs:
-        # Operator images only. Watcher service images come from s2i.
-        - openstack-k8s-operators-content-provider:
-            vars:
-              cifmw_install_yamls_sdk_version: v1.41.1
-              cifmw_operator_build_operators:
-                - name: watcher-operator
-                  src: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator"
-                - name: openstack-operator
-                  src: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/openstack-operator"
-                  image_base: watcher
+        # Merged content provider: operator images + s2i watcher images in one registry
+        - watcher-operator-merged-content-provider
         - watcher-operator-validation-master:
             dependencies:
-              - openstack-k8s-operators-content-provider
+              - watcher-operator-merged-content-provider
             vars:
               cifmw_update_containers_openstack: false
               cifmw_update_containers_watcher: false
+              # Use the merged content provider's registry
+              content_provider_registry_ip: '{{ content_provider_registry_ip }}'
+              s2i_content_provider_registry_ip: '{{ content_provider_registry_ip }}'
 
 - project-template:
     name: opendev-watcher-edpm-pipeline
@@ -422,10 +451,16 @@
         - noop
         - watcher-operator-doc-preview
         - watcher-operator-kuttl
-        - watcher-s2i-content-provider:
-            voting: false
         - watcher-s2i-tempest:
             voting: false
             dependencies:
-              - openstack-k8s-operators-content-provider
-              - watcher-s2i-content-provider
+              - watcher-operator-merged-content-provider
+            vars:
+              # Use the merged content provider's single registry for both operators and s2i images
+              content_provider_registry_ip: '{{ content_provider_registry_ip }}'
+              s2i_content_provider_registry_ip: '{{ content_provider_registry_ip }}'
+              # Only need one registry in the insecure list now
+              cifmw_crc_additional_insecure_registries:
+                - "{{ content_provider_registry_ip }}:5001"
+              cifmw_crc_additional_allowed_registries:
+                - "{{ content_provider_registry_ip }}:5001"
