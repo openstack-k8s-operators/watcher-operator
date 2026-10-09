@@ -1,26 +1,6 @@
 ---
 - job:
     name: watcher-operator-base
-    nodeset: centos-9-medium-2x-centos-9-crc-cloud-ocp-4-20-1-3xl
-    parent: podified-multinode-edpm-deployment-crc-2comp
-    description: |
-      A multinode EDPM Zuul job which has one ansible controller, one
-      extracted crc and two computes. It will be used for testing watcher-operator.
-      Configures Nova and Cinder to send notifications over a dedicated rabbitmq instance.
-    vars:
-      watcher_scenario: "edpm"
-      cifmw_extras:
-        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
-           src_dir }}/scenarios/centos-9/multinode-ci.yml"
-        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
-           src_dir }}/scenarios/centos-9/horizon.yml"
-        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
-           src_dir }}/ci/scenarios/{{ watcher_scenario }}.yml"
-        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
-           src_dir }}/ci/tests/watcher-tempest.yml"
-
-- job:
-    name: watcher-operator-base-centos-10
     nodeset: centos-10-medium-2x-centos-10-crc-cloud-ocp-4-22-1-3xl
     parent: podified-multinode-edpm-deployment-crc-2comp-centos-10
     description: |
@@ -42,44 +22,6 @@
            src_dir }}/ci/tests/watcher-tempest.yml"
 
 - job:
-    name: periodic-watcher-operator-validation-master
-    parent: watcher-operator-base
-    description: |
-      A multinode EDPM Zuul job which has one ansible controller, one
-      extracted crc and two computes. It will be used for testing watcher
-      in the master promotion RDO pipeline with CentOS Stream 10 content.
-    vars:
-      cifmw_repo_setup_branch: master
-      cifmw_repo_setup_promotion: podified-ci-testing
-      cifmw_dlrn_report_result: true
-      cifmw_update_containers_openstack: true
-      cifmw_update_containers_watcher: true
-      watcher_scenario: "edpm"
-      cifmw_extras:
-        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
-           src_dir }}/scenarios/centos-9/multinode-ci.yml"
-        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
-           src_dir }}/scenarios/centos-9/edpm_periodic.yml"
-        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
-           src_dir }}/ci/scenarios/{{ watcher_scenario }}.yml"
-        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
-           src_dir }}/ci/tests/watcher-tempest.yml"
-      fetch_dlrn_hash: false
-      # Note(chandankumar): It tests cs10 master container current tag build from
-      # DLRN current.
-      watcher_services_tag: current
-      watcher_registry_url: quay.rdoproject.org/podified-master-centos10
-      cifmw_update_containers_registry: "{{ watcher_registry_url | split('/') | first }}"
-      cifmw_update_containers_tag: current
-      cifmw_update_containers_org: "{{ watcher_registry_url | split('/') | last }}"
-      cifmw_test_operator_tempest_image_tag: current
-      cifmw_test_operator_tempest_registry: "{{ cifmw_update_containers_registry }}"
-      cifmw_test_operator_tempest_namespace: "{{ cifmw_update_containers_org }}"
-      cifmw_edpm_telemetry_enabled_exporters:
-        - podman_exporter
-        - openstack_network_exporter
-
-- job:
     name: watcher-operator-validation-base
     parent: watcher-operator-base
     abstract: true
@@ -91,7 +33,7 @@
       Content-provider dependencies are set per pipeline so github-check can
       use openstack-k8s-operators-content-provider while openstack-check keeps
       the meta provider.
-    vars: &watcher-operator-validation-base-vars
+    vars:
       # Donot use openstack services containers from meta content provider master
       # job.
       cifmw_update_containers_openstack: false
@@ -107,20 +49,6 @@
       - .pre-commit-config.yaml
       - tests?\/functional
       - ^docs/
-
-- job:
-    name: watcher-operator-validation-base-centos-10
-    parent: watcher-operator-base-centos-10
-    abstract: true
-    description: |
-      A intermediate base job to set config that is needed for jobs running
-      in the operator check pipeline but will not be used for other jobs
-      inheriting from watcher-operator-base, like the one running in the
-      master pipeline.
-      Content-provider dependencies are set per pipeline so github-check can
-      use openstack-k8s-operators-content-provider while openstack-check keeps
-      the meta provider.
-    vars: *watcher-operator-validation-base-vars
 
 - job:
     name: watcher-operator-kuttl
@@ -163,7 +91,7 @@
     name: watcher-s2i-content-provider
     parent: s2i-openstack-container-content-provider
     description: |
-      Build s2i watcher images for watcher-s2i-tempest.
+      Build s2i watcher images for watcher-operator-validation-master.
     required-projects:
       - name: openstack-k8s-operators/s2i-openstack-containers
         override-checkout: main
@@ -177,8 +105,8 @@
         - nova/nova-scheduler
 
 - job:
-    name: watcher-s2i-tempest
-    parent: watcher-operator-validation-base-centos-10
+    name: watcher-operator-validation-master
+    parent: watcher-operator-validation-base
     description: |
       Validate speculatively-built s2i watcher images against a live
       OpenStack deployment with watcher enabled. s2i-built images from
@@ -195,14 +123,31 @@
       cifmw_crc_additional_allowed_registries:
         - "{{ s2i_content_provider_registry_ip }}:5001"
       cifmw_set_containers_preserve_unlisted: true
+      # The edpm_prepare role otherwise auto-generates cinderVolumeImages for the
+      # nfs/nfs-2 backends from the default registry/org/tag, which resolve to the
+      # antelope-centos9 cinder-volume image. That mismatches the master cinder
+      # services (api/scheduler/backup) and breaks AMQP exchange durability
+      # (cinder-scheduler_fanout), crash-looping cinder-volume and failing every
+      # volume test. Provide cinderVolumeImages explicitly in the set_containers
+      # backends format so the nfs backends run the same master s2i image.
       cifmw_set_containers_images: >-
         {{
-          s2i_content_provider_os_custom_container_images | dict2items |
-          json_query('[].{name: key, full_registry: value}')
+          (s2i_content_provider_os_custom_container_images | dict2items |
+           rejectattr('key', 'equalto', 'cinderVolumeImages') | list |
+           json_query('[].{name: key, full_registry: value}')) +
+          [{'name': 'cinderVolumeImages', 'container_suffix': 'cinder-volume',
+            'backends': [
+            {'name': 'nfs', 'full_registry':
+             'quay.io/openstack-s2i-containers/openstack-cinder-volume:master-latest'},
+            {'name': 'nfs-2', 'full_registry':
+             'quay.io/openstack-s2i-containers/openstack-cinder-volume:master-latest'}]}]
         }}
-      # Same extras as watcher-operator-base: edpm.yml enables telemetry
-      # metricStorage (Prometheus remote-write) and notifications; watcher-tempest.yml
-      # points tempest at Prometheus instead of Gnocchi.
+      # Same extras as the periodic job so the same set of tempest tests runs:
+      # edpm.yml enables telemetry metricStorage (Prometheus remote-write) and
+      # notifications; watcher-tempest.yml points tempest at Prometheus instead of
+      # Gnocchi; watcher-tempest-nfs.yml enables the zone/storage migration tests
+      # and drops the volume_migration exclusion; nfs.yml provides the cinder NFS
+      # backend those migration tests require.
       cifmw_extras:
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
            src_dir }}/scenarios/centos-10/base.yml"
@@ -214,9 +159,13 @@
            src_dir }}/ci/scenarios/{{ watcher_scenario }}.yml"
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
            src_dir }}/ci/tests/watcher-tempest.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/tests/watcher-tempest-nfs.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
+           src_dir }}/ci/scenarios/nfs.yml"
       # watcher-tempest.yml falls back to quay.io/podified-antelope-centos9 when
       # content_provider_os_registry_url is unset. That image's tempest plugin still
-      # talks to Gnocchi. Use the same master tempest image as validation-master.
+      # talks to Gnocchi. Use the same master tempest image as the periodic job.
       cifmw_test_operator_tempest_registry: quay.io
       cifmw_test_operator_tempest_namespace: openstack-s2i-containers
       cifmw_test_operator_tempest_image_tag: master-latest
@@ -258,48 +207,76 @@
           centos10:
             - tempest-extras
             - horizontest
+
 - job:
-    name: watcher-operator-validation-master
+    name: periodic-watcher-operator-validation-master
     parent: watcher-operator-validation-base
     description: |
-      A Zuul job consuming content from openstack-meta-content-provider-master
-      and deploying EDPM with master content.
-      Dedicated RabbitMQ notifications broker is enabled on this job. This job validates
-      Watcher deployment with Application Credentials authentication.
-      It configures an NFS server in a compute node as storage backend for cinder.
-
+      Periodic variant of watcher-operator-validation-master running in the RDO
+      master promotion pipeline on CentOS Stream 10. It validates the s2i-built
+      watcher images with the full tempest coverage (BfV, skipped actions and
+      zone/storage migration) against an NFS cinder backend.
+      NOTE: like the check job it consumes speculatively-built s2i images, so the
+      periodic pipeline that triggers it must provide the watcher-s2i-content-provider
+      (and operator content-provider) dependency.
+    required-projects:
+      - name: openstack-k8s-operators/s2i-openstack-containers
+        override-checkout: main
     vars:
       cifmw_repo_setup_branch: master
-      # To consume containers from meta content provider
-      cifmw_update_containers_openstack: true
-      cifmw_update_containers_org: podified-master-centos10
+      cifmw_repo_setup_promotion: podified-ci-testing
+      cifmw_dlrn_report_result: true
       fetch_dlrn_hash: false
-      cifmw_update_containers_watcher: true
-      watcher_services_tag: watcher_latest
-      watcher_registry_url: "{{ content_provider_os_registry_url }}"
-      cifmw_test_operator_tempest_registry: quay.io
-      cifmw_test_operator_tempest_namespace: openstack-s2i-containers
-      cifmw_test_operator_tempest_image_tag: master-latest
-      cifmw_test_operator_tempest_container: openstack-tempest
+      # Operator CP owns content_provider_registry_ip (catalog + CRC insecure list).
+      cifmw_crc_additional_insecure_registries:
+        - "{{ s2i_content_provider_registry_ip }}:5001"
+      cifmw_crc_additional_allowed_registries:
+        - "{{ s2i_content_provider_registry_ip }}:5001"
+      cifmw_set_containers_preserve_unlisted: true
+      # The edpm_prepare role otherwise auto-generates cinderVolumeImages for the
+      # nfs/nfs-2 backends from the default registry/org/tag, which resolve to the
+      # antelope-centos9 cinder-volume image. That mismatches the master cinder
+      # services (api/scheduler/backup) and breaks AMQP exchange durability
+      # (cinder-scheduler_fanout), crash-looping cinder-volume and failing every
+      # volume test. Provide cinderVolumeImages explicitly in the set_containers
+      # backends format so the nfs backends run the same master s2i image.
+      cifmw_set_containers_images: >-
+        {{
+          (s2i_content_provider_os_custom_container_images | dict2items |
+           rejectattr('key', 'equalto', 'cinderVolumeImages') | list |
+           json_query('[].{name: key, full_registry: value}')) +
+          [{'name': 'cinderVolumeImages', 'container_suffix': 'cinder-volume',
+            'backends': [
+            {'name': 'nfs', 'full_registry':
+             'quay.io/openstack-s2i-containers/openstack-cinder-volume:master-latest'},
+            {'name': 'nfs-2', 'full_registry':
+             'quay.io/openstack-s2i-containers/openstack-cinder-volume:master-latest'}]}]
+        }}
+      # Same extras as watcher-operator-validation-master so the same set of
+      # tempest tests runs: edpm.yml enables telemetry metricStorage (Prometheus
+      # remote-write) and notifications; watcher-tempest.yml points tempest at
+      # Prometheus instead of Gnocchi; watcher-tempest-nfs.yml enables the
+      # zone/storage migration tests and drops the volume_migration exclusion;
+      # nfs.yml provides the cinder NFS backend those migration tests require.
       cifmw_extras:
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
-           src_dir }}/scenarios/centos-9/multinode-ci.yml"
+           src_dir }}/scenarios/centos-10/base.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
+           src_dir }}/scenarios/centos-10/multinode-ci.yml"
+        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/ci-framework'].
+           src_dir }}/scenarios/centos-10/horizon.yml"
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
-           src_dir }}/ci/scenarios/edpm.yml"
+           src_dir }}/ci/scenarios/{{ watcher_scenario }}.yml"
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
            src_dir }}/ci/tests/watcher-tempest.yml"
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
            src_dir }}/ci/tests/watcher-tempest-nfs.yml"
         - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
            src_dir }}/ci/scenarios/nfs.yml"
-        - "@{{ ansible_user_dir }}/{{ zuul.projects['github.com/openstack-k8s-operators/watcher-operator'].
-           src_dir }}/ci/scenarios/use_s2i_containers.yml"
-
-    extra-vars:
-      # Override zuul meta content provider provided content_provider_dlrn_md5_hash
-      # var. As returned dlrn md5 hash comes from master release but job is using
-      # antelope content.
-      content_provider_dlrn_md5_hash: ''
+      cifmw_test_operator_tempest_registry: quay.io
+      cifmw_test_operator_tempest_namespace: openstack-s2i-containers
+      cifmw_test_operator_tempest_image_tag: master-latest
+      cifmw_test_operator_tempest_container: openstack-tempest
 
 ##########################################################
 #                                                        #
@@ -336,12 +313,11 @@
                 - name: openstack-operator
                   src: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/openstack-operator"
                   image_base: watcher
+        - watcher-s2i-content-provider
         - watcher-operator-validation-master:
             dependencies:
               - openstack-k8s-operators-content-provider
-            vars:
-              cifmw_update_containers_openstack: false
-              cifmw_update_containers_watcher: false
+              - watcher-s2i-content-provider
 
 - project-template:
     name: opendev-watcher-edpm-pipeline
@@ -375,7 +351,7 @@
               s2i_ci_images: auto
               ensure_tox_executable: /usr/local/bin/tox
               ensure_global_symlinks: true
-        - watcher-s2i-tempest:
+        - watcher-operator-validation-master:
             branches: master
             override-checkout: main
             files:
@@ -396,7 +372,7 @@
       to validate changes to containers impacting Watcher.
     github-check:
       jobs:
-        - watcher-s2i-tempest:
+        - watcher-operator-validation-master:
             required-projects:
               - name: openstack-k8s-operators/s2i-openstack-containers
                 override-checkout: main
@@ -422,10 +398,3 @@
         - noop
         - watcher-operator-doc-preview
         - watcher-operator-kuttl
-        - watcher-s2i-content-provider:
-            voting: false
-        - watcher-s2i-tempest:
-            voting: false
-            dependencies:
-              - openstack-k8s-operators-content-provider
-              - watcher-s2i-content-provider
