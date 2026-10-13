@@ -1223,6 +1223,28 @@ heartbeat_in_pthread=false`,
 				Expect(string(configData)).Should(ContainSubstring(val))
 			}
 		})
+
+		It("should configure keystone_authtoken memcached without TLS", func() {
+			createdSecret := th.GetSecret(watcherTest.WatcherAPIConfigSecret)
+			Expect(createdSecret).ShouldNot(BeNil())
+			conf := string(createdSecret.Data["00-default.conf"])
+
+			// A non-TLS memcached must use the inet-prefixed server list so that
+			// IPv6 addresses are formatted correctly.
+			memcachedInstance := infra.GetMemcached(watcherTest.MemcachedNamespace)
+			Expect(conf).Should(ContainSubstring(
+				"memcached_servers=" + memcachedInstance.GetMemcachedServerListWithInetString()))
+
+			// With base TLS disabled no memcache TLS settings must be rendered.
+			Expect(conf).ShouldNot(ContainSubstring("memcache_tls_enabled = true"))
+			Expect(conf).ShouldNot(ContainSubstring("memcache_tls_certfile"))
+			Expect(conf).ShouldNot(ContainSubstring("memcache_tls_keyfile"))
+			Expect(conf).ShouldNot(ContainSubstring("memcache_tls_cafile"))
+			// The stray [cache]-only "tls_enabled=true" option must not be
+			// emitted in keystone_authtoken, and base TLS off means it appears
+			// nowhere.
+			Expect(conf).ShouldNot(ContainSubstring("tls_enabled=true"))
+		})
 	})
 
 	When("A WatcherAPI instance is created with MTLS memcached", func() {
@@ -1319,6 +1341,11 @@ heartbeat_in_pthread=false`,
 				g.Expect(configString).To(ContainSubstring("memcache_tls_keyfile"))
 				g.Expect(configString).To(ContainSubstring("memcache_tls_cafile"))
 				g.Expect(configString).To(ContainSubstring("memcache_tls_enabled = true"))
+
+				// With TLS enabled keystone_authtoken must use the TLS server list
+				memcachedInstance := infra.GetMemcached(watcherTest.MemcachedNamespace)
+				g.Expect(configString).To(ContainSubstring(
+					"memcached_servers=" + memcachedInstance.GetMemcachedServerListString()))
 
 				// Check for MTLS configuration in cache section
 				g.Expect(configString).To(ContainSubstring("tls_certfile"))
