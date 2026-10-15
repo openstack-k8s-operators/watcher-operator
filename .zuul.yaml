@@ -4,7 +4,6 @@
     default-branch: main
     merge-mode: rebase
     templates:
-      - opendev-master-watcher-operator-pipeline
       - opendev-epoxy-watcher-operator-pipeline
     github-check:
       jobs:
@@ -104,7 +103,7 @@
 - job:
     name: watcher-operator-kuttl
     nodeset: centos-9-medium-crc-cloud-ocp-4-18-1-3xl
-    dependencies: ["openstack-meta-content-provider-master"]
+    dependencies: ["openstack-meta-content-provider-epoxy"]
     parent: cifmw-multinode-kuttl-operator-target
     description: |
       A zuul job to run watcher operator kuttl tests.
