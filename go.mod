@@ -5,14 +5,14 @@ go 1.26.3
 require (
 	github.com/go-logr/logr v1.4.4
 	github.com/google/uuid v1.6.0
-	github.com/onsi/ginkgo/v2 v2.33.0
+	github.com/onsi/ginkgo/v2 v2.33.1
 	github.com/onsi/gomega v1.44.0
 	github.com/openshift/api v3.9.0+incompatible
-	github.com/openstack-k8s-operators/infra-operator/apis v0.6.1-0.20261005135120-bde8e1645269
-	github.com/openstack-k8s-operators/keystone-operator/api v0.6.1-0.20261006131712-044c423412f3
-	github.com/openstack-k8s-operators/lib-common/modules/common v0.6.1-0.20261009131357-9ec30866fa66
-	github.com/openstack-k8s-operators/lib-common/modules/test v0.6.1-0.20261009131357-9ec30866fa66
-	github.com/openstack-k8s-operators/mariadb-operator/api v0.6.1-0.20261005135121-d94ec2e53a7c
+	github.com/openstack-k8s-operators/infra-operator/apis v0.6.1-0.20261016152937-6d1c48abf1fc
+	github.com/openstack-k8s-operators/keystone-operator/api v0.6.1-0.20261010072248-42f8d7f653a9
+	github.com/openstack-k8s-operators/lib-common/modules/common v0.6.1-0.20261013084430-51fe9c07def7
+	github.com/openstack-k8s-operators/lib-common/modules/test v0.6.1-0.20261013084430-51fe9c07def7
+	github.com/openstack-k8s-operators/mariadb-operator/api v0.6.1-0.20261013061114-712d836c5ff3
 	github.com/openstack-k8s-operators/watcher-operator/api v0.0.0-00010101000000-000000000000
 	go.uber.org/zap v1.28.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -59,8 +59,8 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/openstack-k8s-operators/lib-common/modules/openstack v0.6.1-0.20261001131130-94afb150ee4e // indirect
-	github.com/openstack-k8s-operators/lib-common/modules/storage v0.6.1-0.20261001131130-94afb150ee4e // indirect
+	github.com/openstack-k8s-operators/lib-common/modules/openstack v0.6.1-0.20261009131357-9ec30866fa66 // indirect
+	github.com/openstack-k8s-operators/lib-common/modules/storage v0.6.1-0.20261009131357-9ec30866fa66 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_golang v1.22.0 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
