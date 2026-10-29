@@ -1,7 +1,7 @@
 # Developer Documentation
 The watcher-operator is an OpenShift Operator built using the Operator Framework
 for Go. The Operator provides a way to install and manage the [OpenStack Watcher service](https://docs.openstack.org/watcher/latest/) on OpenShift.
-This Operator is developed using RDO containers for OpenStack.
+This Operator is developed using RDO containers for OpenStack. 
 
 ## Description
 This operator is built using the operator-sdk framework to provide day one
