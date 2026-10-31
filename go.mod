@@ -8,11 +8,11 @@ require (
 	github.com/onsi/ginkgo/v2 v2.33.1
 	github.com/onsi/gomega v1.44.0
 	github.com/openshift/api v3.9.0+incompatible
-	github.com/openstack-k8s-operators/infra-operator/apis v0.6.1-0.20261019120010-4f7fe6080c01
-	github.com/openstack-k8s-operators/keystone-operator/api v0.6.1-0.20261019070056-e9a4467c8188
-	github.com/openstack-k8s-operators/lib-common/modules/common v0.6.1-0.20261013084430-51fe9c07def7
-	github.com/openstack-k8s-operators/lib-common/modules/test v0.6.1-0.20261013084430-51fe9c07def7
-	github.com/openstack-k8s-operators/mariadb-operator/api v0.6.1-0.20261023182325-25fcf35dd049
+	github.com/openstack-k8s-operators/infra-operator/apis v0.6.1-0.20261029162902-788ea2b9b568
+	github.com/openstack-k8s-operators/keystone-operator/api v0.6.1-0.20261026085401-be2a7b1305a4
+	github.com/openstack-k8s-operators/lib-common/modules/common v0.6.1-0.20261029145133-3102c1c3b3b2
+	github.com/openstack-k8s-operators/lib-common/modules/test v0.6.1-0.20261029145133-3102c1c3b3b2
+	github.com/openstack-k8s-operators/mariadb-operator/api v0.6.1-0.20261026085402-7093ecba9c4e
 	github.com/openstack-k8s-operators/watcher-operator/api v0.0.0-00010101000000-000000000000
 	go.uber.org/zap v1.28.0
 	gopkg.in/yaml.v3 v3.0.1
