@@ -115,9 +115,14 @@ func StatefulSet(
 						{
 							Name: ComponentName,
 							Command: []string{
-								"/usr/bin/watcher-applier",
+								"/usr/bin/dumb-init",
 							},
-							Args:            []string{"--config-dir", "/etc/watcher/watcher.conf.d"},
+							Args: []string{
+								"--single-child",
+								"--",
+								"/usr/bin/watcher-applier",
+								"--config-dir", "/etc/watcher/watcher.conf.d",
+							},
 							Image:           instance.Spec.ContainerImage,
 							SecurityContext: pod.RestrictiveSecurityContext(users.WatcherUID, users.WatcherGID),
 							Env:             env.MergeEnvs([]corev1.EnvVar{}, envVars),
