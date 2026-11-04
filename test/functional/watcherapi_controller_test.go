@@ -208,6 +208,13 @@ var _ = Describe("WatcherAPI controller", func() {
 			Expect(container.Image).To(Equal("test://watcher"))
 
 			container = deployment.Spec.Template.Spec.Containers[1]
+			Expect(container.Command).To(Equal([]string{"/usr/bin/dumb-init"}))
+			Expect(container.Args).To(Equal([]string{
+				"--single-child",
+				"--",
+				"/usr/sbin/httpd",
+				"-DFOREGROUND",
+			}))
 			Expect(container.VolumeMounts).To(HaveLen(11))
 			Expect(container.Image).To(Equal("test://watcher"))
 

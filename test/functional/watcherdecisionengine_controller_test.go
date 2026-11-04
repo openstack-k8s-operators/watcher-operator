@@ -269,6 +269,14 @@ transport_url =`
 			Expect(statefulset.Spec.Selector.MatchLabels).To(Equal(map[string]string{"service": "watcher-decision-engine"}))
 
 			container := statefulset.Spec.Template.Spec.Containers[0]
+			Expect(container.Command).To(Equal([]string{"/usr/bin/dumb-init"}))
+			Expect(container.Args).To(Equal([]string{
+				"--single-child",
+				"--",
+				"/usr/bin/watcher-decision-engine",
+				"--config-dir",
+				"/etc/watcher/watcher.conf.d",
+			}))
 			Expect(container.VolumeMounts).To(HaveLen(5))
 			Expect(container.Image).To(Equal("test://watcher"))
 
