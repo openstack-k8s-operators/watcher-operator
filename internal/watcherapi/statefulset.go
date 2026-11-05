@@ -230,9 +230,13 @@ func StatefulSet(
 						{
 							Name: watcher.ServiceName + "-api",
 							Command: []string{
-								"/usr/sbin/httpd",
+								"/usr/bin/dumb-init",
 							},
-							Args:            args,
+							Args: append([]string{
+								"--single-child",
+								"--",
+								"/usr/sbin/httpd",
+							}, args...),
 							Image:           instance.Spec.ContainerImage,
 							SecurityContext: pod.RestrictiveSecurityContext(users.WatcherUID, users.WatcherGID),
 							Env:             env.MergeEnvs([]corev1.EnvVar{}, envVars),
