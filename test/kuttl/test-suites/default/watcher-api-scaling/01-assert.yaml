@@ -303,7 +303,7 @@ metadata:
   name: watcher-public
 spec:
   ports:
-  - name: watcher-public
+  - name: public
     port: 9322
     protocol: TCP
     targetPort: 9322
@@ -320,7 +320,7 @@ metadata:
   name: watcher-internal
 spec:
   ports:
-  - name: watcher-internal
+  - name: internal
     port: 9322
     protocol: TCP
     targetPort: 9322

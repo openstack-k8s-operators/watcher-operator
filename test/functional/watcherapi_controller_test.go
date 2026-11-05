@@ -10,11 +10,14 @@ import (
 	memcachedv1 "github.com/openstack-k8s-operators/infra-operator/apis/memcached/v1beta1"
 	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
 	condition "github.com/openstack-k8s-operators/lib-common/modules/common/condition"
+	"github.com/openstack-k8s-operators/lib-common/modules/common/service"
 	. "github.com/openstack-k8s-operators/lib-common/modules/common/test/helpers"
 	mariadbv1 "github.com/openstack-k8s-operators/mariadb-operator/api/v1beta1"
 	watcherv1beta1 "github.com/openstack-k8s-operators/watcher-operator/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/ptr"
 )
 
@@ -572,6 +575,28 @@ transport_url =`
 				condition.ReadyCondition,
 				corev1.ConditionTrue,
 			)
+		})
+
+		It("drops the dnsmasq hostname annotation when the internal LoadBalancer is switched to ClusterIP", func() {
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
+			th.SimulateLoadBalancerServiceIP(watcherTest.WatcherInternalServiceName)
+			Eventually(func(g Gomega) {
+				g.Expect(th.GetService(watcherTest.WatcherInternalServiceName).Annotations).To(HaveKey(service.AnnotationHostnameKey))
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				instance := GetWatcherAPI(watcherTest.WatcherAPI)
+				override := instance.Spec.Override.Service[service.EndpointInternal]
+				override.Spec = nil
+				instance.Spec.Override.Service[service.EndpointInternal] = override
+				g.Expect(k8sClient.Update(ctx, instance)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				svc := th.GetService(watcherTest.WatcherInternalServiceName)
+				g.Expect(svc.Spec.Type).To(Equal(corev1.ServiceTypeClusterIP))
+				g.Expect(svc.Annotations).NotTo(HaveKey(service.AnnotationHostnameKey))
+			}, timeout, interval).Should(Succeed())
 		})
 	})
 	When("WatcherAPI is created with service TLS", func() {
@@ -1847,4 +1872,250 @@ heartbeat_in_pthread=false`,
 		})
 	})
 
+})
+
+var _ = Describe("WatcherAPI public endpoint reuse", func() {
+	When("WatcherAPI is created with endpointURL overrides on LoadBalancer services", func() {
+		BeforeEach(func() {
+			DeferCleanup(k8sClient.Delete, ctx, CreateInternalTopLevelSecret())
+			prometheusSecret := th.CreateSecret(
+				watcherTest.PrometheusSecretName,
+				map[string][]byte{
+					"host": []byte("prometheus.example.com"),
+					"port": []byte("9090"),
+				},
+			)
+			DeferCleanup(k8sClient.Delete, ctx, prometheusSecret)
+
+			spec := GetDefaultWatcherAPISpec()
+			spec["override"] = map[string]any{
+				"service": map[string]any{
+					"public": map[string]any{
+						"endpointURL": "https://watcher.example.com:9322",
+						"spec":        map[string]any{"type": "LoadBalancer"},
+					},
+					"internal": map[string]any{
+						"endpointURL": "https://watcher-int.example.com:9322",
+						"spec":        map[string]any{"type": "LoadBalancer"},
+					},
+				},
+			}
+			DeferCleanup(th.DeleteInstance, CreateWatcherAPI(watcherTest.WatcherAPI, spec))
+			DeferCleanup(keystone.DeleteKeystoneAPI, keystone.CreateKeystoneAPI(watcherTest.WatcherAPI.Namespace))
+			memcachedSpec := memcachedv1.MemcachedSpec{
+				MemcachedSpecCore: memcachedv1.MemcachedSpecCore{Replicas: ptr.To(int32(1))},
+			}
+			DeferCleanup(infra.DeleteMemcached, infra.CreateMemcached(watcherTest.WatcherAPI.Namespace, MemcachedInstance, memcachedSpec))
+			infra.SimulateMemcachedReady(watcherTest.MemcachedNamespace)
+			DeferCleanup(
+				mariadb.DeleteDBService,
+				mariadb.CreateDBService(
+					watcherTest.WatcherAPI.Namespace,
+					"openstack",
+					corev1.ServiceSpec{Ports: []corev1.ServicePort{{Port: 3306}}},
+				),
+			)
+			mariadb.CreateMariaDBAccountAndSecret(
+				watcherTest.WatcherDatabaseAccount,
+				mariadbv1.MariaDBAccountSpec{UserName: "watcher"},
+			)
+			mariadb.CreateMariaDBDatabase(watcherTest.WatcherAPI.Namespace, "watcher", mariadbv1.MariaDBDatabaseSpec{Name: "watcher"})
+			mariadb.SimulateMariaDBAccountCompleted(watcherTest.WatcherDatabaseAccount)
+			mariadb.SimulateMariaDBDatabaseCompleted(watcherTest.WatcherDatabaseName)
+		})
+
+		It("renders ServerName/ServerAlias from endpointURL", func() {
+			ns := watcherTest.WatcherAPI.Namespace
+			Eventually(func(g Gomega) {
+				conf := string(th.GetSecret(watcherTest.WatcherAPIConfigSecret).Data["10-watcher-wsgi-main.conf"])
+				g.Expect(conf).To(ContainSubstring("ServerName watcher.example.com\n"))
+				g.Expect(conf).To(ContainSubstring("ServerAlias watcher-public." + ns + ".svc\n"))
+				g.Expect(conf).To(ContainSubstring("ServerName watcher-int.example.com\n"))
+				g.Expect(conf).To(ContainSubstring("ServerAlias watcher-internal." + ns + ".svc\n"))
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("keeps the default public vhost ServerName when the public endpointURL has no LoadBalancer (Route)", func() {
+			ns := watcherTest.WatcherAPI.Namespace
+			Eventually(func(g Gomega) {
+				instance := GetWatcherAPI(watcherTest.WatcherAPI)
+				override := instance.Spec.Override.Service[service.EndpointPublic]
+				override.Spec = nil
+				instance.Spec.Override.Service[service.EndpointPublic] = override
+				g.Expect(k8sClient.Update(ctx, instance)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				conf := string(th.GetSecret(watcherTest.WatcherAPIConfigSecret).Data["10-watcher-wsgi-main.conf"])
+				// the router sends no SNI, so the route host must not become a ServerName
+				g.Expect(conf).NotTo(ContainSubstring("ServerName watcher.example.com"))
+				g.Expect(conf).To(ContainSubstring("ServerName watcher-public." + ns + ".svc\n"))
+				// the internal LoadBalancer endpointURL still drives its ServerName
+				g.Expect(conf).To(ContainSubstring("ServerName watcher-int.example.com\n"))
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("drops a stale dnsmasq hostname annotation when the public Service becomes ClusterIP", func() {
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
+			Eventually(func(g Gomega) {
+				for _, n := range []types.NamespacedName{watcherTest.WatcherInternalServiceName, watcherTest.WatcherPublicServiceName} {
+					svc := &corev1.Service{}
+					if k8sClient.Get(ctx, n, svc) == nil && len(svc.Status.LoadBalancer.Ingress) == 0 {
+						th.SimulateLoadBalancerServiceIP(n)
+					}
+				}
+				for _, n := range []types.NamespacedName{watcherTest.WatcherInternalServiceName, watcherTest.WatcherPublicServiceName} {
+					svc := &corev1.Service{}
+					g.Expect(k8sClient.Get(ctx, n, svc)).To(Succeed())
+					g.Expect(svc.Status.LoadBalancer.Ingress).NotTo(BeEmpty())
+				}
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				instance := GetWatcherAPI(watcherTest.WatcherAPI)
+				override := instance.Spec.Override.Service[service.EndpointPublic]
+				override.Spec = nil
+				instance.Spec.Override.Service[service.EndpointPublic] = override
+				g.Expect(k8sClient.Update(ctx, instance)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				// Services are reconciled once the rolled StatefulSet is ready again
+				th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
+				svc := th.GetService(watcherTest.WatcherPublicServiceName)
+				g.Expect(svc.Spec.Type).To(Equal(corev1.ServiceTypeClusterIP))
+			}, timeout, interval).Should(Succeed())
+
+			// simulate a registration left on the now ClusterIP public Service
+			Eventually(func(g Gomega) {
+				svc := th.GetService(watcherTest.WatcherPublicServiceName)
+				svc.Annotations[service.AnnotationHostnameKey] = "watcher-public.stale.svc"
+				g.Expect(k8sClient.Update(ctx, svc)).To(Succeed())
+			}, timeout, interval).Should(Succeed())
+
+			Eventually(func(g Gomega) {
+				g.Expect(th.GetService(watcherTest.WatcherPublicServiceName).Annotations).NotTo(HaveKey(service.AnnotationHostnameKey))
+			}, timeout, interval).Should(Succeed())
+		})
+
+		It("uses bare Service port names, keeps object names and registers DNS only for internal", func() {
+			th.SimulateStatefulSetReplicaReady(watcherTest.WatcherAPIStatefulSet)
+			// the controller stops at the first LoadBalancer without an IP,
+			// so give each Service an IP as it shows up
+			Eventually(func(g Gomega) {
+				for _, n := range []types.NamespacedName{watcherTest.WatcherInternalServiceName, watcherTest.WatcherPublicServiceName} {
+					svc := &corev1.Service{}
+					if k8sClient.Get(ctx, n, svc) == nil && len(svc.Status.LoadBalancer.Ingress) == 0 {
+						th.SimulateLoadBalancerServiceIP(n)
+					}
+				}
+				for _, n := range []types.NamespacedName{watcherTest.WatcherInternalServiceName, watcherTest.WatcherPublicServiceName} {
+					svc := &corev1.Service{}
+					g.Expect(k8sClient.Get(ctx, n, svc)).To(Succeed())
+					g.Expect(svc.Status.LoadBalancer.Ingress).NotTo(BeEmpty())
+				}
+			}, timeout, interval).Should(Succeed())
+
+			public := th.GetService(watcherTest.WatcherPublicServiceName)
+			Expect(public.Name).To(Equal("watcher-public"))
+			Expect(public.Spec.Ports[0].Name).To(Equal("public"))
+			Expect(public.Annotations).NotTo(HaveKey(service.AnnotationHostnameKey))
+
+			internal := th.GetService(watcherTest.WatcherInternalServiceName)
+			Expect(internal.Name).To(Equal("watcher-internal"))
+			Expect(internal.Spec.Ports[0].Name).To(Equal("internal"))
+			Expect(internal.Annotations).To(HaveKeyWithValue(
+				service.AnnotationHostnameKey, "watcher-internal."+watcherTest.WatcherAPI.Namespace+".svc"))
+		})
+	})
+})
+
+var _ = Describe("WatcherAPI service override validation", func() {
+	validate := func(ov map[service.Endpoint]service.RoutedOverrideSpec) field.ErrorList {
+		t := watcherv1beta1.WatcherAPITemplate{}
+		t.Override.Service = ov
+		return t.ValidateOverrides(field.NewPath("spec"))
+	}
+	port := func(name string, p int32) *service.OverrideServiceSpec {
+		return &service.OverrideServiceSpec{Ports: []service.OverrideServicePort{{Name: name, Port: p}}}
+	}
+	url := func(u string) *string { return &u }
+
+	It("rejects a wrong port name on a WatcherAPI CR through the webhook", func() {
+		spec := GetDefaultWatcherAPISpec()
+		spec["override"] = map[string]any{"service": map[string]any{"public": map[string]any{
+			"spec": map[string]any{"ports": []any{map[string]any{"name": "watcher-public", "port": int64(9322)}}},
+		}}}
+		raw := map[string]any{
+			"apiVersion": "watcher.openstack.org/v1beta1",
+			"kind":       "WatcherAPI",
+			"metadata":   map[string]any{"name": "watcher-api-bad", "namespace": watcherTest.WatcherAPI.Namespace},
+			"spec":       spec,
+		}
+		err := k8sClient.Create(ctx, &unstructured.Unstructured{Object: raw})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring(`must be "public"`))
+	})
+
+	It("only validates overrides on update when they changed", func() {
+		legacy := map[service.Endpoint]service.RoutedOverrideSpec{
+			service.EndpointPublic: {OverrideSpec: service.OverrideSpec{Spec: port("watcher-public", 9322)}},
+		}
+		newCore := func(ov map[service.Endpoint]service.RoutedOverrideSpec) watcherv1beta1.WatcherSpecCore {
+			c := watcherv1beta1.WatcherSpecCore{DatabaseInstance: ptr.To("openstack")}
+			c.MessagingBus.Cluster = "rabbitmq"
+			c.APIServiceTemplate.Override.Service = ov
+			return c
+		}
+		unchanged := newCore(legacy)
+		_, errs := unchanged.ValidateUpdate(newCore(legacy), field.NewPath("spec"), "ns")
+		Expect(errs).To(BeEmpty())
+
+		_, errs = unchanged.ValidateUpdate(newCore(nil), field.NewPath("spec"), "ns")
+		Expect(errs.ToAggregate().Error()).To(ContainSubstring(`must be "public"`))
+	})
+
+	DescribeTable("port names",
+		func(ep service.Endpoint, name string, ok bool) {
+			errs := validate(map[service.Endpoint]service.RoutedOverrideSpec{
+				ep: {OverrideSpec: service.OverrideSpec{Spec: port(name, 9322)}},
+			})
+			if ok {
+				Expect(errs).To(BeEmpty())
+			} else {
+				Expect(errs.ToAggregate().Error()).To(ContainSubstring(fmt.Sprintf("must be %q", string(ep))))
+			}
+		},
+		Entry("public bare", service.EndpointPublic, "public", true),
+		Entry("public wrong", service.EndpointPublic, "watcher-public", false),
+		Entry("internal bare", service.EndpointInternal, "internal", true),
+		Entry("internal wrong", service.EndpointInternal, "watcher-internal", false),
+	)
+
+	DescribeTable("endpointURL",
+		func(ep service.Endpoint, u string, p int32, ok bool) {
+			o := service.RoutedOverrideSpec{EndpointURL: url(u)}
+			if p != 0 {
+				o.Spec = port("", p)
+				o.Spec.Ports[0].Name = string(ep)
+			}
+			errs := validate(map[service.Endpoint]service.RoutedOverrideSpec{ep: o})
+			if ok {
+				Expect(errs).To(BeEmpty())
+			} else {
+				Expect(errs).NotTo(BeEmpty())
+			}
+		},
+		Entry("public FQDN", service.EndpointPublic, "https://watcher.example.com", int32(0), true),
+		Entry("public short name", service.EndpointPublic, "https://watcher", int32(0), false),
+		Entry("public no scheme", service.EndpointPublic, "watcher.example.com", int32(0), false),
+		Entry("public IP", service.EndpointPublic, "https://192.0.2.10", int32(0), false),
+		Entry("public port mismatch", service.EndpointPublic, "https://watcher.example.com:8443", int32(9322), false),
+		Entry("public port match", service.EndpointPublic, "https://watcher.example.com:8443", int32(8443), true),
+		Entry("internal FQDN", service.EndpointInternal, "https://watcher-int.example.com", int32(0), true),
+		Entry("internal short name", service.EndpointInternal, "https://watcher", int32(0), false),
+		Entry("internal IP", service.EndpointInternal, "https://192.0.2.10", int32(0), false),
+		Entry("internal port mismatch", service.EndpointInternal, "https://watcher-int.example.com:8443", int32(9322), false),
+		Entry("internal port match", service.EndpointInternal, "https://watcher-int.example.com:8443", int32(8443), true),
+	)
 })
