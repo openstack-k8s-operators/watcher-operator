@@ -18,6 +18,7 @@ package v1beta1
 
 import (
 	"fmt"
+	"k8s.io/apimachinery/pkg/api/equality"
 
 	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
 	common_webhook "github.com/openstack-k8s-operators/lib-common/modules/common/webhook"
@@ -189,6 +190,7 @@ func (spec *WatcherSpecCore) ValidateCreate(basePath *field.Path, namespace stri
 	}
 
 	allErrs = append(allErrs, spec.ValidateWatcherTopology(basePath, namespace)...)
+	allErrs = append(allErrs, spec.APIServiceTemplate.ValidateOverrides(basePath.Child("apiServiceTemplate"))...)
 
 	return allWarns, allErrs
 }
@@ -257,6 +259,9 @@ func (spec *WatcherSpecCore) ValidateUpdate(old WatcherSpecCore, basePath *field
 	allErrs = append(allErrs, errs...)
 
 	allErrs = append(allErrs, spec.ValidateWatcherTopology(basePath, namespace)...)
+	if !equality.Semantic.DeepEqual(old.APIServiceTemplate.Override, spec.APIServiceTemplate.Override) {
+		allErrs = append(allErrs, spec.APIServiceTemplate.ValidateOverrides(basePath.Child("apiServiceTemplate"))...)
+	}
 
 	return allWarns, allErrs
 }

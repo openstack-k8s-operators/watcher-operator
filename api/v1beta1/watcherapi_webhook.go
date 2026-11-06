@@ -18,7 +18,11 @@ package v1beta1
 
 import (
 	topologyv1 "github.com/openstack-k8s-operators/infra-operator/apis/topology/v1beta1"
+	common_webhook "github.com/openstack-k8s-operators/lib-common/modules/common/webhook"
+	"k8s.io/apimachinery/pkg/api/equality"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -42,16 +46,19 @@ func (r *WatcherAPI) Default() {
 func (r *WatcherAPI) ValidateCreate() (admission.Warnings, error) {
 	watcherapilog.Info("validate create", "name", r.Name)
 
-	// TODO(user): fill in your validation logic upon object creation.
-	return nil, nil
+	return nil, r.validateOverrides()
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (r *WatcherAPI) ValidateUpdate(runtime.Object) (admission.Warnings, error) {
+func (r *WatcherAPI) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
 	watcherapilog.Info("validate update", "name", r.Name)
 
-	// TODO(user): fill in your validation logic upon object update.
-	return nil, nil
+	// Only validate when the override changed, so a CR carrying a legacy
+	// value can still be updated (finalizers, status) and deleted.
+	if o, ok := old.(*WatcherAPI); ok && equality.Semantic.DeepEqual(o.Spec.Override, r.Spec.Override) {
+		return nil, nil
+	}
+	return nil, r.validateOverrides()
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
@@ -60,6 +67,29 @@ func (r *WatcherAPI) ValidateDelete() (admission.Warnings, error) {
 
 	// TODO(user): fill in your validation logic upon object deletion.
 	return nil, nil
+}
+
+func (r *WatcherAPI) validateOverrides() error {
+	errs := r.Spec.Override.validate(field.NewPath("spec"))
+	if len(errs) == 0 {
+		return nil
+	}
+	return apierrors.NewInvalid(schema.GroupKind{Group: "watcher.openstack.org", Kind: "WatcherAPI"}, r.Name, errs)
+}
+
+// ValidateOverrides rejects service overrides (public or internal) with a port
+// name other than the bare endpoint type, or an invalid endpointURL. See
+// webhook.ValidatePortNameOverrides.
+func (r *WatcherAPITemplate) ValidateOverrides(basePath *field.Path) field.ErrorList {
+	return r.Override.validate(basePath)
+}
+
+func (o APIOverrideSpec) validate(basePath *field.Path) field.ErrorList {
+	return common_webhook.ValidatePortNameOverrides(
+		basePath.Child("override").Child("service"),
+		o.Service,
+		common_webhook.DefaultServicePortNames(),
+	)
 }
 
 // ValidateTopology validates the referenced TopoRef.Namespace.
