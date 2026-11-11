@@ -53,7 +53,7 @@
 - job:
     name: watcher-operator-kuttl
     nodeset: centos-9-medium-crc-cloud-ocp-4-18-1-3xl
-    dependencies: ["openstack-k8s-operators-content-provider"]
+    dependencies: ["openstack-s2i-content-provider"]
     parent: cifmw-multinode-kuttl-operator-target
     description: |
       A zuul job to run watcher operator kuttl tests.
@@ -86,23 +86,6 @@
     vars:
       asciidoc_available: true
       doc_available: false
-
-- job:
-    name: watcher-s2i-content-provider
-    parent: s2i-openstack-container-content-provider
-    description: |
-      Build s2i watcher images for watcher-operator-validation-master.
-    required-projects:
-      - name: openstack-k8s-operators/s2i-openstack-containers
-        override-checkout: main
-    vars:
-      s2i_ci_images:
-        - watcher/watcher-base
-        - nova/nova-api
-        - nova/nova-compute
-        - nova/nova-conductor
-        - nova/nova-novncproxy
-        - nova/nova-scheduler
 
 - job:
     name: watcher-operator-validation-master
@@ -399,25 +382,21 @@
     name: opendev-master-watcher-operator-pipeline
     github-check:
       jobs:
-        # Operator images only. Watcher service images come from s2i.
-        - openstack-k8s-operators-content-provider:
+        - openstack-s2i-content-provider:
             vars:
-              cifmw_install_yamls_sdk_version: v1.41.1
-              cifmw_operator_build_operators:
-                - name: watcher-operator
-                  src: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/watcher-operator"
-                - name: openstack-operator
-                  src: "{{ ansible_user_dir }}/src/github.com/openstack-k8s-operators/openstack-operator"
-                  image_base: watcher
-        - watcher-s2i-content-provider
+              s2i_ci_images: &s2i_images
+                - watcher/watcher-base
+                - nova/nova-api
+                - nova/nova-compute
+                - nova/nova-conductor
+                - nova/nova-novncproxy
+                - nova/nova-scheduler
         - watcher-operator-validation-master:
             dependencies:
-              - openstack-k8s-operators-content-provider
-              - watcher-s2i-content-provider
+              - openstack-s2i-content-provider
         - watcher-operator-validation-master-ceph:
             dependencies:
-              - openstack-k8s-operators-content-provider
-              - watcher-s2i-content-provider
+              - openstack-s2i-content-provider
 
 - project-template:
     name: opendev-watcher-edpm-pipeline
@@ -430,7 +409,7 @@
       containers (auto-detect would find no sources.txt match).
     openstack-check:
       jobs:
-        - watcher-s2i-content-provider:
+        - openstack-s2i-content-provider:
             branches: master
             override-checkout: main
             files:
@@ -461,9 +440,7 @@
               - github.com/openstack-k8s-operators/watcher-operator
               - github.com/openstack-k8s-operators/s2i-openstack-containers
             dependencies:
-              - watcher-s2i-content-provider
-            vars:
-              content_provider_registry_ip: '{{ s2i_content_provider_registry_ip }}'
+              - openstack-s2i-content-provider
 
 - project-template:
     name: watcher-operator-s2i-component-jobs
