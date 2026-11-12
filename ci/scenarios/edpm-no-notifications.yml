@@ -81,6 +81,17 @@ cifmw_edpm_prepare_kustomizations:
                   period = 60
       target:
         kind: OpenStackControlPlane
+    - patch : |-
+        apiVersion: core.openstack.org/v1beta1
+        kind: OpenStackControlPlane
+        metadata:
+          name: controlplane
+        spec:
+          keystone:
+            template:
+              region: customRegion
+      target:
+        kind: OpenStackControlPlane
 
 cifmw_edpm_prepare_timeout: 60
 
