@@ -137,7 +137,7 @@ For a detailed list of all CI jobs and their configuration matrix, please refer 
 [Prow](https://prow.ci.openshift.org/?repo=openstack-k8s-operators%2Fwatcher-operator) is also used to execute operator functional and pre-commit tests
 
 ## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines and DCO information.
 
 **NOTE:** Run `make help` for more information on all potential `make` targets
 
