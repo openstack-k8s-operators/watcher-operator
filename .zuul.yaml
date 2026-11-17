@@ -96,13 +96,7 @@
       - name: openstack-k8s-operators/s2i-openstack-containers
         override-checkout: main
     vars:
-      s2i_ci_images:
-        - watcher/watcher-base
-        - nova/nova-api
-        - nova/nova-compute
-        - nova/nova-conductor
-        - nova/nova-novncproxy
-        - nova/nova-scheduler
+      s2i_ci_images: auto
 
 - job:
     name: watcher-operator-validation-master
