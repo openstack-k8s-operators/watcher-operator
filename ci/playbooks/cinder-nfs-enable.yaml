@@ -7,6 +7,9 @@
     _cinder_nfs_secret_files:
       - cinder-volume-nfs-secrets.yaml
       - cinder-volume-nfs-secrets-2.yaml
+    _cinder_nfs_backends:
+      - nfs
+      - nfs-2
   tasks:
     - name: Ensure the kustomizations dir exists
       ansible.builtin.file:
@@ -39,16 +42,17 @@
       ansible.builtin.template:
         dest: "{{ cifmw_controlplane_kustomizations_path }}/cinder-backup-nfs-sercrets.yaml"
         src: "cinder-backup-nfs-secrets.yaml.j2"
-        mode: '640'
+        mode: "640"
 
     - name: Create the definition of the secrets
       vars:
         share: "{{ cifmw_nfs_shares[indx] }}"
         name: "{{ filename | splitext | first }}"
+        backend_name: "{{ _cinder_nfs_backends[indx] }}"
       ansible.builtin.template:
         dest: "{{ cifmw_controlplane_kustomizations_path }}/{{ filename }}"
         src: "cinder-volume-nfs-secrets.yaml.j2"
-        mode: '640'
+        mode: "640"
       loop: "{{ _cinder_nfs_secret_files }}"
       loop_control:
         loop_var: filename
@@ -70,7 +74,7 @@
       ansible.builtin.template:
         dest: "{{ cifmw_controlplane_kustomizations_path }}/nfs_backend.yaml"
         src: "nfs_backend.yaml.j2"
-        mode: '640'
+        mode: "640"
 
     # FIXME: copy with inline content does not support templating, so this should be reworked
     - name: Create kustomization to really enable NFS shares as backends for cinder and cinder-backup
