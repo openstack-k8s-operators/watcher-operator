@@ -75,6 +75,7 @@ func (r *WatcherAPIReconciler) GetLogger(ctx context.Context) logr.Logger {
 //+kubebuilder:rbac:groups=watcher.openstack.org,resources=watcherapis/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=watcher.openstack.org,resources=watcherapis/finalizers,verbs=update
 //+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete;
+//+kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;
 //+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete;
 //+kubebuilder:rbac:groups=keystone.openstack.org,resources=keystoneapis,verbs=get;list;watch;
 //+kubebuilder:rbac:groups=keystone.openstack.org,resources=keystoneservices,verbs=get;list;watch;create;update;patch;delete;
@@ -997,6 +998,11 @@ func (r *WatcherAPIReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&keystonev1.KeystoneAPI{},
 			handler.EnqueueRequestsFromMapFunc(r.findObjectForSrc),
 			builder.WithPredicates(keystonev1.KeystoneAPIStatusChangedPredicate)).
+		// Reconcile when the well-known TLS profile ConfigMap maintained by
+		// the openstack-operator changes, so rendered configs pick up the
+		// new cluster-wide TLS defaults.
+		Watches(&corev1.ConfigMap{},
+			util.WatchDefaultTemplateConfigMap(r.Client, &watcherv1beta1.WatcherAPI{})).
 		Complete(r)
 }
 
